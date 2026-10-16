@@ -279,9 +279,11 @@
                         style="@style/FormInput"
                         android:inputType="textCapSentences"
                         android:hint="@string/anchor_hint" />
+                </LinearLayout>
+            </FrameLayout>
 
-                    <View style="@style/FormDivider" />
-
+            <FrameLayout style="@style/FormOuterBox">
+                <LinearLayout style="@style/FormInnerBox">
                     <TextView
                         style="@style/FormLabel"
                         android:text="@string/place_label" />
@@ -291,9 +293,11 @@
                         style="@style/FormInput"
                         android:inputType="textCapSentences"
                         android:hint="@string/place_hint" />
+                </LinearLayout>
+            </FrameLayout>
 
-                    <View style="@style/FormDivider" />
-
+            <FrameLayout style="@style/FormOuterBox">
+                <LinearLayout style="@style/FormInnerBox">
                     <TextView
                         style="@style/FormLabel"
                         android:text="@string/tiny_version_label" />
@@ -303,9 +307,11 @@
                         style="@style/FormInput"
                         android:inputType="textCapSentences"
                         android:hint="@string/tiny_version_hint" />
+                </LinearLayout>
+            </FrameLayout>
 
-                    <View style="@style/FormDivider" />
-
+            <FrameLayout style="@style/FormOuterBox">
+                <LinearLayout style="@style/FormInnerBox">
                     <TextView
                         style="@style/FormLabel"
                         android:text="@string/if_then_label" />
