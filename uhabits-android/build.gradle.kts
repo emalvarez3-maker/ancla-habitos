@@ -20,6 +20,7 @@
 plugins {
     alias(libs.plugins.agp)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.ktlint.plugin)
     alias(libs.plugins.mokkery)
@@ -96,6 +97,7 @@ android {
         }
     }
     buildFeatures.viewBinding = true
+    buildFeatures.compose = true
     lint.abortOnError = false
 }
 
@@ -126,6 +128,14 @@ dependencies {
     implementation(libs.opencsv)
     implementation(libs.konfetti.xml)
     implementation(project(":uhabits-core"))
+    implementation(platform(libs.compose.bom))
+    implementation(libs.compose.ui)
+    implementation(libs.compose.foundation)
+    implementation(libs.compose.material3)
+    implementation(libs.compose.ui.tooling.preview)
+    debugImplementation(libs.compose.ui.tooling)
+    implementation(libs.activity.compose)
+    implementation(libs.lifecycle.runtime.compose)
     ksp(libs.kotlin.inject.compiler)
 
     androidTestImplementation(libs.annotation)
