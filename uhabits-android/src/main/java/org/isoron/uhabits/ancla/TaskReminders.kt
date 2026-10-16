@@ -111,6 +111,7 @@ object TaskReminders {
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(task.title)
             .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setContentIntent(open)
@@ -127,6 +128,7 @@ object TaskReminders {
 
 class TaskReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+        Log.d("TaskReminderReceiver", "received ${intent.action} task=${intent.getLongExtra(TaskReminders.EXTRA_TASK_ID, -1)}")
         val component = (context.applicationContext as HabitsApplication).component
         val repo = TaskRepository(component.db)
         when (intent.action) {
