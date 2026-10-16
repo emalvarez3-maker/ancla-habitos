@@ -66,6 +66,7 @@ class TodayActivity : AppCompatActivity(), CommandRunner.Listener {
                     onDeleteTask = ::deleteTask,
                     onAddHabit = { HabitTypeDialog().show(supportFragmentManager, "habitType") },
                     onHabits = { startActivity(Intent(this, ListHabitsActivity::class.java)) },
+                    onReading = { startActivity(Intent(this, org.isoron.uhabits.ancla.reading.LibraryActivity::class.java)) },
                     onSettings = { startActivity(component.intentFactory.startSettingsActivity(this)) }
                 )
             }

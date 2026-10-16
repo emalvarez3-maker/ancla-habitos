@@ -59,6 +59,15 @@
             android:label="@string/ancla_app_name"
             android:launchMode="singleTop" />
 
+        <activity
+            android:name=".ancla.reading.LibraryActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".ancla.reading.ReaderActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden" />
+
         <activity-alias
             android:name=".MainActivity"
             android:exported="true"

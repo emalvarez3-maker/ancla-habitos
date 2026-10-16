@@ -144,6 +144,7 @@ fun TodayScreen(
     onDeleteTask: (Long) -> Unit,
     onAddHabit: () -> Unit,
     onHabits: () -> Unit,
+    onReading: () -> Unit,
     onSettings: () -> Unit
 ) {
     val c = Ancla.colors
@@ -209,7 +210,7 @@ fun TodayScreen(
             }
         }
         AddButton(onAdd, Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 22.dp, bottom = 96.dp))
-        BottomBar(onHabits, onSettings, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(14.dp))
+        BottomBar(onHabits, onReading, onSettings, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(14.dp))
     }
 }
 
@@ -324,7 +325,7 @@ private fun FilterChip(label: String, selected: Boolean, onClick: () -> Unit) {
             .clip(CircleShape)
             .background(bg)
             .combinedClickableCompat(role = Role.Tab, onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .padding(horizontal = 10.dp, vertical = 10.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(label, style = MaterialTheme.typography.labelLarge, color = fg)
@@ -455,7 +456,7 @@ private fun AddButton(onAdd: () -> Unit, modifier: Modifier) {
 }
 
 @Composable
-private fun BottomBar(onHabits: () -> Unit, onSettings: () -> Unit, modifier: Modifier) {
+private fun BottomBar(onHabits: () -> Unit, onReading: () -> Unit, onSettings: () -> Unit, modifier: Modifier) {
     val c = Ancla.colors
     Row(
         modifier
@@ -468,11 +469,12 @@ private fun BottomBar(onHabits: () -> Unit, onSettings: () -> Unit, modifier: Mo
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            Modifier.clip(RoundedCornerShape(16.dp)).background(c.mintSoft).padding(horizontal = 16.dp, vertical = 10.dp)
+            Modifier.clip(RoundedCornerShape(16.dp)).background(c.mintSoft).padding(horizontal = 14.dp, vertical = 10.dp)
         ) {
             Text(stringResource(R.string.nav_today), style = MaterialTheme.typography.labelLarge, color = c.mintInk)
         }
         NavText(stringResource(R.string.nav_habits), onHabits)
+        NavText(stringResource(R.string.nav_reading), onReading)
         NavText(stringResource(R.string.nav_settings), onSettings)
     }
 }
