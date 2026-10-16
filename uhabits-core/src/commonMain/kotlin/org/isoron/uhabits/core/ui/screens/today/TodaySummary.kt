@@ -21,6 +21,7 @@ package org.isoron.uhabits.core.ui.screens.today
 
 import org.isoron.platform.time.LocalDate
 import org.isoron.uhabits.core.models.Automaticity
+import org.isoron.uhabits.core.models.DayTask
 import org.isoron.uhabits.core.models.AutomaticityPhase
 import org.isoron.uhabits.core.models.Entry
 import org.isoron.uhabits.core.models.Habit
@@ -45,8 +46,19 @@ data class TodayHabitItem(
     val value: Double
 )
 
+data class TodayTaskItem(
+    val taskId: Long,
+    val title: String,
+    val notes: String,
+    val minuteOfDay: Int?,
+    val remind: Boolean,
+    val isDone: Boolean,
+    val isOverdue: Boolean
+)
+
 data class TodaySummary(
     val items: List<TodayHabitItem>,
+    val tasks: List<TodayTaskItem>,
     val doneCount: Int,
     val totalCount: Int,
     val mood: TodayMood,
@@ -73,7 +85,7 @@ data class TodaySummary(
             }
         }
 
-        fun build(habitList: HabitList, today: LocalDate): TodaySummary {
+        fun build(habitList: HabitList, today: LocalDate, dayTasks: List<DayTask> = emptyList()): TodaySummary {
             val habits = habitList.filter { !it.isArchived && it.id != null }
             var automaticitySum = 0.0
             var repetitions = 0
@@ -100,8 +112,22 @@ data class TodaySummary(
                 )
             }.sortedWith(compareBy<TodayHabitItem>({ it.minuteOfDay ?: Int.MAX_VALUE }, { it.name.lowercase() }))
 
-            val done = items.count { it.isDone }
-            val total = items.size
+            val tasks = dayTasks.filter { it.id != null }.map {
+                TodayTaskItem(
+                    taskId = it.id!!,
+                    title = it.title,
+                    notes = it.notes,
+                    minuteOfDay = it.minuteOfDay,
+                    remind = it.remind,
+                    isDone = it.isDone,
+                    isOverdue = it.isOverdue(today)
+                )
+            }.sortedWith(
+                compareBy<TodayTaskItem>({ !it.isOverdue }, { it.minuteOfDay ?: Int.MAX_VALUE }, { it.title.lowercase() })
+            )
+
+            val done = items.count { it.isDone } + tasks.count { it.isDone }
+            val total = items.size + tasks.size
             val keyPending = items.any { it.isKeyDay && !it.isDone }
             val mood = when {
                 total > 0 && done == total -> TodayMood.JOY
@@ -113,6 +139,7 @@ data class TodaySummary(
             val xp = repetitions * XP_PER_REPETITION
             return TodaySummary(
                 items = items,
+                tasks = tasks,
                 doneCount = done,
                 totalCount = total,
                 mood = mood,

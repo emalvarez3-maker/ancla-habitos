@@ -83,11 +83,31 @@ import org.isoron.uhabits.core.models.AutomaticityPhase
 import org.isoron.uhabits.core.ui.screens.today.TodayHabitItem
 import org.isoron.uhabits.core.ui.screens.today.TodayMood
 import org.isoron.uhabits.core.ui.screens.today.TodaySummary
+import org.isoron.uhabits.core.ui.screens.today.TodayTaskItem
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 private enum class TodayFilter { ALL, PENDING, DONE }
+
+private sealed class TodayRow(val key: String, val sortMinute: Int, val sortName: String) {
+    class HabitRowData(val item: TodayHabitItem) :
+        TodayRow("h${item.habitId}", item.minuteOfDay ?: Int.MAX_VALUE, item.name.lowercase())
+    class TaskRowData(val item: TodayTaskItem) :
+        TodayRow("t${item.taskId}", if (item.isOverdue) -1 else item.minuteOfDay ?: Int.MAX_VALUE, item.title.lowercase())
+}
+
+private fun buildRows(summary: TodaySummary?, filter: TodayFilter): List<TodayRow> {
+    if (summary == null) return emptyList()
+    fun keep(done: Boolean) = when (filter) {
+        TodayFilter.ALL -> true
+        TodayFilter.PENDING -> !done
+        TodayFilter.DONE -> done
+    }
+    val habits = summary.items.filter { keep(it.isDone) }.map { TodayRow.HabitRowData(it) }
+    val tasks = summary.tasks.filter { keep(it.isDone) }.map { TodayRow.TaskRowData(it) }
+    return (habits + tasks).sortedWith(compareBy<TodayRow>({ it.sortMinute }, { it.sortName }))
+}
 
 fun TodayMood.toBrote() = when (this) {
     TodayMood.SLEEPY -> BroteMood.SLEEPY
@@ -119,12 +139,33 @@ fun TodayScreen(
     hopKey: Int,
     onToggle: (TodayHabitItem) -> Unit,
     onOpen: (TodayHabitItem) -> Unit,
-    onAdd: () -> Unit,
+    onToggleTask: (TodayTaskItem) -> Unit,
+    onSaveTask: (TaskDraft) -> Unit,
+    onDeleteTask: (Long) -> Unit,
+    onAddHabit: () -> Unit,
     onHabits: () -> Unit,
     onSettings: () -> Unit
 ) {
     val c = Ancla.colors
     var filter by rememberSaveable { mutableStateOf(TodayFilter.ALL) }
+    var showAddMenu by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf<TaskDraft?>(null) }
+    val onAdd = { showAddMenu = true }
+    if (showAddMenu) {
+        AddMenuSheet(
+            onDismiss = { showAddMenu = false },
+            onHabit = { showAddMenu = false; onAddHabit() },
+            onTask = { showAddMenu = false; editing = TaskDraft() }
+        )
+    }
+    editing?.let { draft ->
+        TaskEditorSheet(
+            initial = draft,
+            onDismiss = { editing = null },
+            onSave = { onSaveTask(it); editing = null },
+            onDelete = { id -> onDeleteTask(id); editing = null }
+        )
+    }
     Box(
         Modifier
             .fillMaxSize()
@@ -142,13 +183,7 @@ fun TodayScreen(
                     }
                 }
             }
-            val items = summary?.items.orEmpty().filter {
-                when (filter) {
-                    TodayFilter.ALL -> true
-                    TodayFilter.PENDING -> !it.isDone
-                    TodayFilter.DONE -> it.isDone
-                }
-            }
+            val rows = remember(summary, filter) { buildRows(summary, filter) }
             if (summary != null && summary.totalCount == 0) {
                 EmptyState(onAdd)
             } else {
@@ -157,8 +192,18 @@ fun TodayScreen(
                     contentPadding = PaddingValues(start = 22.dp, end = 22.dp, top = 14.dp, bottom = 132.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    items(items, key = { it.habitId }) { item ->
-                        HabitRow(item, Modifier.animateItem(), onToggle, onOpen)
+                    items(rows, key = { it.key }) { row ->
+                        when (row) {
+                            is TodayRow.HabitRowData -> HabitRow(row.item, Modifier.animateItem(), onToggle, onOpen)
+                            is TodayRow.TaskRowData -> TaskRow(
+                                row.item,
+                                Modifier.animateItem(),
+                                onToggleTask,
+                                onEdit = {
+                                    editing = TaskDraft(it.taskId, it.title, it.notes, it.minuteOfDay, it.remind)
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -446,5 +491,5 @@ private fun NavText(label: String, onClick: () -> Unit) {
 }
 
 @OptIn(ExperimentalFoundationApi::class)
-private fun Modifier.combinedClickableCompat(role: Role, onClick: () -> Unit, onLongClick: (() -> Unit)? = null): Modifier =
+internal fun Modifier.combinedClickableCompat(role: Role, onClick: () -> Unit, onLongClick: (() -> Unit)? = null): Modifier =
     this.combinedClickable(role = role, onClick = onClick, onLongClick = onLongClick)

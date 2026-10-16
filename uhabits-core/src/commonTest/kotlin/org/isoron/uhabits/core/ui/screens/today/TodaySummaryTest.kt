@@ -21,6 +21,7 @@ package org.isoron.uhabits.core.ui.screens.today
 import org.isoron.platform.time.LocalDate
 import org.isoron.platform.time.getToday
 import org.isoron.uhabits.core.BaseUnitTest
+import org.isoron.uhabits.core.models.DayTask
 import org.isoron.uhabits.core.models.Entry
 import org.isoron.uhabits.core.models.Habit
 import kotlin.test.BeforeTest
@@ -71,6 +72,22 @@ class TodaySummaryTest : BaseUnitTest() {
         assertEquals(0, s.doneCount)
         assertTrue(s.items.first { it.name == "A" }.isKeyDay)
         assertEquals(TodayMood.SLEEPY, s.mood)
+    }
+
+    @Test
+    fun testTasksCountTowardsProgress() {
+        habit("A", 0)
+        val tasks = listOf(
+            DayTask(id = 1, title = "Informe", day = today, minuteOfDay = 540),
+            DayTask(id = 2, title = "Atrasada", day = today.minus(1)),
+            DayTask(id = 3, title = "Pagar", day = today, isDone = true)
+        )
+        val s = TodaySummary.build(habitList, today, tasks)
+        assertEquals(4, s.totalCount)
+        assertEquals(2, s.doneCount)
+        assertEquals(listOf("Atrasada", "Informe", "Pagar"), s.tasks.map { it.title })
+        assertTrue(s.tasks.first().isOverdue)
+        assertEquals(TodayMood.HAPPY, s.mood)
     }
 
     @Test

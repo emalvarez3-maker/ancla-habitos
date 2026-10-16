@@ -31,18 +31,23 @@ import org.isoron.uhabits.HabitsApplication
 import org.isoron.uhabits.activities.habits.edit.HabitTypeDialog
 import org.isoron.uhabits.activities.habits.list.ListHabitsActivity
 import org.isoron.uhabits.ancla.ui.AnclaTheme
+import org.isoron.uhabits.ancla.ui.TaskDraft
 import org.isoron.uhabits.ancla.ui.TodayScreen
 import org.isoron.uhabits.core.commands.Command
 import org.isoron.uhabits.core.commands.CommandRunner
 import org.isoron.uhabits.core.commands.CreateRepetitionCommand
+import org.isoron.uhabits.core.database.TaskRepository
+import org.isoron.uhabits.core.models.DayTask
 import org.isoron.uhabits.core.models.Entry
 import org.isoron.uhabits.core.ui.screens.today.TodayHabitItem
 import org.isoron.uhabits.core.ui.screens.today.TodaySummary
+import org.isoron.uhabits.core.ui.screens.today.TodayTaskItem
 
-/** Ancla's home screen: today's habits, the mascot and the day's progress. */
+/** Ancla's home screen: today's habits and tasks, the mascot and the day's progress. */
 class TodayActivity : AppCompatActivity(), CommandRunner.Listener {
 
     private val component get() = (application as HabitsApplication).component
+    private val tasks by lazy { TaskRepository(component.db) }
     private val summary = mutableStateOf<TodaySummary?>(null)
     private val hopKey = mutableIntStateOf(0)
 
@@ -56,7 +61,10 @@ class TodayActivity : AppCompatActivity(), CommandRunner.Listener {
                     hopKey = hopKey.intValue,
                     onToggle = ::toggle,
                     onOpen = ::openHabit,
-                    onAdd = { HabitTypeDialog().show(supportFragmentManager, "habitType") },
+                    onToggleTask = ::toggleTask,
+                    onSaveTask = ::saveTask,
+                    onDeleteTask = ::deleteTask,
+                    onAddHabit = { HabitTypeDialog().show(supportFragmentManager, "habitType") },
                     onHabits = { startActivity(Intent(this, ListHabitsActivity::class.java)) },
                     onSettings = { startActivity(component.intentFactory.startSettingsActivity(this)) }
                 )
@@ -80,7 +88,8 @@ class TodayActivity : AppCompatActivity(), CommandRunner.Listener {
     }
 
     private fun refresh() {
-        summary.value = TodaySummary.build(component.habitList, getToday())
+        val today = getToday()
+        summary.value = TodaySummary.build(component.habitList, today, tasks.findForToday(today))
     }
 
     private fun toggle(item: TodayHabitItem) {
@@ -92,6 +101,40 @@ class TodayActivity : AppCompatActivity(), CommandRunner.Listener {
         }
         if (!item.isDone) hopKey.intValue += 1
         component.commandRunner.run(CreateRepetitionCommand(component.habitList, habit, getToday(), value, ""))
+    }
+
+    private fun toggleTask(item: TodayTaskItem) {
+        val task = tasks.findById(item.taskId) ?: return
+        val updated = task.copy(isDone = !task.isDone)
+        tasks.update(updated)
+        if (updated.isDone) {
+            hopKey.intValue += 1
+            TaskReminders.cancel(this, item.taskId)
+        } else {
+            TaskReminders.sync(this, updated)
+        }
+        refresh()
+    }
+
+    private fun saveTask(draft: TaskDraft) {
+        val title = draft.title.trim()
+        if (title.isEmpty()) return
+        val existing = draft.id?.let { tasks.findById(it) }
+        val task = (existing ?: DayTask(title = title, day = getToday())).copy(
+            title = title,
+            notes = draft.notes.trim(),
+            minuteOfDay = draft.minuteOfDay,
+            remind = draft.remind && draft.minuteOfDay != null
+        )
+        val saved = if (existing == null) task.copy(id = tasks.insert(task)) else task.also { tasks.update(it) }
+        TaskReminders.sync(this, saved)
+        refresh()
+    }
+
+    private fun deleteTask(taskId: Long) {
+        tasks.delete(taskId)
+        TaskReminders.cancel(this, taskId)
+        refresh()
     }
 
     private fun openHabit(item: TodayHabitItem) {
