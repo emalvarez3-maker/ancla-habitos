@@ -26,6 +26,7 @@ import org.isoron.uhabits.core.commands.Command
 import org.isoron.uhabits.core.commands.CommandRunner
 import org.isoron.uhabits.core.commands.CreateRepetitionCommand
 import org.isoron.uhabits.core.io.Logging
+import org.isoron.uhabits.core.models.Automaticity
 import org.isoron.uhabits.core.models.Habit
 import org.isoron.uhabits.core.models.HabitList
 import org.isoron.uhabits.core.models.HabitList.Order
@@ -124,6 +125,12 @@ class HabitCardListCache(
         return data.scores[habitId]!!
     }
 
+    /** True when today decides whether the habit's flexible streak survives. */
+    @Synchronized
+    fun isKeyDay(habitId: Long): Boolean {
+        return data.keyDays[habitId] ?: false
+    }
+
     @Synchronized
     fun onAttached() {
         refreshAllHabits()
@@ -166,6 +173,7 @@ class HabitCardListCache(
         data.checkmarks.remove(id)
         data.notes.remove(id)
         data.scores.remove(id)
+        data.keyDays.remove(id)
         listener.onItemRemoved(position)
     }
 
@@ -210,6 +218,7 @@ class HabitCardListCache(
         val checkmarks: MutableMap<Long?, IntArray>
         val scores: MutableMap<Long?, Double>
         val notes: MutableMap<Long?, Array<String>>
+        val keyDays: MutableMap<Long?, Boolean>
 
         @Synchronized
         fun copyCheckmarksFrom(oldData: CacheData) {
@@ -246,6 +255,7 @@ class HabitCardListCache(
                 } else {
                     scores[id] = 0.0
                 }
+                keyDays[id] = oldData.keyDays[id] ?: false
             }
         }
 
@@ -266,6 +276,7 @@ class HabitCardListCache(
             checkmarks = mutableMapOf()
             scores = mutableMapOf()
             notes = mutableMapOf()
+            keyDays = mutableMapOf()
         }
     }
 
@@ -305,6 +316,7 @@ class HabitCardListCache(
                 val habit = newData.habits[position]
                 if (targetId != null && targetId != habit.id) continue
                 newData.scores[habit.id] = habit.scores[today].value
+                newData.keyDays[habit.id] = !habit.isArchived && Automaticity.isKeyDay(habit, today)
                 val checkmarkList = mutableListOf<Int>()
                 val noteList = mutableListOf<String>()
                 for ((_, value, note) in habit.computedEntries.getByInterval(dateFrom, today)) {
@@ -339,6 +351,7 @@ class HabitCardListCache(
             data.habits.add(position, habit)
             data.idToHabit[id] = habit
             data.scores[id] = newData.scores[id]!!
+            data.keyDays[id] = newData.keyDays[id] ?: false
             data.checkmarks[id] = newData.checkmarks[id]!!
             data.notes[id] = newData.notes[id]!!
             listener.onItemInserted(position)
@@ -376,8 +389,11 @@ class HabitCardListCache(
             if (oldScore != newScore) unchanged = false
             if (!oldCheckmarks.contentEquals(newCheckmarks)) unchanged = false
             if (!oldNoteIndicators.contentEquals(newNoteIndicators)) unchanged = false
+            val newKeyDay = newData.keyDays[id] ?: false
+            if (data.keyDays[id] != newKeyDay) unchanged = false
             if (unchanged) return
             data.scores[id] = newScore
+            data.keyDays[id] = newKeyDay
             data.checkmarks[id] = newCheckmarks
             data.notes[id] = newNoteIndicators
             listener.onItemChanged(position)

@@ -21,12 +21,17 @@ package org.isoron.uhabits.activities.habits.list.views
 
 import android.content.Context
 import android.graphics.PointF
+import android.graphics.Typeface
 import android.graphics.text.LineBreaker.BREAK_STRATEGY_BALANCED
 import android.os.Build
 import android.os.Build.VERSION.SDK_INT
 import android.os.Handler
 import android.os.Looper
+import android.text.SpannableStringBuilder
+import android.text.Spanned
 import android.text.TextUtils
+import android.text.style.RelativeSizeSpan
+import android.text.style.StyleSpan
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
@@ -88,6 +93,14 @@ class HabitCardView(
             }
             field = newHabit
             if (newHabit != null) copyAttributesFrom(newHabit)
+        }
+
+    /** Ancla: today decides whether the flexible streak survives ("never miss twice"). */
+    var isKeyDay = false
+        set(value) {
+            if (field == value) return
+            field = value
+            habit?.let { copyAttributesFrom(it) }
         }
 
     var score
@@ -273,7 +286,18 @@ class HabitCardView(
 
         val c = getActiveColor(h)
         label.apply {
-            text = h.name
+            text = if (isKeyDay && !h.isArchived) {
+                val badge = context.getString(R.string.key_day_badge)
+                SpannableStringBuilder(h.name).append("\n").also { sb ->
+                    val start = sb.length
+                    sb.append("● ").append(badge)
+                    sb.setSpan(RelativeSizeSpan(0.8f), start, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    sb.setSpan(StyleSpan(Typeface.BOLD), start, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+            } else {
+                h.name
+            }
+            maxLines = if (isKeyDay) 3 else 2
             setTextColor(c)
         }
         scoreRing.apply {
