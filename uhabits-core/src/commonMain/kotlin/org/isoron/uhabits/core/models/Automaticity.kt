@@ -29,7 +29,7 @@ import kotlin.math.pow
 
 enum class AutomaticityPhase { INITIATION, LEARNING, STABILITY, AUTOMATIC }
 
-enum class CoachSuggestionType { KEY_DAY, RESTART, LEVEL_UP, LEVEL_DOWN, FRESH_START }
+enum class CoachSuggestionType { KEY_DAY, RESTART, LEVEL_UP, LEVEL_DOWN, FRESH_START, SELF_REPORT }
 
 data class CoachSuggestion(
     val type: CoachSuggestionType,
@@ -38,8 +38,12 @@ data class CoachSuggestion(
 )
 
 data class AutomaticityReport(
-    /** Modeled automaticity, from 0 (none) to 1 (fully automatic). */
+    /** Automaticity from 0 (none) to 1 (fully automatic): the model, blended with a recent self-report. */
     val automaticity: Double,
+    /** Automaticity estimated from repetitions alone. */
+    val modelAutomaticity: Double,
+    /** True when [automaticity] includes a recent SRBAI self-report. */
+    val usesSelfReport: Boolean,
     val phase: AutomaticityPhase,
     /** Repetitions in a row, forgiving one isolated miss ("never miss twice"). */
     val flexibleStreak: Int,
@@ -69,6 +73,24 @@ object Automaticity {
     const val REPEATED_MISS_DECAY = 0.06
     const val AUTOMATIC_THRESHOLD = 0.95
     private const val WINDOW = 14
+
+    /** Weight of the SRBAI self-report in the blended automaticity. */
+    const val SELF_REPORT_WEIGHT = 0.35
+
+    /** A self-report older than this many days is ignored. */
+    const val SELF_REPORT_MAX_AGE = 21
+
+    /** A new self-report is suggested this many days after the previous one. */
+    const val SELF_REPORT_INTERVAL = 7
+
+    /**
+     * Normalizes the four SRBAI answers (Gardner et al., 2012), each from 1 (strongly
+     * disagree) to 7 (strongly agree), to a value from 0 to 1.
+     */
+    fun normalizeSelfReport(answers: List<Int>): Double {
+        require(answers.size == 4 && answers.all { it in 1..7 })
+        return (answers.average() - 1) / 6
+    }
 
     fun phaseOf(a: Double): AutomaticityPhase = when {
         a >= 0.9 -> AutomaticityPhase.AUTOMATIC
@@ -149,17 +171,29 @@ object Automaticity {
         }
 
         val rate = completionRate(habit, today, first, ::classify)
-        val repsLeft = if (a >= AUTOMATIC_THRESHOLD) {
+        val selfReport = recentSelfReport(habit, today)
+        val blended = if (selfReport == null) a else (1 - SELF_REPORT_WEIGHT) * a + SELF_REPORT_WEIGHT * selfReport
+        val repsLeft = if (blended >= AUTOMATIC_THRESHOLD) {
             0
         } else {
-            ceil(ln((1 - AUTOMATIC_THRESHOLD) / (1 - a)) / ln(1 - K)).toInt()
+            ceil(ln((1 - AUTOMATIC_THRESHOLD) / (1 - blended)) / ln(1 - K)).toInt()
         }
         val perDay = if (habit.isNumerical) 1.0 else freq.toDouble()
         val daysLeft = ceil(repsLeft / perDay).toInt()
+        val suggestions = suggest(habit, today, first, classify(today), missesBeforeToday, rate).toMutableList()
+        val lastReport = habit.selfReportDate
+        val tracked = first.daysUntil(today) + 1
+        if (tracked > SELF_REPORT_INTERVAL &&
+            (lastReport == null || lastReport.daysUntil(today) >= SELF_REPORT_INTERVAL)
+        ) {
+            suggestions.add(CoachSuggestion(CoachSuggestionType.SELF_REPORT))
+        }
 
         return AutomaticityReport(
-            automaticity = a,
-            phase = phaseOf(a),
+            automaticity = blended,
+            modelAutomaticity = a,
+            usesSelfReport = selfReport != null,
+            phase = phaseOf(blended),
             flexibleStreak = flex,
             bestFlexibleStreak = best,
             graceUsed = grace,
@@ -168,9 +202,25 @@ object Automaticity {
             completionRate = rate,
             repetitionsLeft = repsLeft,
             daysLeft = daysLeft,
-            suggestions = suggest(habit, today, first, classify(today), missesBeforeToday, rate)
+            suggestions = suggestions
         )
     }
+
+    private fun recentSelfReport(habit: Habit, today: LocalDate): Double? {
+        val value = habit.selfReport ?: return null
+        val date = habit.selfReportDate ?: return null
+        val age = date.daysUntil(today)
+        return if (age in 0..SELF_REPORT_MAX_AGE) value.coerceIn(0.0, 1.0) else null
+    }
+
+    /**
+     * True when the habit was expected yesterday but not done, and is still pending today,
+     * so today decides whether the streak survives ("never miss twice").
+     */
+    fun isKeyDay(habit: Habit, today: LocalDate): Boolean =
+        compute(habit, today).suggestions.any {
+            it.type == CoachSuggestionType.KEY_DAY || it.type == CoachSuggestionType.RESTART
+        }
 
     private fun completionRate(
         habit: Habit,
@@ -239,6 +289,8 @@ object Automaticity {
         val repsLeft = ceil(ln(1 - AUTOMATIC_THRESHOLD) / ln(1 - K)).toInt()
         return AutomaticityReport(
             automaticity = 0.0,
+            modelAutomaticity = 0.0,
+            usesSelfReport = false,
             phase = AutomaticityPhase.INITIATION,
             flexibleStreak = 0,
             bestFlexibleStreak = 0,

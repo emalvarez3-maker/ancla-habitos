@@ -83,6 +83,12 @@ class ShowHabitPresenter(
         screen = screen
     )
 
+    val automaticityCardPresenter = AutomaticityCardPresenter(
+        habit = habit,
+        habitList = habitList,
+        commandRunner = commandRunner
+    )
+
     val scoreCardPresenter = ScoreCardPresenter(
         preferences = preferences,
         screen = screen

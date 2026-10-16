@@ -20,28 +20,57 @@
 package org.isoron.uhabits.core.ui.screens.habits.show.views
 
 import org.isoron.platform.time.getToday
+import org.isoron.uhabits.core.commands.ChangeHabitTargetCommand
+import org.isoron.uhabits.core.commands.CommandRunner
+import org.isoron.uhabits.core.commands.SaveSelfReportCommand
 import org.isoron.uhabits.core.models.Automaticity
 import org.isoron.uhabits.core.models.AutomaticityReport
 import org.isoron.uhabits.core.models.Habit
+import org.isoron.uhabits.core.models.HabitList
 import org.isoron.uhabits.core.models.PaletteColor
 import org.isoron.uhabits.core.ui.views.Theme
 
 data class AutomaticityCardState(
     val color: PaletteColor,
     val report: AutomaticityReport,
+    val habitName: String,
     val isNumerical: Boolean,
     val unit: String,
+    val anchor: String,
+    val place: String,
+    val tinyVersion: String,
+    val ifThen: String,
     val theme: Theme
 )
 
-class AutomaticityCardPresenter {
+class AutomaticityCardPresenter(
+    val habit: Habit,
+    val habitList: HabitList,
+    val commandRunner: CommandRunner
+) {
+    fun onApplyLevel(newTarget: Double) {
+        if (!habit.isNumerical || newTarget <= 0) return
+        commandRunner.run(ChangeHabitTargetCommand(habitList, habit, newTarget))
+    }
+
+    /** [answers] are the four SRBAI answers, each from 1 to 7. */
+    fun onSaveSelfReport(answers: List<Int>) {
+        val value = Automaticity.normalizeSelfReport(answers)
+        commandRunner.run(SaveSelfReportCommand(habitList, habit, value, getToday()))
+    }
+
     companion object {
         fun buildState(habit: Habit, theme: Theme): AutomaticityCardState {
             return AutomaticityCardState(
                 color = habit.color,
                 report = Automaticity.compute(habit, getToday()),
+                habitName = habit.name,
                 isNumerical = habit.isNumerical,
                 unit = habit.unit,
+                anchor = habit.anchor,
+                place = habit.place,
+                tinyVersion = habit.tinyVersion,
+                ifThen = habit.ifThen,
                 theme = theme
             )
         }

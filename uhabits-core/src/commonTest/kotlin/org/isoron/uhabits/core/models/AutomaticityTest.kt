@@ -131,6 +131,52 @@ class AutomaticityTest : BaseUnitTest() {
     }
 
     @Test
+    fun testNormalizeSelfReport() {
+        assertEquals(0.0, Automaticity.normalizeSelfReport(listOf(1, 1, 1, 1)))
+        assertEquals(1.0, Automaticity.normalizeSelfReport(listOf(7, 7, 7, 7)))
+        assertEquals(0.5, Automaticity.normalizeSelfReport(listOf(4, 4, 4, 4)))
+    }
+
+    @Test
+    fun testRecentSelfReportIsBlended() {
+        yes(0, 1, 2, 3, 4)
+        val model = report().modelAutomaticity
+        habit.selfReport = 1.0
+        habit.selfReportDate = today.minus(3)
+        val r = report()
+        assertTrue(r.usesSelfReport)
+        assertEquals(model, r.modelAutomaticity)
+        assertTrue(kotlin.math.abs(r.automaticity - (0.65 * model + 0.35)) < 1e-9)
+    }
+
+    @Test
+    fun testOldSelfReportIsIgnored() {
+        yes(0, 1, 2)
+        habit.selfReport = 1.0
+        habit.selfReportDate = today.minus(Automaticity.SELF_REPORT_MAX_AGE + 1)
+        val r = report()
+        assertTrue(!r.usesSelfReport)
+        assertEquals(r.modelAutomaticity, r.automaticity)
+    }
+
+    @Test
+    fun testWeeklySelfReportSuggestion() {
+        yes(0, 1, 2, 3, 4, 5, 6, 7, 8, 9)
+        assertTrue(report().suggestions.any { it.type == CoachSuggestionType.SELF_REPORT })
+        habit.selfReport = 0.5
+        habit.selfReportDate = today.minus(2)
+        assertTrue(report().suggestions.none { it.type == CoachSuggestionType.SELF_REPORT })
+    }
+
+    @Test
+    fun testIsKeyDay() {
+        yes(2, 3, 4)
+        assertTrue(Automaticity.isKeyDay(habit, today))
+        yes(0)
+        assertTrue(!Automaticity.isKeyDay(habit, today))
+    }
+
+    @Test
     fun testNumericalPartialCountsLess() {
         habit = fixtures.createEmptyNumericalHabit(NumericalHabitType.AT_LEAST)
         habit.frequency = Frequency.DAILY
