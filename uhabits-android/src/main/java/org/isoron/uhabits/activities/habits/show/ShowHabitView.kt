@@ -46,6 +46,7 @@ class ShowHabitView(context: Context) : FrameLayout(context) {
         )
         binding.subtitleCard.setState(data.subtitle)
         binding.overviewCard.setState(data.overview)
+        binding.automaticityCard.setState(data.automaticity)
         binding.notesCard.setState(data.notes)
         binding.targetCard.setState(data.target)
         binding.streakCard.setState(data.streaks)

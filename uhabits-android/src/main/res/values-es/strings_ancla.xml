@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="automaticity">Automaticidad</string>
+    <string name="flexible_streak">Racha</string>
+    <string name="last_14_days">14 días</string>
+    <string name="days_left">Días restantes</string>
+    <string name="phase_initiation">Iniciación</string>
+    <string name="phase_learning">Aprendizaje</string>
+    <string name="phase_stability">Estabilidad</string>
+    <string name="phase_automatic">Automático</string>
+    <string name="coach_key_day">Día clave: ayer fallaste. Nunca falles dos veces. Hoy vale aunque sea la versión más pequeña.</string>
+    <string name="coach_restart">Llevas varios fallos seguidos. Reinicia en pequeño: haz solo la versión de dos minutos durante 7 días.</string>
+    <string name="coach_level_up">Lo cumples con constancia. Sube un poco la meta, a %1$s %2$s. Un reto apenas por encima de tu nivel mantiene la motivación.</string>
+    <string name="coach_level_down">Todavía no se afianza. Baja la meta a %1$s %2$s por ahora. La constancia pesa más que la intensidad.</string>
+    <string name="coach_fresh_start">Hoy es un buen día para recomenzar. Relee tu plan y empieza otra vez con la versión mínima.</string>
+</resources>

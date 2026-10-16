@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ancla_app_name" translatable="false">Ancla</string>
+    <string name="automaticity">Automaticity</string>
+    <string name="flexible_streak">Streak</string>
+    <string name="last_14_days">14 days</string>
+    <string name="days_left">Days left</string>
+    <string name="phase_initiation">Initiation</string>
+    <string name="phase_learning">Learning</string>
+    <string name="phase_stability">Stability</string>
+    <string name="phase_automatic">Automatic</string>
+    <string name="coach_key_day">Key day: you missed it yesterday. Never miss twice. Even the smallest version counts today.</string>
+    <string name="coach_restart">You have missed it several times in a row. Restart small: do only the two-minute version for the next 7 days.</string>
+    <string name="coach_level_up">You are meeting it consistently. Raise the target a little, to %1$s %2$s. A challenge just above your level keeps motivation up.</string>
+    <string name="coach_level_down">It is not sticking yet. Lower the target to %1$s %2$s for now. Consistency matters more than intensity.</string>
+    <string name="coach_fresh_start">Today feels like a new start. Reread your plan and begin again with the smallest version.</string>
+</resources>

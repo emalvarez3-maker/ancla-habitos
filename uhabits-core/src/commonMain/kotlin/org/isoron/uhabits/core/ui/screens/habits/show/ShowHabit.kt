@@ -24,6 +24,8 @@ import org.isoron.uhabits.core.models.Habit
 import org.isoron.uhabits.core.models.HabitList
 import org.isoron.uhabits.core.models.PaletteColor
 import org.isoron.uhabits.core.preferences.Preferences
+import org.isoron.uhabits.core.ui.screens.habits.show.views.AutomaticityCardPresenter
+import org.isoron.uhabits.core.ui.screens.habits.show.views.AutomaticityCardState
 import org.isoron.uhabits.core.ui.screens.habits.show.views.BarCardPresenter
 import org.isoron.uhabits.core.ui.screens.habits.show.views.BarCardState
 import org.isoron.uhabits.core.ui.screens.habits.show.views.FrequencyCardPresenter
@@ -50,6 +52,7 @@ data class ShowHabitState(
     val color: PaletteColor = PaletteColor(1),
     val subtitle: SubtitleCardState,
     val overview: OverviewCardState,
+    val automaticity: AutomaticityCardState,
     val notes: NotesCardState,
     val target: TargetCardState,
     val streaks: StreakCardState,
@@ -101,6 +104,10 @@ class ShowHabitPresenter(
                     theme = theme
                 ),
                 overview = OverviewCardPresenter.buildState(
+                    habit = habit,
+                    theme = theme
+                ),
+                automaticity = AutomaticityCardPresenter.buildState(
                     habit = habit,
                     theme = theme
                 ),

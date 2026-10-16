@@ -57,6 +57,11 @@
                 style="@style/Card"
                 android:paddingTop="12dp" />
 
+            <org.isoron.uhabits.activities.habits.show.views.AutomaticityCardView
+                android:id="@+id/automaticityCard"
+                style="@style/Card"
+                android:paddingTop="12dp" />
+
             <org.isoron.uhabits.activities.habits.show.views.TargetCardView
                 android:id="@+id/targetCard"
                 style="@style/Card"
