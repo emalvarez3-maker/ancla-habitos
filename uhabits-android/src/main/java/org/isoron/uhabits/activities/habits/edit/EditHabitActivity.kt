@@ -117,6 +117,10 @@ class EditHabitActivity : AppCompatActivity() {
             binding.nameInput.setText(habit.name)
             binding.questionInput.setText(habit.question)
             binding.notesInput.setText(habit.description)
+            binding.anchorInput.setText(habit.anchor)
+            binding.placeInput.setText(habit.place)
+            binding.tinyVersionInput.setText(habit.tinyVersion)
+            binding.ifThenInput.setText(habit.ifThen)
             binding.unitInput.setText(habit.unit)
             binding.targetInput.setText(habit.targetValue.toString())
         } else {
@@ -273,6 +277,11 @@ class EditHabitActivity : AppCompatActivity() {
         habit.name = binding.nameInput.text.trim().toString()
         habit.question = binding.questionInput.text.trim().toString()
         habit.description = binding.notesInput.text.trim().toString()
+        habit.anchor = binding.anchorInput.text.trim().toString()
+            .replace(Regex("^(después de|despues de|after)\\s+", RegexOption.IGNORE_CASE), "")
+        habit.place = binding.placeInput.text.trim().toString()
+        habit.tinyVersion = binding.tinyVersionInput.text.trim().toString()
+        habit.ifThen = binding.ifThenInput.text.trim().toString()
         habit.color = color
         if (reminderHour >= 0) {
             habit.reminder = Reminder(reminderHour, reminderMin, reminderDays)

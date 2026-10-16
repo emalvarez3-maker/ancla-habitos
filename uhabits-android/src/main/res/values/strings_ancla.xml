@@ -14,4 +14,28 @@
     <string name="coach_level_up">You are meeting it consistently. Raise the target a little, to %1$s %2$s. A challenge just above your level keeps motivation up.</string>
     <string name="coach_level_down">It is not sticking yet. Lower the target to %1$s %2$s for now. Consistency matters more than intensity.</string>
     <string name="coach_fresh_start">Today feels like a new start. Reread your plan and begin again with the smallest version.</string>
+    <string name="coach_self_report">Weekly check: rate how automatic this habit feels. Four questions, 30 seconds.</string>
+    <string name="self_report_blended">Includes your latest self-assessment. Model alone: %1$s.</string>
+    <string name="self_report_action">Self-assess</string>
+    <string name="apply_level_action">Set to %1$s %2$s</string>
+    <string name="srbai_title">How automatic does it feel?</string>
+    <string name="srbai_scale_hint">1 = strongly disagree, 7 = strongly agree.</string>
+    <string name="srbai_q1">«%1$s» is something I do automatically.</string>
+    <string name="srbai_q2">«%1$s» is something I do without having to consciously remember.</string>
+    <string name="srbai_q3">«%1$s» is something I do without thinking.</string>
+    <string name="srbai_q4">«%1$s» is something I start doing before I realize I am doing it.</string>
+    <string name="plan_intention">After %1$s: %2$s.</string>
+    <string name="plan_intention_place">After %1$s: %2$s, at %3$s.</string>
+    <string name="plan_tiny">Smallest version: %1$s</string>
+    <string name="plan_if_then">If-then plan: %1$s</string>
+    <string name="implementation_intention">Implementation intention</string>
+    <string name="anchor_label">After… (your anchor)</string>
+    <string name="anchor_hint">I pour my morning coffee</string>
+    <string name="place_label">Place</string>
+    <string name="place_hint">Kitchen table</string>
+    <string name="tiny_version_label">Two-minute version</string>
+    <string name="tiny_version_hint">Review 5 flashcards</string>
+    <string name="if_then_label">If-then plan</string>
+    <string name="if_then_hint">If I wake up late, I do the two-minute version before leaving</string>
+    <string name="key_day_badge">Key day</string>
 </resources>

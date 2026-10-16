@@ -13,4 +13,28 @@
     <string name="coach_level_up">Lo cumples con constancia. Sube un poco la meta, a %1$s %2$s. Un reto apenas por encima de tu nivel mantiene la motivación.</string>
     <string name="coach_level_down">Todavía no se afianza. Baja la meta a %1$s %2$s por ahora. La constancia pesa más que la intensidad.</string>
     <string name="coach_fresh_start">Hoy es un buen día para recomenzar. Relee tu plan y empieza otra vez con la versión mínima.</string>
+    <string name="coach_self_report">Chequeo semanal: evalúa qué tan automático se siente este hábito. Cuatro preguntas, 30 segundos.</string>
+    <string name="self_report_blended">Incluye tu última autoevaluación. Solo el modelo: %1$s.</string>
+    <string name="self_report_action">Autoevaluar</string>
+    <string name="apply_level_action">Cambiar a %1$s %2$s</string>
+    <string name="srbai_title">¿Qué tan automático se siente?</string>
+    <string name="srbai_scale_hint">1 = totalmente en desacuerdo, 7 = totalmente de acuerdo.</string>
+    <string name="srbai_q1">«%1$s» es algo que hago automáticamente.</string>
+    <string name="srbai_q2">«%1$s» es algo que hago sin tener que recordarlo conscientemente.</string>
+    <string name="srbai_q3">«%1$s» es algo que hago sin pensarlo.</string>
+    <string name="srbai_q4">«%1$s» es algo que empiezo a hacer antes de darme cuenta.</string>
+    <string name="plan_intention">Después de %1$s: %2$s.</string>
+    <string name="plan_intention_place">Después de %1$s: %2$s, en %3$s.</string>
+    <string name="plan_tiny">Versión mínima: %1$s</string>
+    <string name="plan_if_then">Plan si-entonces: %1$s</string>
+    <string name="implementation_intention">Intención de implementación</string>
+    <string name="anchor_label">Después de… (tu ancla)</string>
+    <string name="anchor_hint">servirme el café de la mañana</string>
+    <string name="place_label">Lugar</string>
+    <string name="place_hint">la mesa de la cocina</string>
+    <string name="tiny_version_label">Versión de dos minutos</string>
+    <string name="tiny_version_hint">Repasar 5 tarjetas</string>
+    <string name="if_then_label">Plan si-entonces</string>
+    <string name="if_then_hint">Si me levanto tarde, hago la versión mínima antes de salir</string>
+    <string name="key_day_badge">Día clave</string>
 </resources>

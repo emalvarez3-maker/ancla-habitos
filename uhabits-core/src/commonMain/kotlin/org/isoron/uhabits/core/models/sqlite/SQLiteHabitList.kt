@@ -20,6 +20,7 @@ package org.isoron.uhabits.core.models.sqlite
 
 import me.tatarka.inject.annotations.Inject
 import org.isoron.platform.Synchronized
+import org.isoron.platform.time.LocalDate
 import org.isoron.uhabits.core.database.HabitData
 import org.isoron.uhabits.core.database.HabitRepository
 import org.isoron.uhabits.core.models.Frequency
@@ -231,7 +232,13 @@ class SQLiteHabitList(private val modelFactory: ModelFactory) : HabitList() {
                 targetValue = habit.targetValue,
                 targetType = habit.targetType.value,
                 unit = habit.unit,
-                uuid = habit.uuid
+                uuid = habit.uuid,
+                anchor = habit.anchor,
+                place = habit.place,
+                tinyVersion = habit.tinyVersion,
+                ifThen = habit.ifThen,
+                selfReport = habit.selfReport,
+                selfReportDay = habit.selfReportDate?.daysSince2000
             )
         }
 
@@ -249,6 +256,12 @@ class SQLiteHabitList(private val modelFactory: ModelFactory) : HabitList() {
             habit.unit = data.unit
             habit.position = data.position
             habit.uuid = data.uuid
+            habit.anchor = data.anchor
+            habit.place = data.place
+            habit.tinyVersion = data.tinyVersion
+            habit.ifThen = data.ifThen
+            habit.selfReport = data.selfReport
+            habit.selfReportDate = data.selfReportDay?.let { LocalDate(it) }
             if (data.reminderHour != null && data.reminderMin != null) {
                 habit.reminder = Reminder(
                     data.reminderHour!!,

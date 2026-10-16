@@ -18,6 +18,7 @@
  */
 package org.isoron.uhabits.core.models
 
+import org.isoron.platform.time.LocalDate
 import org.isoron.platform.time.getToday
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
@@ -38,6 +39,16 @@ data class Habit(
     var type: HabitType = HabitType.YES_NO,
     var unit: String = "",
     var uuid: String? = null,
+    /** Implementation intention: existing routine the habit follows ("after ..."). */
+    var anchor: String = "",
+    var place: String = "",
+    /** Two-minute version that still counts on hard days. */
+    var tinyVersion: String = "",
+    /** If-then plan for the most likely obstacle. */
+    var ifThen: String = "",
+    /** Latest SRBAI self-report, normalized to 0..1, and the day it was taken. */
+    var selfReport: Double? = null,
+    var selfReportDate: LocalDate? = null,
     val computedEntries: EntryList,
     val originalEntries: EntryList,
     val scores: ScoreList,
@@ -124,6 +135,12 @@ data class Habit(
         this.type = other.type
         this.unit = other.unit
         this.uuid = other.uuid
+        this.anchor = other.anchor
+        this.place = other.place
+        this.tinyVersion = other.tinyVersion
+        this.ifThen = other.ifThen
+        this.selfReport = other.selfReport
+        this.selfReportDate = other.selfReportDate
     }
 
     override fun equals(other: Any?): Boolean {
@@ -144,6 +161,12 @@ data class Habit(
         if (type != other.type) return false
         if (unit != other.unit) return false
         if (uuid != other.uuid) return false
+        if (anchor != other.anchor) return false
+        if (place != other.place) return false
+        if (tinyVersion != other.tinyVersion) return false
+        if (ifThen != other.ifThen) return false
+        if (selfReport != other.selfReport) return false
+        if (selfReportDate != other.selfReportDate) return false
 
         return true
     }
@@ -163,6 +186,12 @@ data class Habit(
         result = 31 * result + type.value
         result = 31 * result + unit.hashCode()
         result = 31 * result + (uuid?.hashCode() ?: 0)
+        result = 31 * result + anchor.hashCode()
+        result = 31 * result + place.hashCode()
+        result = 31 * result + tinyVersion.hashCode()
+        result = 31 * result + ifThen.hashCode()
+        result = 31 * result + (selfReport?.hashCode() ?: 0)
+        result = 31 * result + (selfReportDate?.hashCode() ?: 0)
         return result
     }
 }

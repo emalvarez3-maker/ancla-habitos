@@ -24,7 +24,13 @@ data class HabitData(
     var targetValue: Double = 0.0,
     var targetType: Int = 0,
     var unit: String = "",
-    var uuid: String? = null
+    var uuid: String? = null,
+    var anchor: String = "",
+    var place: String = "",
+    var tinyVersion: String = "",
+    var ifThen: String = "",
+    var selfReport: Double? = null,
+    var selfReportDay: Int? = null
 )
 
 class HabitRepository(private val db: Database) {
@@ -32,7 +38,8 @@ class HabitRepository(private val db: Database) {
         db.prepareStatement(
             """SELECT id, name, description, question, freq_num, freq_den, color,
                position, reminder_hour, reminder_min, reminder_days, highlight,
-               archived, type, target_value, target_type, unit, uuid
+               archived, type, target_value, target_type, unit, uuid,
+               anchor, place, tiny_version, if_then, self_report, self_report_day
                FROM Habits ORDER BY position"""
         )
     }
@@ -41,8 +48,9 @@ class HabitRepository(private val db: Database) {
         db.prepareStatement(
             """INSERT INTO Habits(name, description, question, freq_num, freq_den,
                color, position, reminder_hour, reminder_min, reminder_days,
-               highlight, archived, type, target_value, target_type, unit, uuid)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"""
+               highlight, archived, type, target_value, target_type, unit, uuid,
+               anchor, place, tiny_version, if_then, self_report, self_report_day)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"""
         )
     }
 
@@ -50,8 +58,9 @@ class HabitRepository(private val db: Database) {
         db.prepareStatement(
             """INSERT INTO Habits(id, name, description, question, freq_num, freq_den,
                color, position, reminder_hour, reminder_min, reminder_days,
-               highlight, archived, type, target_value, target_type, unit, uuid)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"""
+               highlight, archived, type, target_value, target_type, unit, uuid,
+               anchor, place, tiny_version, if_then, self_report, self_report_day)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"""
         )
     }
 
@@ -60,7 +69,8 @@ class HabitRepository(private val db: Database) {
             """UPDATE Habits SET name=?, description=?, question=?, freq_num=?,
                freq_den=?, color=?, position=?, reminder_hour=?, reminder_min=?,
                reminder_days=?, highlight=?, archived=?, type=?, target_value=?,
-               target_type=?, unit=?, uuid=? WHERE id=?"""
+               target_type=?, unit=?, uuid=?, anchor=?, place=?, tiny_version=?,
+               if_then=?, self_report=?, self_report_day=? WHERE id=?"""
         )
     }
 
@@ -94,7 +104,7 @@ class HabitRepository(private val db: Database) {
     fun update(data: HabitData) {
         updateStmt.reset()
         bindForInsert(updateStmt, data)
-        updateStmt.bindLong(18, data.id!!)
+        updateStmt.bindLong(24, data.id!!)
         updateStmt.step()
     }
 
@@ -127,6 +137,12 @@ class HabitRepository(private val db: Database) {
         stmt.bindInt(15 + o, data.targetType)
         stmt.bindText(16 + o, data.unit)
         if (data.uuid != null) stmt.bindText(17 + o, data.uuid!!) else stmt.bindNull(17 + o)
+        stmt.bindText(18 + o, data.anchor)
+        stmt.bindText(19 + o, data.place)
+        stmt.bindText(20 + o, data.tinyVersion)
+        stmt.bindText(21 + o, data.ifThen)
+        if (data.selfReport != null) stmt.bindReal(22 + o, data.selfReport!!) else stmt.bindNull(22 + o)
+        if (data.selfReportDay != null) stmt.bindInt(23 + o, data.selfReportDay!!) else stmt.bindNull(23 + o)
     }
 
     private fun readRow(stmt: PreparedStatement): HabitData {
@@ -148,7 +164,13 @@ class HabitRepository(private val db: Database) {
             targetValue = stmt.getReal(14),
             targetType = stmt.getInt(15),
             unit = stmt.getText(16),
-            uuid = stmt.getTextOrNull(17)
+            uuid = stmt.getTextOrNull(17),
+            anchor = stmt.getTextOrNull(18) ?: "",
+            place = stmt.getTextOrNull(19) ?: "",
+            tinyVersion = stmt.getTextOrNull(20) ?: "",
+            ifThen = stmt.getTextOrNull(21) ?: "",
+            selfReport = stmt.getRealOrNull(22),
+            selfReportDay = stmt.getIntOrNull(23)
         )
     }
 }

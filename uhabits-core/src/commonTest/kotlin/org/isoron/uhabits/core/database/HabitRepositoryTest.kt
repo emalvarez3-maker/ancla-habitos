@@ -45,6 +45,37 @@ class HabitRepositoryTest {
     }
 
     @Test
+    fun testAnclaFields() = runTest {
+        val db = TestDatabaseHelper.createEmptyDatabase()
+        val repo = HabitRepository(db)
+
+        val data = HabitData(name = "Leer", position = 0)
+        data.id = repo.insert(data)
+        val loaded = repo.findAll()[0]
+        assertEquals("", loaded.anchor)
+        assertNull(loaded.selfReport)
+        assertNull(loaded.selfReportDay)
+
+        data.anchor = "acostarme"
+        data.place = "la cama"
+        data.tinyVersion = "Leer una página"
+        data.ifThen = "Si estoy cansado, leo una página"
+        data.selfReport = 0.75
+        data.selfReportDay = 9785
+        repo.update(data)
+
+        val updated = repo.findAll()[0]
+        assertEquals("acostarme", updated.anchor)
+        assertEquals("la cama", updated.place)
+        assertEquals("Leer una página", updated.tinyVersion)
+        assertEquals("Si estoy cansado, leo una página", updated.ifThen)
+        assertEquals(0.75, updated.selfReport)
+        assertEquals(9785, updated.selfReportDay)
+
+        db.close()
+    }
+
+    @Test
     fun testUpdate() = runTest {
         val db = TestDatabaseHelper.createEmptyDatabase()
         val repo = HabitRepository(db)
