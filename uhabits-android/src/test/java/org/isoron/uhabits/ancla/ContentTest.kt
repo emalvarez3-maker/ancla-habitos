@@ -64,6 +64,18 @@ class ContentTest {
         }
     }
 
+    @Test
+    fun theMathPageCanLoadEveryKatexFileAndNothingElse() {
+        val katex = listOf("src/main/assets/katex", "uhabits-android/src/main/assets/katex").map(::File).first { it.isDirectory }
+        val files = katex.walkTopDown().filter { it.isFile }.map { "/katex/" + it.relativeTo(katex).invariantSeparatorsPath }.toList()
+        assertTrue(files.size > 20)
+        files.forEach { assertTrue("must load $it", MathMarkdown.isServableAsset(it)) }
+        listOf(
+            "/katex/../databases/uhabits.db", "/katex/..%2F..%2Fshared_prefs.js", "/katex/./katex.min.js", "/katex//katex.min.js",
+            "/files/ideas.json", "/katex/katex.min.js?x=1", "/katex/fonts/x.ttf", "/KATEX/katex.min.js", "/katex/katex.min.js/..", "/katex/.js"
+        ).forEach { assertFalse("must refuse $it", MathMarkdown.isServableAsset(it)) }
+    }
+
     private fun courseDir(): File = listOf("src/main/assets/robotics", "uhabits-android/src/main/assets/robotics").map(::File).first { it.isDirectory }
 
     @Test

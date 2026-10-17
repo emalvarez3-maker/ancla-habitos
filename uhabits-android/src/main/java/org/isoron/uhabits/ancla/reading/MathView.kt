@@ -128,16 +128,13 @@ private class MathWebView(context: Context, onHeight: (Int) -> Unit, onLink: (St
     }
 
     private companion object {
-        // Path segments may contain dots ("katex.min.js") but never an empty one, so ".." can't appear.
-        val ASSET = Regex("^/katex(/[A-Za-z0-9_-]+(\\.[A-Za-z0-9_-]+)*)+\\.(js|css|woff2)$")
-
         fun empty(code: Int) = WebResourceResponse("text/plain", "utf-8", code, if (code == 404) "Not found" else "OK", null, ByteArrayInputStream(ByteArray(0)))
 
         fun serve(context: Context, url: Uri): WebResourceResponse {
             if (url.scheme != "https" || url.host != HOST) return empty(404)
             val path = url.path.orEmpty()
             if (path == "/index.html") return WebResourceResponse("text/html", "utf-8", ByteArrayInputStream(PAGE.toByteArray()))
-            if (!ASSET.matches(path)) return empty(404)
+            if (!MathMarkdown.isServableAsset(path)) return empty(404)
             val bytes = runCatching { context.assets.open(path.removePrefix("/")).use { it.readBytes() } }.getOrNull() ?: return empty(404)
             val mime = when (path.substringAfterLast('.')) {
                 "js" -> "application/javascript"

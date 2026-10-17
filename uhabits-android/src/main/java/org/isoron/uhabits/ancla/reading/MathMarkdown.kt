@@ -40,6 +40,12 @@ object MathMarkdown {
     private val BULLET = Regex("^\\s*[-*] ")
     private val NUMBERED = Regex("^\\s*\\d+[.)] ")
 
+    // Path segments may contain dots ("katex.min.js") but never an empty one, so ".." can't appear.
+    private val ASSET = Regex("^/katex(/[A-Za-z0-9_-]+(\\.[A-Za-z0-9_-]+)*)+\\.(js|css|woff2)$")
+
+    /** Whether the math page may load [path] from the app's assets (KaTeX's scripts, styles and fonts only). */
+    fun isServableAsset(path: String) = ASSET.matches(path)
+
     /** Whether [text] has any formula, so the plain Compose renderer is enough otherwise. */
     fun hasMath(text: String) = text.contains("$$") || INLINE_MATH.containsMatchIn(text)
 
