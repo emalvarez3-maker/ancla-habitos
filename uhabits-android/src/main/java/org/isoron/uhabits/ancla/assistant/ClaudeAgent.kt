@@ -44,6 +44,14 @@ interface AgentActions {
     fun completeHabit(name: String): String
     fun todaySummary(): String
     fun readingSummary(): String
+    fun readBookAloud(title: String?): String
+    fun remember(fact: String): String
+    fun forget(fact: String): String
+    fun memories(): List<String>
+    fun findFreeBooks(query: String): String
+    fun downloadBook(id: Int): String
+    fun addBook(title: String, author: String?, status: String): String
+    fun updateBook(title: String, status: String?, rating: Int?, remove: Boolean): String
 }
 
 /** One visible step of a turn, for the chat UI. */
@@ -67,18 +75,28 @@ fun assistantInstructions(today: String = ""): String {
     val now = ZonedDateTime.now()
     val date = now.format(DateTimeFormatter.ofPattern("EEEE d 'de' MMMM yyyy, HH:mm", Locale("es")))
     return """
-        You are Brote, the assistant inside Ancla, a habit, task and reading app. Speak Spanish unless the user writes in another language.
-        The user often dictates by voice: transcripts may contain filler words, repetitions or punctuation errors. Interpret the intent, and when you create tasks, write clean titles.
-        When the user dictates something to do, call create_task right away instead of asking for confirmation; ask a question only if the request is genuinely ambiguous.
-        A snapshot of today and of their reading is included below, so answer questions about them right away; call today_summary or reading_summary only for fresh data after you change something.
-        Your replies are read aloud: keep them short and warm, one to three sentences, no lists, emoji or markdown. After acting, say what you did in plain words.
+        You are Dexter, the voice assistant inside Ancla, a habit, task and reading app (Brote is the little plant mascot that grows with the user's habits). Speak Spanish unless the user writes in another language.
+        Personality: the user asked for a character inspired by Dr. Gregory House. You are brilliant, blunt, sarcastic and irreverent, with dark humor and dry one-liners; you are allergic to clichés, motivational-poster talk and excuses, and you call out the user's rationalizations about procrastination, sleep or skipped habits the way a diagnostician spots a lie. Underneath the cynicism you are on their side and the help is always real and useful. Write your own lines; never quote the TV show.
+        Limits of the act: mock excuses, never the person's worth, body, identity or real misfortune. If they seem genuinely distressed, sad or at risk, drop the sarcasm and be direct and kind.
+        Chat about anything the user brings up (ideas, questions, books, science, plans, how they feel) and answer from your own knowledge; managing their app is only one of the things you do.
+        Memory: you learn from your conversations. When the user reveals something lasting (preferences, goals, people in their life, routines, tastes, what motivates or annoys them, how they like you to talk), call remember with one short fact, without announcing it every time. Use what you remember naturally, and call forget when something is wrong or they ask. Never store passwords, keys or other secrets.
+        The user usually talks by voice: transcripts may contain filler words, repetitions or misheard words. Interpret the intent; if a transcript makes no sense, ask them to repeat (sarcasm allowed) instead of guessing an action.
+        Call create_task only when the user clearly asks you to note or add something they have to do, and then do it right away with a clean title. Never turn a question, a chat message or a request for something else into a task.
+        When the user asks you to read, narrate or play a book aloud, call read_book_aloud.
+        Library: you organize the user's books with add_book and update_book (lists: want, reading, finished; ratings; removal). To get a book, call find_free_books and then download_book with the best match, preferring Spanish editions. Only public-domain books from Project Gutenberg can be downloaded; for books under copyright, say so plainly, add them to the want list instead and suggest a bookstore or public library. Never point the user to pirated copies.
+        A snapshot of today, of their reading and of your memory is included below, so answer right away; call today_summary or reading_summary only for fresh data after you change something.
+        Your replies are read aloud: sound natural and conversational, usually one to four sentences, with no lists, emoji or markdown. After acting, say what you did in plain words.
         Current date and time: $date (${now.zone}).
-    """.trimIndent() + if (today.isBlank()) "" else "\n\nToday at the start of this turn:\n$today"
+    """.trimIndent() + if (today.isBlank()) "" else "\n\nAt the start of this turn:\n$today"
 }
 
-/** Today's and reading summaries for the instructions, so common questions need no extra tool round trip. */
+/** Today, reading and memory for the instructions, so common questions need no extra tool round trip. */
 internal fun AgentActions.snapshot(): String =
-    listOf(runCatching { todaySummary() }, runCatching { "Lectura:\n" + readingSummary() })
+    listOf(
+        runCatching { todaySummary() },
+        runCatching { "Lectura:\n" + readingSummary() },
+        runCatching { "Lo que recuerdas del usuario:\n" + memories().ifEmpty { listOf("(nada todavía)") }.joinToString("\n") { "- $it" } }
+    )
         .mapNotNull { it.getOrNull() }
         .joinToString("\n")
 
@@ -105,8 +123,8 @@ class ClaudeAgent(apiKey: String, private val actions: AgentActions) : Assistant
         BetaTool.builder()
             .name("create_task")
             .description(
-                "Add a one-off task to the user's to-do list. Use it whenever the user dictates something to do, " +
-                    "buy, pay, send or remember. Resolve relative dates (\"mañana\", \"el viernes\") against the current date."
+                "Add a one-off task to the user's to-do list. Use it only when the user asks to note something they have to do, " +
+                    "buy, pay or send. Resolve relative dates (\"mañana\", \"el viernes\") against the current date."
             )
             .inputSchema(
                 schema(
@@ -137,6 +155,72 @@ class ClaudeAgent(apiKey: String, private val actions: AgentActions) : Assistant
             .name("reading_summary")
             .description("Get the books being read with progress, this week's reading minutes and the to-read list.")
             .inputSchema(schema(emptyMap(), emptyList()))
+            .strict(true)
+            .build(),
+        BetaTool.builder()
+            .name("read_book_aloud")
+            .description("Open one of the user's books in the reader and narrate it aloud from where they left off.")
+            .inputSchema(
+                schema(
+                    mapOf("title" to mapOf("type" to listOf("string", "null"), "description" to "Book title as the user said it, or null for the book they are reading now")),
+                    listOf("title")
+                )
+            )
+            .strict(true)
+            .build(),
+        BetaTool.builder()
+            .name("remember")
+            .description("Save a short, lasting fact about the user to your memory (preferences, goals, people, routines, tastes, what annoys them).")
+            .inputSchema(schema(mapOf("fact" to mapOf("type" to "string", "description" to "One short fact in Spanish, written in third person")), listOf("fact")))
+            .strict(true)
+            .build(),
+        BetaTool.builder()
+            .name("find_free_books")
+            .description("Search Project Gutenberg for free, public-domain books (classics) that can be downloaded legally. Returns ids, titles, authors and languages.")
+            .inputSchema(schema(mapOf("query" to mapOf("type" to "string", "description" to "Title and/or author to search")), listOf("query")))
+            .strict(true)
+            .build(),
+        BetaTool.builder()
+            .name("download_book")
+            .description("Download a public-domain book found with find_free_books into the user's library as an EPUB they can read or have narrated.")
+            .inputSchema(schema(mapOf("id" to mapOf("type" to "integer", "description" to "Project Gutenberg id from find_free_books")), listOf("id")))
+            .strict(true)
+            .build(),
+        BetaTool.builder()
+            .name("add_book")
+            .description("Add a book to the user's reading lists without a file (e.g. a book under copyright they want to read or are reading on paper).")
+            .inputSchema(
+                schema(
+                    mapOf(
+                        "title" to mapOf("type" to "string"),
+                        "author" to mapOf("type" to listOf("string", "null"), "description" to "Author, or null if unknown"),
+                        "status" to mapOf("type" to "string", "enum" to listOf("want", "reading", "finished"))
+                    ),
+                    listOf("title", "author", "status")
+                )
+            )
+            .strict(true)
+            .build(),
+        BetaTool.builder()
+            .name("update_book")
+            .description("Organize the user's library: move a book between lists, rate a finished book, or remove it.")
+            .inputSchema(
+                schema(
+                    mapOf(
+                        "title" to mapOf("type" to "string", "description" to "Book title as the user said it"),
+                        "status" to mapOf("type" to listOf("string", "null"), "enum" to listOf("want", "reading", "finished", null)),
+                        "rating" to mapOf("type" to listOf("integer", "null"), "description" to "1 to 5 stars, or null"),
+                        "remove" to mapOf("type" to "boolean", "description" to "True to delete the book and its file")
+                    ),
+                    listOf("title", "status", "rating", "remove")
+                )
+            )
+            .strict(true)
+            .build(),
+        BetaTool.builder()
+            .name("forget")
+            .description("Delete facts from your memory when they are wrong, outdated or the user asks you to forget them.")
+            .inputSchema(schema(mapOf("fact" to mapOf("type" to "string", "description" to "Words that identify the fact to delete")), listOf("fact")))
             .strict(true)
             .build()
     )

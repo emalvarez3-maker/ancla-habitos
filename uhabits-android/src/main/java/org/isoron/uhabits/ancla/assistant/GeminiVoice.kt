@@ -134,12 +134,12 @@ internal class GeminiVoice(
         return generation
     }
 
-    fun speak(gen: Int, apiKey: String, voice: String, text: String) {
+    fun speak(gen: Int, apiKey: String, voice: String, text: String, style: String) {
         fetcher.execute {
             if (gen != generation) return@execute
             val started = System.currentTimeMillis()
             try {
-                synthesize(gen, apiKey, voice, text)
+                synthesize(gen, apiKey, voice, text, style)
                 Log.d(TAG, "segment ${text.length} chars synthesized in ${System.currentTimeMillis() - started} ms")
                 queue.put(Chunk.End(gen))
             } catch (e: Exception) {
@@ -149,9 +149,9 @@ internal class GeminiVoice(
         }
     }
 
-    private fun body(voice: String, text: String): JSONObject {
+    private fun body(voice: String, text: String, style: String): JSONObject {
         val part = JSONObject().put("text", text)
-        if (useMetadata) part.put("speechMetadata", JSONObject().put("style", STYLE))
+        if (useMetadata) part.put("speechMetadata", JSONObject().put("style", style))
         val voiceConfig = if (useNewVoiceShape) {
             JSONObject().put("voice", voice)
         } else {
@@ -175,7 +175,7 @@ internal class GeminiVoice(
         return MODELS.firstOrNull { (limitedUntil[it] ?: 0) <= now }
     }
 
-    private fun synthesize(gen: Int, apiKey: String, voice: String, text: String) {
+    private fun synthesize(gen: Int, apiKey: String, voice: String, text: String, style: String) {
         // On a quota error the next TTS model is tried; older request shapes are tried if the API rejects newer fields.
         repeat(MODELS.size + 2) {
             val model = nextModel() ?: throw IllegalStateException("all TTS models rate limited")
@@ -189,12 +189,13 @@ internal class GeminiVoice(
             }
             try {
                 val sent = System.currentTimeMillis()
-                conn.outputStream.use { it.write(body(voice, text).toString().toByteArray()) }
+                conn.outputStream.use { it.write(body(voice, text, style).toString().toByteArray()) }
                 val code = conn.responseCode
-                if (code == 429 || code == 404) {
+                if (code == 429 || code == 404 || code >= 500) {
                     val err = conn.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
                     val wait = when {
                         code == 404 -> Long.MAX_VALUE / 2
+                        code >= 500 -> 15 * 1000L // overloaded for a moment
                         err.contains("PerDay") -> 6 * 60 * 60 * 1000L
                         else -> 60 * 1000L
                     }
@@ -255,8 +256,13 @@ internal class GeminiVoice(
         val MODELS = listOf("gemini-3.8-flash-tts", "gemini-3.8-flash-lite-tts", "gemini-3.1-flash-tts-preview")
         private const val SAMPLE_RATE = 24000
         private const val SLICE = 2400 // 50 ms of audio
-        private const val STYLE = "Like JARVIS, a sophisticated AI butler: deep, calm and composed male voice, " +
-            "refined and slightly formal, effortlessly confident, with a subtle dry wit. Measured pace, crisp diction, " +
-            "smooth natural intonation, never robotic or rushed."
+        /** Dexter's delivery: a brilliant, sardonic doctor rather than a cheerful assistant. */
+        const val ASSISTANT_STYLE = "Deep, elegant, beautifully modulated baritone male voice, sophisticated and composed, " +
+            "like a refined AI butler with a dry, sardonic wit: expressive intonation that rises and falls naturally, " +
+            "deadpan comic timing on the sarcastic lines, unhurried pace. Never robotic, never flat, never cheerful-salesman."
+
+        /** Audiobook narration. */
+        const val NARRATOR_STYLE = "Audiobook narrator: warm, deep and expressive male voice, measured storytelling pace, " +
+            "clear diction, subtle shifts of tone for dialogue and characters, natural pauses between sentences."
     }
 }

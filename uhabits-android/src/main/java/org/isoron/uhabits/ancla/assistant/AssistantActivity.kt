@@ -61,6 +61,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -120,7 +121,7 @@ private fun AssistantScreen(controller: VoiceAgentController, settingsOpen: Bool
     val list = rememberLazyListState()
     LaunchedEffect(turns.size, controller.thinking.value) { if (turns.isNotEmpty()) list.animateScrollToItem(turns.size) }
 
-    if (settingsOpen) KeysSheet(controller.keys, onPreview = controller::previewVoice) { onSettings(false) }
+    if (settingsOpen) KeysSheet(controller.keys, onPreview = controller::previewVoice, phoneVoices = controller.phoneVoices(), onPreviewPhone = controller::previewPhoneVoice) { onSettings(false) }
 
     Column(Modifier.fillMaxSize().background(c.ground).statusBarsPadding().imePadding()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -144,9 +145,10 @@ private fun AssistantScreen(controller: VoiceAgentController, settingsOpen: Bool
                 modifier = Modifier.clip(RoundedCornerShape(12.dp)).combinedClickableCompat(Role.Button, { onSettings(true) }).padding(10.dp)
             )
         }
-        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ToggleChip(stringResource(R.string.voice_toggle_speak), controller.speak.value) { controller.setSpeak(it) }
             ToggleChip(stringResource(R.string.voice_toggle_jarvis), controller.conversation.value) { controller.setConversation(it) }
+            ToggleChip(stringResource(R.string.voice_toggle_wake), controller.wakeWord.value) { controller.setWakeWord(it) }
         }
         LazyColumn(
             Modifier.weight(1f).fillMaxWidth(),
@@ -222,7 +224,13 @@ private fun Bubble(text: String, mine: Boolean) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun KeysSheet(keys: SecureKeys, onPreview: (String, String) -> Unit, onDone: () -> Unit) {
+private fun KeysSheet(
+    keys: SecureKeys,
+    onPreview: (String, String) -> Unit,
+    phoneVoices: List<String>,
+    onPreviewPhone: (String) -> Unit,
+    onDone: () -> Unit
+) {
     val c = Ancla.colors
     var claude by remember { mutableStateOf(keys.claudeKey) }
     var gemini by remember { mutableStateOf(keys.geminiKey) }
@@ -231,6 +239,7 @@ private fun KeysSheet(keys: SecureKeys, onPreview: (String, String) -> Unit, onD
     var openai by remember { mutableStateOf(keys.openAiKey) }
     var provider by remember { mutableStateOf(keys.transcription) }
     var voice by remember { mutableStateOf(keys.voice) }
+    var phoneVoice by remember { mutableStateOf(keys.phoneVoice) }
     val colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.lilac, unfocusedBorderColor = c.track, focusedTextColor = c.ink, unfocusedTextColor = c.ink)
     ModalBottomSheet(onDismissRequest = onDone, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = c.card) {
         Column(
@@ -309,6 +318,50 @@ private fun KeysSheet(keys: SecureKeys, onPreview: (String, String) -> Unit, onD
                 style = MaterialTheme.typography.bodyMedium,
                 color = c.muted
             )
+            if (phoneVoices.isNotEmpty()) {
+                Text(stringResource(R.string.keys_phone_voice), style = MaterialTheme.typography.titleMedium, color = c.ink)
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    phoneVoices.forEach { name ->
+                        val on = phoneVoice == name
+                        // "es-us-x-esd-network" → "esd · US · red"
+                        val parts = name.split('-')
+                        val label = listOfNotNull(parts.getOrNull(3), parts.getOrNull(1)?.uppercase(), if (name.endsWith("network")) "red" else null)
+                            .joinToString(" · ")
+                        Text(
+                            label,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = if (on) c.onInk else c.inkSoft,
+                            modifier = Modifier.clip(CircleShape).background(if (on) c.ink else c.ground)
+                                .combinedClickableCompat(Role.RadioButton, {
+                                    phoneVoice = name
+                                    onPreviewPhone(name)
+                                }).padding(horizontal = 14.dp, vertical = 10.dp)
+                        )
+                    }
+                }
+                Text(stringResource(R.string.keys_phone_voice_note), style = MaterialTheme.typography.bodyMedium, color = c.muted)
+            }
+            val context = LocalContext.current
+            val memory = remember { DexterMemory(context) }
+            var facts by remember { mutableStateOf(memory.facts) }
+            Text(stringResource(R.string.memory_title), style = MaterialTheme.typography.titleMedium, color = c.ink)
+            Text(
+                if (facts.isEmpty()) stringResource(R.string.memory_empty) else facts.joinToString("\n") { "• $it" },
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (facts.isEmpty()) c.muted else c.inkSoft
+            )
+            if (facts.isNotEmpty()) {
+                Text(
+                    stringResource(R.string.memory_clear),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = c.amberInk,
+                    modifier = Modifier.clip(CircleShape).background(c.ground)
+                        .combinedClickableCompat(Role.Button, {
+                            memory.clear()
+                            facts = emptyList()
+                        }).padding(horizontal = 14.dp, vertical = 10.dp)
+                )
+            }
             Box(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.ink)
                     .combinedClickableCompat(Role.Button, {
@@ -319,6 +372,7 @@ private fun KeysSheet(keys: SecureKeys, onPreview: (String, String) -> Unit, onD
                         keys.openAiKey = openai
                         keys.transcription = provider
                         keys.voice = voice
+                        keys.phoneVoice = phoneVoice
                         onDone()
                     }).padding(14.dp),
                 contentAlignment = Alignment.Center

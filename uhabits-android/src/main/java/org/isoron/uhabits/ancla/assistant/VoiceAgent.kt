@@ -21,7 +21,10 @@ package org.isoron.uhabits.ancla.assistant
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
+import android.view.HapticFeedbackConstants
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
@@ -103,7 +106,15 @@ class VoiceAgentController(private val activity: ComponentActivity, private val 
     private var turnGeneration = 0
     private var resumed = true
 
-    private val speaker = Speaker(activity, { keys.cloudVoice }) { speaking.value = it }
+    private val speaker = Speaker(activity, { keys.cloudVoice }, { keys.phoneVoice }) { speaking.value = it }
+
+    /** The phone's Spanish voices, for the fallback voice picker. */
+    fun phoneVoices() = speaker.phoneVoices()
+
+    fun previewPhoneVoice(name: String) {
+        cancel()
+        speaker.previewPhone(activity.getString(R.string.voice_sample), name)
+    }
 
     /** Plays a short sample of a voice from the settings sheet. */
     fun previewVoice(voiceName: String, geminiKey: String) {
@@ -127,11 +138,41 @@ class VoiceAgentController(private val activity: ComponentActivity, private val 
         if (granted && mode != null) engine.start(mode) else if (!granted) error.value = activity.getString(R.string.voice_need_mic)
     }
 
+    // --- "Oye Dexter" ---
+
+    val wakeWord = mutableStateOf(keys.wakeWord)
+    private val handler = Handler(Looper.getMainLooper())
+
+    private val wake = WakeWord(activity) { rest ->
+        activity.window.decorView.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+        // "Oye Dexter, anota comprar pan" goes straight in; a bare "Oye Dexter" opens the mic.
+        if (rest.split(" ").count { it.isNotBlank() } >= 2) send(rest) else handler.postDelayed({ begin(DictationMode.CONVERSATION) }, 250)
+    }
+
+    private val micGranted
+        get() = ContextCompat.checkSelfPermission(activity, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+
+    /** Keeps the wake word listening only while nothing else uses the microphone or the speaker. */
+    private val wakeCheck = object : Runnable {
+        override fun run() {
+            val idle = dictation.value == DictationState.Idle && !thinking.value && !speaking.value
+            if (resumed && wakeWord.value && idle && micGranted && hasAssistantKey) wake.start() else wake.stop()
+            if (resumed) handler.postDelayed(this, WAKE_CHECK_MS)
+        }
+    }
+
+    fun setWakeWord(on: Boolean) {
+        wakeWord.value = on
+        keys.wakeWord = on
+        if (on && !micGranted) permission.launch(Manifest.permission.RECORD_AUDIO)
+    }
+
     val hasAssistantKey get() = keys.usableAssistant != null
 
     private fun begin(mode: DictationMode) {
         error.value = null
-        speaker.stop() // talking over Brote interrupts it
+        speaker.stop() // talking over Dexter interrupts it
+        wake.stop()
         if (!resumed) return
         if (ContextCompat.checkSelfPermission(activity, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
             engine.start(mode)
@@ -178,10 +219,14 @@ class VoiceAgentController(private val activity: ComponentActivity, private val 
 
     fun onResume() {
         resumed = true
+        handler.removeCallbacks(wakeCheck)
+        handler.postDelayed(wakeCheck, WAKE_CHECK_MS)
     }
 
     fun onPause() {
         resumed = false
+        handler.removeCallbacks(wakeCheck)
+        wake.stop()
         cancel()
     }
 
@@ -286,8 +331,14 @@ class VoiceAgentController(private val activity: ComponentActivity, private val 
     }
 
     fun release() {
+        handler.removeCallbacks(wakeCheck)
+        wake.stop()
         engine.release()
         speaker.shutdown()
+    }
+
+    private companion object {
+        const val WAKE_CHECK_MS = 700L
     }
 }
 

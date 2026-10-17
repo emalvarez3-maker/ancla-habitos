@@ -83,6 +83,8 @@ fun ReaderScreen(
     onSmaller: () -> Unit,
     onBigger: () -> Unit,
     onTheme: () -> Unit,
+    narrating: Boolean,
+    onNarrate: () -> Unit,
     onFinish: (Int) -> Unit,
     onDismissFinish: () -> Unit
 ) {
@@ -135,6 +137,7 @@ fun ReaderScreen(
                     BarButton("‹", fg, onPrev, stringResource(R.string.reader_prev), enabled = chapter > 0)
                     BarButton("A−", fg, onSmaller, stringResource(R.string.reader_smaller))
                     BarButton("A+", fg, onBigger, stringResource(R.string.reader_bigger))
+                    BarButton(if (narrating) "❚❚" else "▶", accent, onNarrate, stringResource(if (narrating) R.string.reader_narrate_stop else R.string.reader_narrate))
                     Box(
                         Modifier
                             .size(44.dp)

@@ -34,6 +34,15 @@ internal fun dispatchTool(actions: AgentActions, name: String, input: JSONObject
         "complete_habit" -> actions.completeHabit(input.getString("name")).also { onEvent(AgentEvent.Action(it)) }
         "today_summary" -> actions.todaySummary()
         "reading_summary" -> actions.readingSummary()
+        "read_book_aloud" -> actions.readBookAloud(opt("title")).also { onEvent(AgentEvent.Action(it)) }
+        "remember" -> actions.remember(input.getString("fact"))
+        "forget" -> actions.forget(input.getString("fact"))
+        "find_free_books" -> actions.findFreeBooks(input.getString("query"))
+        "download_book" -> actions.downloadBook(input.getInt("id")).also { onEvent(AgentEvent.Action(it)) }
+        "add_book" -> actions.addBook(input.getString("title"), opt("author"), opt("status") ?: "want").also { onEvent(AgentEvent.Action(it)) }
+        "update_book" -> actions.updateBook(
+            input.getString("title"), opt("status"), input.optInt("rating", 0).takeIf { it in 1..5 }, input.optBoolean("remove", false)
+        ).also { onEvent(AgentEvent.Action(it)) }
         else -> return "Unknown tool $name" to true
     }
     out to false
@@ -75,7 +84,7 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
                 .put(
                     function(
                         "create_task",
-                        "Add a one-off task to the user's to-do list. Use it whenever the user dictates something to do, buy, pay, send or remember. Resolve relative dates against the current date.",
+                        "Add a one-off task to the user's to-do list. Use it only when the user asks to note something they have to do, buy, pay or send. Resolve relative dates against the current date.",
                         JSONObject()
                             .put("title", prop("string", "Short task title in the user's language, cleaned of filler words"))
                             .put("date", prop("string", "Due date as YYYY-MM-DD, or null for today", nullable = true))
@@ -94,6 +103,69 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
                 )
                 .put(function("today_summary", "Get today's habits (done/pending, key days), today's tasks and the mascot's growth stage.", JSONObject(), emptyList()))
                 .put(function("reading_summary", "Get the books being read with progress, this week's reading minutes and the to-read list.", JSONObject(), emptyList()))
+                .put(
+                    function(
+                        "read_book_aloud",
+                        "Open one of the user's books in the reader and narrate it aloud from where they left off.",
+                        JSONObject().put("title", prop("string", "Book title as the user said it, or null for the book they are reading now", nullable = true)),
+                        emptyList()
+                    )
+                )
+                .put(
+                    function(
+                        "remember",
+                        "Save a short, lasting fact about the user to your memory (preferences, goals, people, routines, tastes, what annoys them).",
+                        JSONObject().put("fact", prop("string", "One short fact in Spanish, written in third person")),
+                        listOf("fact")
+                    )
+                )
+                .put(
+                    function(
+                        "find_free_books",
+                        "Search Project Gutenberg for free, public-domain books (classics) that can be downloaded legally. Returns ids, titles, authors and languages.",
+                        JSONObject().put("query", prop("string", "Title and/or author to search")),
+                        listOf("query")
+                    )
+                )
+                .put(
+                    function(
+                        "download_book",
+                        "Download a public-domain book found with find_free_books into the user's library as an EPUB they can read or have narrated.",
+                        JSONObject().put("id", prop("integer", "Project Gutenberg id from find_free_books")),
+                        listOf("id")
+                    )
+                )
+                .put(
+                    function(
+                        "add_book",
+                        "Add a book to the user's reading lists without a file (e.g. a book under copyright they want to read or are reading on paper).",
+                        JSONObject()
+                            .put("title", prop("string"))
+                            .put("author", prop("string", "Author, or null if unknown", nullable = true))
+                            .put("status", JSONObject().put("type", "string").put("enum", JSONArray(listOf("want", "reading", "finished")))),
+                        listOf("title", "status")
+                    )
+                )
+                .put(
+                    function(
+                        "update_book",
+                        "Organize the user's library: move a book between lists, rate a finished book, or remove it.",
+                        JSONObject()
+                            .put("title", prop("string", "Book title as the user said it"))
+                            .put("status", JSONObject().put("type", "string").put("enum", JSONArray(listOf("want", "reading", "finished"))).put("nullable", true))
+                            .put("rating", prop("integer", "1 to 5 stars, or null", nullable = true))
+                            .put("remove", prop("boolean", "True to delete the book and its file")),
+                        listOf("title", "remove")
+                    )
+                )
+                .put(
+                    function(
+                        "forget",
+                        "Delete facts from your memory when they are wrong, outdated or the user asks you to forget them.",
+                        JSONObject().put("fact", prop("string", "Words that identify the fact to delete")),
+                        listOf("fact")
+                    )
+                )
         )
     )
 
@@ -111,24 +183,43 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
     private fun run(userParts: JSONArray, onEvent: (AgentEvent) -> Unit) {
         history.put(JSONObject().put("role", "user").put("parts", userParts))
         val instructions = assistantInstructions(actions.snapshot())
+        // One model per turn: thought signatures from one model are not valid for another.
+        var model = nextModel()
+        var produced = false
         repeat(MAX_STEPS) {
             val body = JSONObject()
                 .put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", instructions))))
                 .put("contents", history)
                 .put("tools", tools)
-            // Thinking adds seconds before the first word; minimal is plenty for a quick voice assistant.
-            if (lowThinking) {
-                body.put("generationConfig", JSONObject().put("thinkingConfig", JSONObject().put("thinkingLevel", "minimal")))
+            var result: Pair<JSONArray, String>? = null
+            var attempts = 0
+            while (result == null) {
+                // Thinking adds seconds before the first word; the lowest level is plenty for a voice assistant.
+                if (lowThinking) {
+                    body.put("generationConfig", JSONObject().put("thinkingConfig", JSONObject().put("thinkingLevel", THINKING.getValue(model))))
+                } else {
+                    body.remove("generationConfig")
+                }
+                try {
+                    result = stream(model, body) { delta -> produced = true; onEvent(AgentEvent.Reply(delta)) }
+                } catch (e: AgentException) {
+                    val busy = e.kind == AgentException.Kind.RATE_LIMIT || e.message.orEmpty().startsWith("HTTP 5")
+                    when {
+                        busy && it == 0 && !produced && ++attempts < MODELS.size -> {
+                            // Free-tier limit or overload: switch to the next free model for this turn.
+                            limitedUntil[model] = System.currentTimeMillis() + 60_000
+                            model = nextModel()
+                            android.util.Log.w("AnclaVoice", "chat model busy, switching to $model")
+                        }
+                        lowThinking && e.kind == AgentException.Kind.OTHER && e.message.orEmpty().startsWith("HTTP 400") -> {
+                            android.util.Log.w("AnclaVoice", "thinkingLevel rejected: ${e.message?.take(200)}")
+                            lowThinking = false
+                        }
+                        else -> throw e
+                    }
+                }
             }
-            val (parts, finishReason) = try {
-                stream(body) { delta -> onEvent(AgentEvent.Reply(delta)) }
-            } catch (e: AgentException) {
-                if (!lowThinking || e.kind != AgentException.Kind.OTHER || !e.message.orEmpty().startsWith("HTTP 400")) throw e
-                android.util.Log.w("AnclaVoice", "thinkingLevel rejected: ${e.message?.take(200)}")
-                lowThinking = false
-                body.remove("generationConfig")
-                stream(body) { delta -> onEvent(AgentEvent.Reply(delta)) }
-            }
+            val (parts, finishReason) = result!!
             // The model turn goes back exactly as streamed, so thought signatures are preserved.
             history.put(JSONObject().put("role", "model").put("parts", parts))
             val text = (0 until parts.length()).joinToString("") { i ->
@@ -158,8 +249,8 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
      * Calls streamGenerateContent (server-sent events), reporting visible text as it arrives.
      * Returns every part received, in order, and the finish reason.
      */
-    private fun stream(body: JSONObject, onText: (String) -> Unit): Pair<JSONArray, String> {
-        val conn = (URL("https://generativelanguage.googleapis.com/v1beta/models/$MODEL:streamGenerateContent?alt=sse").openConnection() as HttpURLConnection).apply {
+    private fun stream(model: String, body: JSONObject, onText: (String) -> Unit): Pair<JSONArray, String> {
+        val conn = (URL("https://generativelanguage.googleapis.com/v1beta/models/$model:streamGenerateContent?alt=sse").openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             doOutput = true
             connectTimeout = 15000
@@ -206,7 +297,19 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
 
 
     companion object {
-        const val MODEL = "gemini-3.6-flash"
+        /** Free models, fastest first; the next one is used when one hits its rate limit. */
+        val MODELS = listOf("gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.8-flash")
+
+        /** Lowest thinking level each model accepts. */
+        private val THINKING = mapOf("gemini-3.6-flash" to "minimal", "gemini-3.5-flash-lite" to "minimal", "gemini-3.8-flash" to "low")
+
+        /** Per model, when it may be used again after a rate limit; shared by every conversation. */
+        private val limitedUntil = java.util.concurrent.ConcurrentHashMap<String, Long>()
+
+        private fun nextModel(): String {
+            val now = System.currentTimeMillis()
+            return MODELS.firstOrNull { (limitedUntil[it] ?: 0) <= now } ?: MODELS.minBy { limitedUntil[it] ?: 0 }
+        }
         private const val MAX_STEPS = 6
     }
 }

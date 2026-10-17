@@ -322,6 +322,9 @@ class Dictation(
 
     private fun recognizerIntent() = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
         putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+        // Always Spanish, even when the phone itself is set to English.
+        putExtra(RecognizerIntent.EXTRA_LANGUAGE, SPEECH_LANGUAGE)
+        putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, SPEECH_LANGUAGE)
         putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
         putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 4000L)
         putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 4000L)
@@ -330,6 +333,9 @@ class Dictation(
     companion object {
         /** Safety stop so a forgotten hands-free session cannot record all afternoon. */
         const val MAX_MILLIS = 5 * 60 * 1000L
+
+        /** Language for Android's recognizer: Latin American Spanish. */
+        const val SPEECH_LANGUAGE = "es-US"
 
         /** Microphone amplitude above which we consider the user is talking. */
         private const val SPEECH_AMPLITUDE = 2500

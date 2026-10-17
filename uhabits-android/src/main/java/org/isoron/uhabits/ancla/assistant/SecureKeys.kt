@@ -92,11 +92,21 @@ class SecureKeys(context: Context) {
         get() = prefs.getString("voice", null) ?: BroteVoices.GEMINI.first()
         set(v) = prefs.edit().putString("voice", v).apply()
 
+    /** The phone voice used when Gemini is unavailable, or empty for the automatic pick. */
+    var phoneVoice: String
+        get() = prefs.getString("phone_voice", null).orEmpty()
+        set(v) = prefs.edit().putString("phone_voice", v).apply()
+
     /** The Gemini key and voice to speak with, or null to use the phone's voice. */
     val cloudVoice: Pair<String, String>?
         get() = voice.takeIf { it != BroteVoices.PHONE }?.let { v -> geminiKey.takeIf { it.isNotBlank() }?.let { it to v } }
 
-    /** Jarvis mode: after Brote speaks, listen again automatically. */
+    /** "Oye Dexter": listen for the assistant's name while the app is open. */
+    var wakeWord: Boolean
+        get() = prefs.getBoolean("wake_word", true)
+        set(v) = prefs.edit().putBoolean("wake_word", v).apply()
+
+    /** Jarvis mode: after Dexter speaks, listen again automatically. */
     var conversationMode: Boolean
         get() = prefs.getBoolean("conversation", false)
         set(v) = prefs.edit().putBoolean("conversation", v).apply()

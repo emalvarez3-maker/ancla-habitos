@@ -37,6 +37,7 @@ import java.util.concurrent.atomic.AtomicInteger
 class Speaker(
     context: Context,
     private val cloudVoice: () -> Pair<String, String>? = { null },
+    private val phoneVoice: () -> String = { "" },
     private val onSpeaking: (Boolean) -> Unit
 ) {
     private val main = Handler(Looper.getMainLooper())
@@ -53,15 +54,18 @@ class Speaker(
     private val cloudText = StringBuilder()
     private var cloudPausedUntil = 0L
 
+    /** How the Gemini voice should deliver the text. */
+    var style = GeminiVoice.ASSISTANT_STYLE
+
     private val voice = GeminiVoice(
         onAudioStart = { gen -> main.post { if (gen == cloudGen) onSpeaking(true) } },
         onSegmentDone = { gen -> main.post { if (gen == cloudGen) utteranceEnded() } },
         onFailed = { gen, text ->
             main.post {
                 if (gen != cloudGen) return@post
-                // Quota or network trouble: finish this reply (and the next minute) with the phone's voice.
+                // Quota or network trouble: finish this reply (and the next 20 seconds) with the phone's voice.
                 cloud = null
-                cloudPausedUntil = System.currentTimeMillis() + 60_000
+                cloudPausedUntil = System.currentTimeMillis() + 20_000
                 speakLocal(text)
                 utteranceEnded()
             }
@@ -97,21 +101,32 @@ class Speaker(
     }
 
     private fun configure() {
-        val locale = Locale.getDefault().takeIf { it.language == "es" } ?: Locale("es", "US")
-        tts.language = locale
-        // Prefer the most natural Spanish voice: network neural voices first, then high-quality local ones.
-        tts.voices?.filter { it.locale.language == "es" && Voice.QUALITY_HIGH <= it.quality && "legacySetLanguageVoice" !in it.features.orEmpty() }
-            ?.maxByOrNull {
-                (if (it.locale.country == locale.country) 100 else 0) + (if (it.isNetworkConnectionRequired) 50 else 0) + it.quality / 100
-            }
-            ?.let { tts.voice = it }
-        tts.setSpeechRate(1.05f)
-        tts.setPitch(1.0f)
+        tts.language = Locale("es", "US")
+        applyPhoneVoice(phoneVoice())
+        tts.setSpeechRate(1.0f)
+        tts.setPitch(0.95f)
+    }
+
+    /** The phone's Spanish voices, by name, for the fallback voice picker. */
+    fun phoneVoices(): List<String> = if (!ready) emptyList() else
+        tts.voices.orEmpty()
+            .filter { it.locale.language == "es" && Voice.QUALITY_NORMAL <= it.quality && "legacySetLanguageVoice" !in it.features.orEmpty() }
+            .map { it.name }.sorted()
+
+    /** Uses the voice named [name], or the default pick: a male es-US voice ("esd") when there is one. */
+    private fun applyPhoneVoice(name: String) {
+        if (!ready) return
+        val voices = tts.voices.orEmpty().filter { it.locale.language == "es" && "legacySetLanguageVoice" !in it.features.orEmpty() }
+        val pick = voices.firstOrNull { it.name == name }
+            ?: voices.filter { it.locale.country == "US" && "esd" in it.name }.maxByOrNull { if (it.isNetworkConnectionRequired) 1 else 0 }
+            ?: voices.maxByOrNull { (if (it.locale.country == "US") 100 else 0) + it.quality / 100 }
+        pick?.let { tts.voice = it }
     }
 
     /** Starts a new reply; [onFinished] runs after the last sentence has been spoken. */
     fun begin(onFinished: (() -> Unit)? = null) {
         stop()
+        applyPhoneVoice(phoneVoice())
         finished = false
         onDone = onFinished
         cloud = if (System.currentTimeMillis() < cloudPausedUntil) null else cloudVoice()
@@ -159,8 +174,18 @@ class Speaker(
         stop()
         cloudPausedUntil = 0
         cloud = if (voiceName == BroteVoices.PHONE || key.isBlank()) null else key to voiceName
+        applyPhoneVoice(phoneVoice())
         speak(text)
         flushCloud()
+        finished = true
+    }
+
+    /** Says a short sample with one of the phone's voices. */
+    fun previewPhone(text: String, name: String) {
+        stop()
+        cloud = null
+        applyPhoneVoice(name)
+        speak(text)
         finished = true
     }
 
@@ -189,7 +214,7 @@ class Speaker(
         cloudText.clear()
         if (text.isEmpty()) return
         pending.incrementAndGet()
-        voice.speak(cloudGen, key, name, text)
+        voice.speak(cloudGen, key, name, text, style)
     }
 
     private fun speakLocal(text: String) {

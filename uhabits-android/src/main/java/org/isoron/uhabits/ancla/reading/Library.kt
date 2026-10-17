@@ -37,21 +37,40 @@ class Library(private val context: Context) {
     fun fileOf(book: Book) = File(context.filesDir, book.file)
 
     /** Copies the EPUB behind [uri] into private storage and adds it as the book being read. Call off the main thread. */
-    fun importEpub(uri: Uri): Book {
-        val dir = File(context.filesDir, "books").apply { mkdirs() }
-        val name = "books/${UUID.randomUUID()}.epub"
-        val target = File(context.filesDir, name)
+    fun importEpub(uri: Uri): Book = importInto(BookStatus.READING) { target ->
         context.contentResolver.openInputStream(uri).use { input ->
             requireNotNull(input) { "Cannot open the selected file" }
             target.outputStream().use { input.copyTo(it) }
         }
+    }
+
+    /**
+     * Downloads a public-domain book from Project Gutenberg. If the library already lists it
+     * without a file (a "want to read" entry), that entry gets the EPUB. Call off the main thread.
+     */
+    fun downloadFree(gutenbergId: Int): Book {
+        val book = importInto(BookStatus.WANT) { target -> FreeBooks.download(gutenbergId, target) }
+        val key = { s: String -> s.lowercase().filter { it.isLetterOrDigit() } }
+        val existing = repo.findAll().firstOrNull { it.id != book.id && !it.isEbook && key(it.title) == key(book.title) } ?: return book
+        // Keep the user's entry (status, notes) and move the file onto it.
+        val merged = existing.copy(file = book.file, pages = book.pages, author = existing.author.ifBlank { book.author })
+        repo.update(merged)
+        book.id?.let(repo::delete)
+        return merged
+    }
+
+    private fun importInto(status: BookStatus, fetch: (File) -> Unit): Book {
+        val dir = File(context.filesDir, "books").apply { mkdirs() }
+        val name = "books/${UUID.randomUUID()}.epub"
+        val target = File(context.filesDir, name)
         try {
+            fetch(target)
             EpubBook(target).use { epub ->
                 val book = Book(
                     title = epub.title,
                     author = epub.author,
                     pages = epub.estimatedPages,
-                    status = BookStatus.READING,
+                    status = status,
                     tags = ReadingTags.fromSubjects(epub.subjects + epub.title),
                     addedDay = getToday(),
                     file = name

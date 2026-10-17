@@ -26,6 +26,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.view.WindowManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
@@ -40,10 +41,14 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import org.isoron.platform.time.getToday
 import org.isoron.uhabits.R
+import org.isoron.uhabits.ancla.assistant.GeminiVoice
+import org.isoron.uhabits.ancla.assistant.SecureKeys
+import org.isoron.uhabits.ancla.assistant.Speaker
 import org.isoron.uhabits.ancla.ui.AnclaTheme
 import org.isoron.uhabits.core.models.Book
 import org.isoron.uhabits.core.models.BookStatus
 import org.isoron.uhabits.core.models.ReadingSession
+import org.json.JSONArray
 import java.io.ByteArrayInputStream
 import java.io.File
 import kotlin.math.roundToInt
@@ -69,6 +74,13 @@ class ReaderActivity : AppCompatActivity() {
     private val fontSize = mutableIntStateOf(19)
     private val theme = mutableStateOf(ReaderTheme.LIGHT)
     private val askFinish = mutableStateOf(false)
+
+    // Narration: the chapter's paragraphs from the current position, spoken a few at a time.
+    private val narrating = mutableStateOf(false)
+    private var speaker: Speaker? = null
+    private var blocks: List<Pair<Int, String>> = emptyList()
+    private var blockAt = 0
+    private var narrateOnLoad = false
 
     // Reading time: counted in ticks while the reader is visible and was touched recently.
     private val handler = Handler(Looper.getMainLooper())
@@ -112,6 +124,11 @@ class ReaderActivity : AppCompatActivity() {
         startPage = book.currentPage
 
         webView = createWebView()
+        if (intent.getBooleanExtra(EXTRA_NARRATE, false)) {
+            narrating.value = true
+            narrateOnLoad = true
+            narrationStarted()
+        }
         loadChapter(chapter.intValue, restoreFraction)
 
         setContent {
@@ -131,6 +148,8 @@ class ReaderActivity : AppCompatActivity() {
                     onSmaller = { setFont(fontSize.intValue - 1) },
                     onBigger = { setFont(fontSize.intValue + 1) },
                     onTheme = { cycleTheme() },
+                    narrating = narrating.value,
+                    onNarrate = { if (narrating.value) stopNarration() else startNarration() },
                     onFinish = { stars -> finishBook(stars) },
                     onDismissFinish = { askFinish.value = false }
                 )
@@ -169,6 +188,11 @@ class ReaderActivity : AppCompatActivity() {
             override fun onPageFinished(view: WebView, url: String) {
                 val at = restoreFraction
                 view.postDelayed({ view.evaluateJavascript("window.anclaRestore && window.anclaRestore($at)", null) }, 120)
+                if (narrateOnLoad) {
+                    narrateOnLoad = false
+                    // Opened by Dexter: give its spoken reply a moment before the story starts.
+                    view.postDelayed({ if (narrating.value) collectAndSpeak() }, if (blocks.isEmpty()) 1800 else 500)
+                }
             }
         }
     }
@@ -186,6 +210,7 @@ class ReaderActivity : AppCompatActivity() {
             img, svg, video { max-width: 100% !important; height: auto !important; }
             h1, h2, h3 { line-height: 1.25 !important; }
             pre, table { max-width: 100%; overflow-x: auto; }
+            .ancla-now { background: ${t.link}22 !important; border-radius: 6px; box-shadow: 0 0 0 6px ${t.link}22; }
         """.trimIndent()
     }
 
@@ -201,6 +226,27 @@ class ReaderActivity : AppCompatActivity() {
                 document.addEventListener('click', function(e){ if (!e.target.closest('a')) Ancla.onTap(); });
                 window.anclaRestore = function(f){ quiet = Date.now() + 600; var h = document.documentElement.scrollHeight - window.innerHeight; window.scrollTo(0, Math.max(0, h * f)); Ancla.onScroll(frac(), false); };
                 window.anclaStyle = function(css){ document.getElementById('ancla-style').textContent = css; };
+                window.anclaBlocks = function(){
+                  var els = document.body.querySelectorAll('p,h1,h2,h3,h4,h5,h6,li,blockquote,dt,dd'), out = [];
+                  for (var i = 0; i < els.length; i++) {
+                    var e = els[i];
+                    if (e.querySelector('p,li')) continue;
+                    var t = (e.innerText || '').replace(/\s+/g, ' ').trim();
+                    if (!t) continue;
+                    e.setAttribute('data-an', i);
+                    if (e.getBoundingClientRect().bottom < 60) continue;
+                    out.push([i, t]);
+                  }
+                  if (!out.length) (document.body.innerText || '').split(/\n+/).forEach(function(t){ t = t.trim(); if (t) out.push([-1, t]); });
+                  return out;
+                };
+                window.anclaMark = function(i){
+                  var o = document.querySelector('.ancla-now'); if (o) o.classList.remove('ancla-now');
+                  var e = i >= 0 && document.querySelector('[data-an="' + i + '"]'); if (!e) return;
+                  e.classList.add('ancla-now'); quiet = Date.now() + 900;
+                  e.scrollIntoView({block: 'center', behavior: 'smooth'});
+                  setTimeout(function(){ Ancla.onScroll(frac(), false); }, 950);
+                };
               })();
             </script>
         """.trimIndent()
@@ -235,10 +281,75 @@ class ReaderActivity : AppCompatActivity() {
             return
         }
         interacted()
+        if (narrating.value) {
+            speaker?.stop()
+            narrateOnLoad = true
+        }
         chapter.intValue = index
         fraction.doubleValue = at
         loadChapter(index, at)
         savePosition()
+    }
+
+    // --- Narration ---
+
+    private fun narrationStarted() {
+        if (speaker == null) {
+            val keys = SecureKeys(this)
+            speaker = Speaker(this, { keys.cloudVoice }, { keys.phoneVoice }) {}.also { it.style = GeminiVoice.NARRATOR_STYLE }
+        }
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    }
+
+    private fun startNarration() {
+        narrating.value = true
+        narrationStarted()
+        collectAndSpeak()
+    }
+
+    private fun stopNarration() {
+        narrating.value = false
+        narrateOnLoad = false
+        speaker?.stop()
+        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        webView.evaluateJavascript("window.anclaMark && window.anclaMark(-1)", null)
+    }
+
+    /** Reads the paragraphs from the current position of the page and starts speaking them. */
+    private fun collectAndSpeak() {
+        webView.evaluateJavascript("window.anclaBlocks ? window.anclaBlocks() : []") { result ->
+            val arr = runCatching { JSONArray(result) }.getOrNull()
+            blocks = (0 until (arr?.length() ?: 0)).map { i -> arr!!.getJSONArray(i).let { it.getInt(0) to it.getString(1) } }
+            blockAt = 0
+            speakNext()
+        }
+    }
+
+    private fun speakNext() {
+        if (!narrating.value) return
+        if (blockAt >= blocks.size) {
+            if (chapter.intValue + 1 >= epub.chapters.size) {
+                stopNarration()
+                askFinish.value = true
+            } else {
+                goTo(chapter.intValue + 1, 0.0)
+            }
+            return
+        }
+        // A few paragraphs at a time: fewer voice requests, and natural pauses between them.
+        val first = blocks[blockAt].first
+        val chunk = StringBuilder()
+        while (blockAt < blocks.size && (chunk.isEmpty() || chunk.length + blocks[blockAt].second.length < NARRATION_CHARS)) {
+            chunk.append(blocks[blockAt].second).append('\n')
+            blockAt++
+        }
+        webView.evaluateJavascript("window.anclaMark && window.anclaMark($first)", null)
+        interacted() // listening counts as reading time
+        speaker?.apply {
+            begin { handler.post { speakNext() } }
+            append(chunk.toString())
+            finish()
+        }
     }
 
     private fun applySystemBars() {
@@ -311,6 +422,7 @@ class ReaderActivity : AppCompatActivity() {
     }
 
     override fun onPause() {
+        if (narrating.value) stopNarration()
         handler.removeCallbacks(tick)
         if (::book.isInitialized) {
             savePosition()
@@ -320,6 +432,7 @@ class ReaderActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        speaker?.shutdown()
         if (::epub.isInitialized) epub.close()
         if (::webView.isInitialized) webView.destroy()
         super.onDestroy()
@@ -348,10 +461,13 @@ class ReaderActivity : AppCompatActivity() {
 
     companion object {
         const val EXTRA_BOOK_ID = "bookId"
+        const val EXTRA_NARRATE = "narrate"
+        private const val NARRATION_CHARS = 600
         private const val HOST = "book.ancla"
         private const val TICK_MS = 15_000L
         private const val IDLE_LIMIT_MS = 120_000L
 
-        fun intent(context: Context, bookId: Long) = Intent(context, ReaderActivity::class.java).putExtra(EXTRA_BOOK_ID, bookId)
+        fun intent(context: Context, bookId: Long, narrate: Boolean = false) =
+            Intent(context, ReaderActivity::class.java).putExtra(EXTRA_BOOK_ID, bookId).putExtra(EXTRA_NARRATE, narrate)
     }
 }
