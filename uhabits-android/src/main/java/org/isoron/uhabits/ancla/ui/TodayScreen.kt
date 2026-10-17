@@ -79,6 +79,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.isoron.uhabits.R
+import org.isoron.uhabits.ancla.assistant.AgentResultCard
+import org.isoron.uhabits.ancla.assistant.DictationPill
+import org.isoron.uhabits.ancla.assistant.MicButton
+import org.isoron.uhabits.ancla.assistant.VoiceAgentController
 import org.isoron.uhabits.core.models.AutomaticityPhase
 import org.isoron.uhabits.core.ui.screens.today.TodayHabitItem
 import org.isoron.uhabits.core.ui.screens.today.TodayMood
@@ -145,7 +149,9 @@ fun TodayScreen(
     onAddHabit: () -> Unit,
     onHabits: () -> Unit,
     onReading: () -> Unit,
-    onSettings: () -> Unit
+    onSettings: () -> Unit,
+    voice: VoiceAgentController? = null,
+    onAssistant: () -> Unit = {}
 ) {
     val c = Ancla.colors
     var filter by rememberSaveable { mutableStateOf(TodayFilter.ALL) }
@@ -175,7 +181,7 @@ fun TodayScreen(
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
             Column(Modifier.padding(start = 22.dp, end = 22.dp, top = 18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Header(summary)
-                MascotCard(summary, hopKey)
+                MascotCard(summary, hopKey, onAssistant)
                 if (summary != null && summary.totalCount > 0) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         FilterChip(stringResource(R.string.filter_all), filter == TodayFilter.ALL) { filter = TodayFilter.ALL }
@@ -210,6 +216,11 @@ fun TodayScreen(
             }
         }
         AddButton(onAdd, Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 22.dp, bottom = 96.dp))
+        if (voice != null) {
+            MicButton(voice, Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 22.dp, bottom = 168.dp))
+            DictationPill(voice, Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp))
+            AgentResultCard(voice, onAssistant, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = 92.dp))
+        }
         BottomBar(onHabits, onReading, onSettings, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(14.dp))
     }
 }
@@ -253,7 +264,7 @@ private fun Header(summary: TodaySummary?) {
 }
 
 @Composable
-private fun MascotCard(summary: TodaySummary?, hopKey: Int) {
+private fun MascotCard(summary: TodaySummary?, hopKey: Int, onClick: () -> Unit) {
     val c = Ancla.colors
     val mood = summary?.mood?.toBrote() ?: BroteMood.CALM
     val stage = summary?.phase?.toStage() ?: BroteStage.SEED
@@ -272,6 +283,7 @@ private fun MascotCard(summary: TodaySummary?, hopKey: Int) {
             .shadow(14.dp, RoundedCornerShape(28.dp), ambientColor = Color(0x223C3278), spotColor = Color(0x223C3278))
             .clip(RoundedCornerShape(28.dp))
             .background(c.card)
+            .combinedClickableCompat(Role.Button, onClick)
             .padding(start = 6.dp, end = 18.dp, top = 14.dp, bottom = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

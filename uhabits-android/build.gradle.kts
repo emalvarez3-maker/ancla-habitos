@@ -98,6 +98,9 @@ android {
     }
     buildFeatures.viewBinding = true
     buildFeatures.compose = true
+    packaging {
+        resources.excludes += setOf("META-INF/DEPENDENCIES", "META-INF/LICENSE*", "META-INF/NOTICE*", "META-INF/INDEX.LIST")
+    }
     lint.abortOnError = false
 }
 
@@ -136,6 +139,7 @@ dependencies {
     debugImplementation(libs.compose.ui.tooling)
     implementation(libs.activity.compose)
     implementation(libs.lifecycle.runtime.compose)
+    implementation(libs.anthropic.java)
     ksp(libs.kotlin.inject.compiler)
 
     androidTestImplementation(libs.annotation)

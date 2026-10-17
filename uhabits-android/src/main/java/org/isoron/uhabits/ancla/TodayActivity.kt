@@ -50,10 +50,12 @@ class TodayActivity : AppCompatActivity(), CommandRunner.Listener {
     private val tasks by lazy { TaskRepository(component.db) }
     private val summary = mutableStateOf<TodaySummary?>(null)
     private val hopKey = mutableIntStateOf(0)
+    private lateinit var voice: org.isoron.uhabits.ancla.assistant.VoiceAgentController
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        voice = org.isoron.uhabits.ancla.assistant.VoiceAgentController(this) { refresh() }
         setContent {
             AnclaTheme {
                 TodayScreen(
@@ -67,7 +69,9 @@ class TodayActivity : AppCompatActivity(), CommandRunner.Listener {
                     onAddHabit = { HabitTypeDialog().show(supportFragmentManager, "habitType") },
                     onHabits = { startActivity(Intent(this, ListHabitsActivity::class.java)) },
                     onReading = { startActivity(Intent(this, org.isoron.uhabits.ancla.reading.LibraryActivity::class.java)) },
-                    onSettings = { startActivity(component.intentFactory.startSettingsActivity(this)) }
+                    onSettings = { startActivity(component.intentFactory.startSettingsActivity(this)) },
+                    voice = voice,
+                    onAssistant = { startActivity(org.isoron.uhabits.ancla.assistant.AssistantActivity.intent(this)) }
                 )
             }
         }
@@ -80,12 +84,18 @@ class TodayActivity : AppCompatActivity(), CommandRunner.Listener {
     }
 
     override fun onPause() {
+        voice.cancel()
         component.commandRunner.removeListener(this)
         super.onPause()
     }
 
     override fun onCommandFinished(command: Command) {
         refresh()
+    }
+
+    override fun onDestroy() {
+        if (::voice.isInitialized) voice.release()
+        super.onDestroy()
     }
 
     private fun refresh() {
