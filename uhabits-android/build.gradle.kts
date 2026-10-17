@@ -157,6 +157,7 @@ dependencies {
 
     testImplementation(libs.kotlin.inject.runtime)
     testImplementation(libs.junit.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
     // The real org.json for JVM tests (android.jar only has stubs of it).
     testImplementation("org.json:json:20240303")
 }

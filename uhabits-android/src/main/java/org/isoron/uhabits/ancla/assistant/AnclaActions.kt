@@ -215,6 +215,8 @@ class AnclaActions(private val context: Context) : AgentActions {
         gate.userTurn(text)
     }
 
+    override val awaitingConfirmation: Boolean get() = gate.awaiting
+
     /** The yes-gate for sending, paying, deleting, typing what the user didn't say, unnamed links. */
     private val gate = ConfirmGate()
     private val lastUserText get() = gate.userText

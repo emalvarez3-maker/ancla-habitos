@@ -59,6 +59,17 @@ class SecurityAttackTest {
     }
 
     @Test
+    fun aRawVoiceReplyNeverConfirms() {
+        // Its words are unknown, and "no, no lo envíes" would look exactly like "sí".
+        val gate = ConfirmGate()
+        gate.userTurn("envíale a Ana que llego tarde")
+        assertFalse(gate.confirmed("tap:enviar"))
+        assertTrue(gate.awaiting)
+        gate.userTurn(PhoneSafety.AUDIO_TURN)
+        assertFalse(gate.confirmed("tap:enviar"))
+    }
+
+    @Test
     fun aYesForOneThingDoesNotConfirmAnother() {
         val gate = ConfirmGate()
         gate.userTurn("manda el mensaje")

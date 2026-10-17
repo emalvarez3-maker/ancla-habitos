@@ -266,7 +266,17 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
         run(JSONArray().put(JSONObject().put("text", userText)), onEvent)
 
     /** Sends recorded speech straight to Gemini, which understands and acts on it in one call. */
-    fun sendAudio(audio: ByteArray, mimeType: String, onEvent: (AgentEvent) -> Unit) = run(
+    fun sendAudio(audio: ByteArray, mimeType: String, onEvent: (AgentEvent) -> Unit) {
+        // A pending risky step needs the user's actual words: transcribe the reply so "sí" confirms
+        // and "no" doesn't. If transcription fails, the audio goes as is and can't confirm anything.
+        if (actions.awaitingConfirmation) {
+            val heard = runCatching { GeminiText.transcribe(apiKey, audio) }.getOrNull()
+            if (!heard.isNullOrBlank()) return send(heard, onEvent)
+        }
+        sendRawAudio(audio, mimeType, onEvent)
+    }
+
+    private fun sendRawAudio(audio: ByteArray, mimeType: String, onEvent: (AgentEvent) -> Unit) = run(
         JSONArray()
             .put(JSONObject().put("inlineData", JSONObject().put("mimeType", mimeType).put("data", android.util.Base64.encodeToString(audio, android.util.Base64.NO_WRAP))))
             .put(JSONObject().put("text", PhoneSafety.AUDIO_TURN)),

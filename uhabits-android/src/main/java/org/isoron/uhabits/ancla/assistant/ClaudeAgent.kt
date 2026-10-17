@@ -72,6 +72,9 @@ interface AgentActions {
 
     /** Called once per message from the user, with its text, before any tool runs. */
     fun userTurn(text: String) {}
+
+    /** True while a risky step waits for the user's yes, so a voice reply must be heard as words. */
+    val awaitingConfirmation: Boolean get() = false
 }
 
 /** One visible step of a turn, for the chat UI. */

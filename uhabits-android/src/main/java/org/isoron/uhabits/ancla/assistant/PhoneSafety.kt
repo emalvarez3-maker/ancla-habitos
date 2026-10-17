@@ -214,10 +214,16 @@ class ConfirmGate {
         userText = text
     }
 
-    /** True when [key] was asked for in an earlier turn and this turn's message says yes. */
+    /** Whether something waits for a yes (a voice reply is then transcribed first, see GeminiAgent.sendAudio). */
+    val awaiting get() = pending != null
+
+    /**
+     * True when [key] was asked for in an earlier turn and this turn's message says yes. Only words
+     * count: a raw voice turn can't confirm, because "no, no lo envíes" would look the same.
+     */
     fun confirmed(key: String): Boolean {
         val p = pending
-        val yes = PhoneSafety.isYes(userText) || userText == PhoneSafety.AUDIO_TURN
+        val yes = PhoneSafety.isYes(userText)
         if (p != null && p.first == key && turn > p.second && yes) {
             pending = null
             return true
