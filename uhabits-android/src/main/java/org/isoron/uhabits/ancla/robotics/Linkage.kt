@@ -93,7 +93,22 @@ data class LinkageModel(val nodes: List<LNode> = emptyList(), val bodies: List<L
         return ('A' + i % 26).toString() + if (i >= 26) (i / 26 + 1).toString() else ""
     }
 
-    fun isGroundBody(b: LBody) = b.nodes.count { node(it).kind == NodeKind.GROUND } >= 2
+    /**
+     * Points that can't move: ground pins, plus every point of a body that already has two fixed
+     * points (a rigid body pinned at two places is part of the ground), repeated until nothing changes.
+     */
+    private val grounded: Set<Int> by lazy {
+        val fixed = nodes.filter { it.kind == NodeKind.GROUND }.map { it.id }.toMutableSet()
+        do {
+            val before = fixed.size
+            bodies.forEach { b -> if (b.nodes.count { it in fixed } >= 2) fixed.addAll(b.nodes) }
+        } while (fixed.size != before)
+        fixed
+    }
+
+    fun isFixed(id: Int) = id in grounded
+
+    fun isGroundBody(b: LBody) = b.nodes.count { it in grounded } >= 2
 
     // --- Editing ---
 
@@ -189,7 +204,7 @@ data class LinkageModel(val nodes: List<LNode> = emptyList(), val bodies: List<L
         for (n in nodes) {
             // The links that meet at this node, in a fixed order: ground or slider block first, then bodies.
             val here = buildList {
-                if (n.kind == NodeKind.GROUND || moving.size < bodies.size && bodies.any { it.id in ground && n.id in it.nodes }) add(1)
+                if (isFixed(n.id)) add(1) // a fixed point is joined to the ground link
                 if (n.kind == NodeKind.SLIDER) add(sliderNumbers.getValue(n.id))
                 moving.filter { n.id in it.nodes }.forEach { add(bodyNumbers.getValue(it.id)) }
             }.distinct()
@@ -238,7 +253,7 @@ object LinkageSolver {
         val index = ids.withIndex().associate { (i, id) -> id to i }
         val xs = DoubleArray(ids.size) { model.nodes[it].x }
         val ys = DoubleArray(ids.size) { model.nodes[it].y }
-        val fixed = BooleanArray(ids.size) { model.nodes[it].kind == NodeKind.GROUND }
+        val fixed = BooleanArray(ids.size) { i -> model.isFixed(model.nodes[i].id) }
         pinned.forEach { (id, p) ->
             index[id]?.let { i ->
                 xs[i] = p.first
@@ -284,7 +299,7 @@ object LinkageSolver {
      */
     fun drag(model: LinkageModel, id: Int, x: Double, y: Double): LinkageModel {
         val n = model.nodeOrNull(id) ?: return model
-        if (n.kind == NodeKind.GROUND) return model
+        if (model.isFixed(id)) return model
         val pulled = solve(model, mapOf(id to (x to y))).model
         val settled = solve(pulled)
         return if (settled.ok) settled.model else model
@@ -294,6 +309,7 @@ object LinkageSolver {
     fun turn(model: LinkageModel, delta: Double): LinkageModel? {
         val m = model.motor ?: return null
         val body = model.bodies.firstOrNull { it.id == m.body } ?: return null
+        if (model.isGroundBody(body)) return null // welded to the ground since: it can't turn
         val pivot = model.node(m.pivot)
         val c = cos(delta)
         val s = sin(delta)

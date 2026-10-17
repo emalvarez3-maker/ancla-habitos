@@ -21,6 +21,9 @@ package org.isoron.uhabits.ancla.robotics
 
 import android.content.Context
 
+/** Which interactive figure a lesson shows (see SimulatorFor). */
+enum class Simulator { ARM_FORWARD, MECHANISM, ROBOTS_3D, TRANSFORM, ORIENTATION_3D, ARM_DH, ARM_INVERSE, JACOBIAN, PENDULUM, TRAJECTORY, DIFF_DRIVE, PID, SENSORS }
+
 data class Exercise(val question: String, val solution: String)
 
 data class Lesson(

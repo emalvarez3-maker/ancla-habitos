@@ -155,7 +155,7 @@ fun MechanismWorkshop() {
             withFrameNanos { now ->
                 if (last != 0L && dragging == null) {
                     val dt = ((now - last) / 1e9).coerceAtMost(0.05)
-                    val next = LinkageSolver.turn(current, MOTOR_SPEED * dt * direction)
+                    val next = LinkageSolver.turn(model, MOTOR_SPEED * dt * direction) // the latest state, not the last composed one
                     if (next == null) {
                         direction = -direction
                         message = R.string.robotics_dead_point

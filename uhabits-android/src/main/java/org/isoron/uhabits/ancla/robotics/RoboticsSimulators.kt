@@ -94,9 +94,6 @@ import kotlin.math.min
 import kotlin.math.sin
 import kotlin.math.sqrt
 
-/** Which interactive figure a lesson shows. */
-enum class Simulator { ARM_FORWARD, MECHANISM, ROBOTS_3D, TRANSFORM, ORIENTATION_3D, ARM_DH, ARM_INVERSE, JACOBIAN, PENDULUM, TRAJECTORY, DIFF_DRIVE, PID, SENSORS }
-
 @Composable
 fun SimulatorFor(sim: Simulator) = when (sim) {
     Simulator.ARM_FORWARD -> ArmSimulator(ArmFormula.FORWARD)
