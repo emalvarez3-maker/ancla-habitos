@@ -49,7 +49,8 @@ object EncryptedStore {
     private const val TAG_BITS = 128
     private val MAGIC = byteArrayOf('A'.code.toByte(), 'N'.code.toByte(), 'C'.code.toByte(), 1)
 
-    @Volatile private var cachedKey: SecretKey? = null
+    /** Set by tests (the JVM has no Android Keystore); the app always uses the Keystore key. */
+    @Volatile internal var cachedKey: SecretKey? = null
 
     @Synchronized
     private fun key(): SecretKey {
