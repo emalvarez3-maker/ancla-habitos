@@ -175,4 +175,41 @@ class PhoneControlTest {
         assertFalse(PhoneTools.changesSomething("phone_status"))
         assertTrue(PhoneTools.changesSomething("phone_volume"))
     }
+
+    @Test
+    fun onlyWhatTheUserSaidIsTypedWithoutAsking() {
+        assertTrue(PhoneSafety.saidByUser("hola, ¿cómo estás?", "Dexter, escribe hola cómo estás"))
+        assertTrue(PhoneSafety.saidByUser("Llego tarde", "escríbele que llego tarde"))
+        assertFalse(PhoneSafety.saidByUser("483920", "pega el código que me llegó"))
+        assertFalse(PhoneSafety.saidByUser("transfiere todo", "escribe hola"))
+        assertFalse(PhoneSafety.saidByUser("hola", PhoneSafety.AUDIO_TURN))
+        assertFalse(PhoneSafety.saidByUser("", "escribe"))
+        val rnd = Random(52)
+        repeat(Stress.iterations(5_000)) {
+            val said = Stress.nastyText(rnd, 30)
+            val other = "zq" + rnd.nextInt(1_000_000) // a word the user never said
+            assertFalse(PhoneSafety.saidByUser("$said $other", said))
+        }
+    }
+
+    @Test
+    fun linksMustBeNamedByTheUser() {
+        assertEquals("ejemplo.com", PhoneSafety.host("https://www.ejemplo.com/a?b=1"))
+        assertEquals("evil.io", PhoneSafety.host("http://user@evil.io:8080/x"))
+        assertEquals("espe.edu.ec", PhoneSafety.host("espe.edu.ec"))
+        assertNull(PhoneSafety.host("hola"))
+        assertTrue(PhoneSafety.userNamedSite("https://www.espe.edu.ec/notas", "abre la página de la espe punto edu punto ec"))
+        assertTrue(PhoneSafety.userNamedSite("https://github.com/x", "abre github"))
+        assertFalse(PhoneSafety.userNamedSite("https://evil.io/?d=mis-notas", "abre mi correo"))
+        assertFalse(PhoneSafety.userNamedSite("https://github.com.evil.io/", "abre github"))
+        assertFalse(PhoneSafety.userNamedSite("https://espe.edu.ec.evil.io/", "abre la espe"))
+        assertEquals("evil.io", PhoneSafety.site("github.com.evil.io"))
+        assertEquals("espe.edu.ec", PhoneSafety.site("www.espe.edu.ec"))
+    }
+
+    @Test
+    fun lockedPhoneToolsAreHarmlessOnes() {
+        assertTrue(PhoneTools.NAMES.containsAll(PhoneSafety.WHILE_LOCKED))
+        listOf("phone_screen", "files", "phone_contact", "phone_open_app", "phone_web", "phone_calendar").forEach { assertFalse(it, it in PhoneSafety.WHILE_LOCKED) }
+    }
 }

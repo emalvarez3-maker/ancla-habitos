@@ -27,6 +27,9 @@ import java.net.URL
 
 /** Runs one of Ancla's tools for any provider; returns the result text and whether it failed. */
 internal fun dispatchTool(actions: AgentActions, name: String, input: JSONObject, onEvent: (AgentEvent) -> Unit): Pair<String, Boolean> = try {
+    if (name !in PhoneSafety.WHILE_LOCKED && actions.deviceLocked()) {
+        throw IllegalStateException("El teléfono está bloqueado: para eso hay que desbloquearlo. No reveles nada personal.")
+    }
     fun opt(key: String) = input.optString(key).takeIf { it.isNotBlank() && it != "null" }
     val out = when (name) {
         "create_task" -> actions.createTask(input.getString("title"), opt("date"), opt("time"), input.optBoolean("remind", false))
@@ -266,7 +269,7 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
     fun sendAudio(audio: ByteArray, mimeType: String, onEvent: (AgentEvent) -> Unit) = run(
         JSONArray()
             .put(JSONObject().put("inlineData", JSONObject().put("mimeType", mimeType).put("data", android.util.Base64.encodeToString(audio, android.util.Base64.NO_WRAP))))
-            .put(JSONObject().put("text", "(Voice message from the user. Act on what they said.)")),
+            .put(JSONObject().put("text", PhoneSafety.AUDIO_TURN)),
         onEvent
     )
 

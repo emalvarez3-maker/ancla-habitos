@@ -119,7 +119,7 @@ class DexterAccessibility : AccessibilityService() {
     fun type(index: Int?, value: String): String = onMain {
         val root = checkAllowed()
         if (hasPassword(root)) throw Refused("Esta pantalla pide una contraseña: no escribo en ella.")
-        val field = index?.let { lastNodes.getOrNull(it) }?.takeIf { it.isEditable }
+        val field = index?.takeIf { root.packageName?.toString() == lastPackage }?.let { lastNodes.getOrNull(it) }?.takeIf { it.refresh() && it.isEditable }
             ?: root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)?.takeIf { it.isEditable }
             ?: firstEditable(root)
             ?: throw Refused("No hay un campo de texto en la pantalla.")

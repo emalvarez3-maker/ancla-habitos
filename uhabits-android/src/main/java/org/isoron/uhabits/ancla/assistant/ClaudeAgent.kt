@@ -67,6 +67,9 @@ interface AgentActions {
     fun whatsappMessages(chat: String?, hours: Int?): String
     fun phoneTool(name: String, args: JSONObject): String
 
+    /** Whether the phone is locked: only [PhoneSafety.WHILE_LOCKED] tools run then. */
+    fun deviceLocked(): Boolean = false
+
     /** Called once per message from the user, with its text, before any tool runs. */
     fun userTurn(text: String) {}
 }
@@ -116,7 +119,11 @@ fun assistantInstructions(today: String = ""): String {
 }
 
 /** Today, reading and memory for the instructions, so common questions need no extra tool round trip. */
-internal fun AgentActions.snapshot(): String =
+internal fun AgentActions.snapshot(): String = if (deviceLocked()) {
+    // Anyone can talk to a locked phone: nothing personal goes into the conversation then.
+    "El teléfono está BLOQUEADO: quien habla puede no ser el dueño. No tienes acceso a sus notas, memoria, estudio, libros, mensajes ni archivos; " +
+        "solo a volumen, linterna, música, alarmas y estado del teléfono. Para lo demás, pide que lo desbloquee."
+} else {
     listOf(
         runCatching { todaySummary() },
         runCatching { "Lectura:\n" + readingSummary() },
@@ -125,6 +132,7 @@ internal fun AgentActions.snapshot(): String =
     )
         .mapNotNull { it.getOrNull() }
         .joinToString("\n")
+}
 
 /**
  * A small tool-using agent on the Claude API: keeps the conversation, runs tools locally

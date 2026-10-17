@@ -211,7 +211,12 @@ class DexterService : Service() {
     }
 
     private fun runTurn(call: (AssistantAgent, (AgentEvent) -> Unit) -> Unit) {
+        // With the phone locked the speaker may not be its owner: start from a blank conversation,
+        // so nothing said earlier can be asked back, and forget this one afterwards.
+        val locked = getSystemService(android.app.KeyguardManager::class.java)?.isKeyguardLocked == true
+        if (locked) agent = null
         val a = currentAgent() ?: return endConversation()
+        if (locked) agent = null
         val gen = ++turn
         update(getString(R.string.voice_pill_thinking))
         speaker.begin { if (gen == turn) listenForRequest() } // keep the conversation going, like the app's Jarvis mode

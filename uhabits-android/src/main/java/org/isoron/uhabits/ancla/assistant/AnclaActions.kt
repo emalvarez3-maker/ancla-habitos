@@ -212,7 +212,14 @@ class AnclaActions(private val context: Context) : AgentActions {
 
     override fun userTurn(text: String) {
         turn++
+        gate.userTurn(text)
     }
+
+    /** The yes-gate for sending, paying, deleting, typing what the user didn't say, unnamed links. */
+    private val gate = ConfirmGate()
+    private val lastUserText get() = gate.userText
+
+    override fun deviceLocked() = context.getSystemService(android.app.KeyguardManager::class.java)?.isKeyguardLocked == true
 
     override fun updateBook(title: String, status: String?, rating: Int?, remove: Boolean): String {
         val book = findBook(title)
@@ -373,18 +380,7 @@ class AnclaActions(private val context: Context) : AgentActions {
     private val phone by lazy { PhoneActions(context) }
     private val log by lazy { DexterActionLog(context) }
 
-    /** An action that needs the user's yes: it runs only when asked again in a later message. */
-    private var pendingConfirm: Pair<String, Int>? = null
-
-    private fun confirmedLater(key: String): Boolean {
-        val pending = pendingConfirm
-        if (pending != null && pending.first == key && turn > pending.second) {
-            pendingConfirm = null
-            return true
-        }
-        pendingConfirm = key to turn
-        return false
-    }
+    private fun confirmedLater(key: String) = gate.confirmed(key)
 
     override fun phoneTool(name: String, args: JSONObject): String {
         if (log.paused && name != "phone_status") return "El control del teléfono está en pausa. Puedes reactivarlo en Dexter › Claves › Control del teléfono."
@@ -429,7 +425,15 @@ class AnclaActions(private val context: Context) : AgentActions {
                         else -> phone.message(contact, str("text").orEmpty(), "whatsapp")
                     }
                 }
-                "phone_web" -> phone.web(str("kind") ?: "search", str("query") ?: return "¿Qué busco?")
+                "phone_web" -> {
+                    val kind = str("kind") ?: "search"
+                    val query = str("query") ?: return "¿Qué busco?"
+                    // A link the user didn't name could carry their data away: ask first.
+                    if (kind == "url" && !PhoneSafety.userNamedSite(query, lastUserText) && !confirmedLater("url:" + query)) {
+                        return "CONFIRMACIÓN NECESARIA: abrir ${PhoneSafety.host(query) ?: query}, que el usuario no mencionó. Pregúntale y vuelve a pedirlo solo si dice que sí."
+                    }
+                    phone.web(kind, query)
+                }
                 "phone_screen" -> screen(str("action") ?: "read", int("element"), str("text"))
                 "files" -> files(str("action") ?: "list", str("path"), str("target"), str("query"))
                 else -> "Herramienta desconocida"
@@ -452,12 +456,21 @@ class AnclaActions(private val context: Context) : AgentActions {
             "read" -> hands.readScreen()
             "tap", "long_press" -> {
                 val label = hands.labelFor(element, text) ?: return "No encuentro ese elemento. Lee la pantalla otra vez."
-                if (PhoneSafety.isRisky(label) && !confirmedLater("tap:" + PhoneSafety.norm(label))) {
+                // Icons without a name could be anything (a send arrow, a trash can): they need a yes too.
+                if ((PhoneSafety.isRisky(label) || label.isBlank()) && !confirmedLater("tap:" + PhoneSafety.norm(label) + ":" + element)) {
                     return "CONFIRMACIÓN NECESARIA: tocar «${label.trim()}» puede enviar, pagar, borrar o llamar. Pregunta al usuario si lo hago y vuelve a pedirlo solo cuando diga que sí."
                 }
                 hands.tap(element, text, action == "long_press")
             }
-            "type" -> hands.type(element, text ?: return "¿Qué escribo?")
+            "type" -> {
+                val value = text ?: return "¿Qué escribo?"
+                // Typing what the user dictated is fine; anything else (a code from a notification, text
+                // from a screen or a file) could be someone else's trick, so it needs their yes.
+                if (!PhoneSafety.saidByUser(value, lastUserText) && !confirmedLater("type:" + PhoneSafety.norm(value))) {
+                    return "CONFIRMACIÓN NECESARIA: escribir «${value.take(80)}», que no dijo el usuario. Pregúntale si lo escribo y vuelve a pedirlo solo cuando diga que sí."
+                }
+                hands.type(element, value)
+            }
             "scroll_down" -> hands.scroll(true)
             "scroll_up" -> hands.scroll(false)
             else -> hands.global(action)

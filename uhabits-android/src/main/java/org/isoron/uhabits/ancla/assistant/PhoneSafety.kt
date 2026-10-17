@@ -48,6 +48,47 @@ object PhoneSafety {
 
     private val YES = Regex("^\\s*(si|sí|sip|dale|ok|okay|okey|vale|claro|hazlo|confirmo|confirmado|adelante|de una|yes|yep|correcto|exacto|listo)\\b")
 
+    /** What a voice message sent as audio looks like to the tools: its words aren't known. */
+    const val AUDIO_TURN = "(Voice message from the user. Act on what they said.)"
+
+    /** Tools that work with the phone locked: nothing that shows or changes personal data. */
+    val WHILE_LOCKED = setOf("phone_volume", "phone_media", "phone_alarm", "phone_status", "phone_toggle")
+
+    private fun words(s: String) = norm(s).split(Regex("[^\\p{L}\\p{N}]+")).filter { it.length >= 2 }
+
+    /**
+     * Whether [value] is text the user said themselves in [userText] (every word of it), so Dexter
+     * may type it without asking. Text from a screen, a notification or a file isn't.
+     */
+    fun saidByUser(value: String, userText: String): Boolean {
+        if (userText == AUDIO_TURN) return false
+        val said = words(userText).toSet()
+        val wanted = words(value)
+        return wanted.isNotEmpty() && wanted.all { it in said }
+    }
+
+    /** The host of [url] ("https://www.ejemplo.com/x" → "ejemplo.com"), or null. */
+    fun host(url: String): String? = Regex("^(?:[a-z][a-z0-9+.-]*://)?(?:[^@/]*@)?([^/:?#]+)", RegexOption.IGNORE_CASE)
+        .find(url.trim())?.groupValues?.get(1)?.lowercase()?.removePrefix("www.")?.takeIf { it.contains('.') }
+
+    private val TWO_LEVEL_SUFFIX = Regex("^(com|edu|gob|gov|org|net|co|ac|mil|nom)\\.[a-z]{2}$")
+
+    /** The site a host belongs to: "www.espe.edu.ec" → "espe.edu.ec", "github.com.evil.io" → "evil.io". */
+    fun site(host: String): String {
+        val labels = host.split('.').filter { it.isNotEmpty() }
+        if (labels.size <= 2) return labels.joinToString(".")
+        val lastTwo = labels.takeLast(2).joinToString(".")
+        return labels.takeLast(if (TWO_LEVEL_SUFFIX.matches(lastTwo)) 3 else 2).joinToString(".")
+    }
+
+    /** Whether the user named the site of [url] in [userText] ("abre ejemplo.com", "ejemplo punto com"). */
+    fun userNamedSite(url: String, userText: String): Boolean {
+        val site = host(url)?.let(::site) ?: return false
+        val said = norm(userText).replace(" punto ", ".").replace(" ", "")
+        val name = site.substringBefore('.')
+        return said.contains(site) || (name.length >= 4 && said.contains(name))
+    }
+
     fun norm(s: String) = Normalizer.normalize(s.lowercase(), Normalizer.Form.NFD).replace(Regex("\\p{M}"), "").trim()
 
     fun isSensitiveApp(packageName: String) = SENSITIVE_PACKAGE.containsMatchIn(packageName.lowercase())
@@ -153,3 +194,36 @@ object PhoneSafety {
         append("<<FIN DE LA PANTALLA>>")
     }
 }
+
+/**
+ * The yes-gate for actions that reach other people or can't be undone. The first request only
+ * records what was asked; it runs when the same thing is requested again in a LATER message from
+ * the user that says yes. Text from screens, files, notes or messages can't create a user message,
+ * so it can never confirm anything; a "no" or an unrelated reply doesn't either.
+ */
+class ConfirmGate {
+    private var turn = 0
+    private var pending: Pair<String, Int>? = null
+
+    /** What the user said in this turn ([PhoneSafety.AUDIO_TURN] when it came as audio). */
+    var userText = ""
+        private set
+
+    fun userTurn(text: String) {
+        turn++
+        userText = text
+    }
+
+    /** True when [key] was asked for in an earlier turn and this turn's message says yes. */
+    fun confirmed(key: String): Boolean {
+        val p = pending
+        val yes = PhoneSafety.isYes(userText) || userText == PhoneSafety.AUDIO_TURN
+        if (p != null && p.first == key && turn > p.second && yes) {
+            pending = null
+            return true
+        }
+        pending = key to turn
+        return false
+    }
+}
+
