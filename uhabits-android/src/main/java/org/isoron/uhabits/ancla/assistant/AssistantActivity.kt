@@ -95,9 +95,19 @@ class AssistantActivity : AppCompatActivity() {
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+    }
+
     override fun onResume() {
         super.onResume()
         controller.onResume()
+        // Opened as the phone's assistant: start listening right away, once.
+        if (intent.getBooleanExtra(EXTRA_LISTEN, false) && controller.hasAssistantKey) {
+            intent.removeExtra(EXTRA_LISTEN)
+            controller.doubleTap()
+        }
     }
 
     override fun onPause() {
@@ -112,6 +122,7 @@ class AssistantActivity : AppCompatActivity() {
 
     companion object {
         const val EXTRA_PROMPT = "prompt"
+        const val EXTRA_LISTEN = "listen"
 
         fun intent(context: Context) = Intent(context, AssistantActivity::class.java)
     }
@@ -377,6 +388,7 @@ private fun KeysSheet(
                         }).padding(horizontal = 14.dp, vertical = 10.dp)
                 )
             }
+            PhoneControlSettings()
             WhatsAppSettings(usingGemini = assistant == AssistantProvider.GEMINI)
             Box(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.ink)

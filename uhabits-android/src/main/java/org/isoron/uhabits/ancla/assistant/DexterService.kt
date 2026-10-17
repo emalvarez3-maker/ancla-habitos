@@ -138,7 +138,7 @@ class DexterService : Service() {
         val m = model ?: return
         if (paused || appInForeground || inConversation || wakeListener != null) return
         try {
-            val recognizer = Recognizer(m, SAMPLE_RATE, "[\"oye dexter\", \"dexter\", \"[unk]\"]")
+            val recognizer = Recognizer(m, SAMPLE_RATE, "[\"oye dexter\", \"hey dexter\", \"ey dexter\", \"dexter\", \"[unk]\"]")
             wakeListener = SpeechService(recognizer, SAMPLE_RATE).also { it.startListening(wakeCallbacks) }
             update(getString(R.string.dexter_service_waiting))
         } catch (e: Exception) {

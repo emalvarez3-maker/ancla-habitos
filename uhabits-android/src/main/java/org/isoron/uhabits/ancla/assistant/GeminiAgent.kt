@@ -47,6 +47,7 @@ internal fun dispatchTool(actions: AgentActions, name: String, input: JSONObject
         "start_study" -> actions.startStudy(input.getString("topic")).also { onEvent(AgentEvent.Action(it)) }
         "stop_study" -> actions.stopStudy(opt("summary")).also { onEvent(AgentEvent.Action(it)) }
         "study_summary" -> actions.studySummary()
+        in PhoneTools.NAMES -> actions.phoneTool(name, input).also { if (PhoneTools.changesSomething(name)) onEvent(AgentEvent.Action(it)) }
         "whatsapp_chats" -> actions.whatsappChats()
         "whatsapp_messages" -> actions.whatsappMessages(opt("chat"), input.optInt("hours", 0).takeIf { it > 0 })
         "open_robotics_lesson" -> actions.openRobotics(opt("screen") ?: "course", input.optInt("lesson", 0).takeIf { it > 0 }).also { onEvent(AgentEvent.Action(it)) }
@@ -254,6 +255,7 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
                         listOf("fact")
                     )
                 )
+                .apply { PhoneTools.gemini().forEach { put(it) } }
         )
     )
 
@@ -269,7 +271,7 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
     )
 
     private fun run(userParts: JSONArray, onEvent: (AgentEvent) -> Unit) {
-        actions.userTurn()
+        actions.userTurn((0 until userParts.length()).mapNotNull { userParts.getJSONObject(it).optString("text").takeIf { t -> t.isNotBlank() } }.joinToString(" "))
         history.put(JSONObject().put("role", "user").put("parts", userParts))
         val instructions = assistantInstructions(actions.snapshot())
         // One model per turn: thought signatures from one model are not valid for another.

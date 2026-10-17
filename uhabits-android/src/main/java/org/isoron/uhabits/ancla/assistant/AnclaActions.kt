@@ -47,6 +47,7 @@ import org.isoron.uhabits.core.models.DayTask
 import org.isoron.uhabits.core.models.Entry
 import org.isoron.uhabits.core.models.ReadingStats
 import org.isoron.uhabits.core.ui.screens.today.TodaySummary
+import org.json.JSONObject
 import java.text.Normalizer
 import java.util.concurrent.CountDownLatch
 
@@ -209,7 +210,7 @@ class AnclaActions(private val context: Context) : AgentActions {
     private var turn = 0
     private var pendingRemoval: Pair<Long, Int>? = null
 
-    override fun userTurn() {
+    override fun userTurn(text: String) {
         turn++
     }
 
@@ -367,13 +368,127 @@ class AnclaActions(private val context: Context) : AgentActions {
         ChatNotifications.describe(all.filter { it.time >= since && (chats == null || it.chat in chats) })
     }
 
+    // --- Phone control ---
+
+    private val phone by lazy { PhoneActions(context) }
+    private val log by lazy { DexterActionLog(context) }
+
+    /** An action that needs the user's yes: it runs only when asked again in a later message. */
+    private var pendingConfirm: Pair<String, Int>? = null
+
+    private fun confirmedLater(key: String): Boolean {
+        val pending = pendingConfirm
+        if (pending != null && pending.first == key && turn > pending.second) {
+            pendingConfirm = null
+            return true
+        }
+        pendingConfirm = key to turn
+        return false
+    }
+
+    override fun phoneTool(name: String, args: JSONObject): String {
+        if (log.paused && name != "phone_status") return "El control del teléfono está en pausa. Puedes reactivarlo en Dexter › Claves › Control del teléfono."
+        val result = phoneToolRun(name, args)
+        // Every action, and every refusal, goes to the user's encrypted history (not reads of the screen or status).
+        val quiet = name == "phone_status" || (name == "phone_screen" && args.optString("action") == "read") || (name == "files" && args.optString("action") in setOf("list", "search"))
+        if (!quiet) runCatching { log.add("$name ${args.optString("action").ifBlank { args.optString("app") }}: $result") }
+        return result
+    }
+
+    private fun phoneToolRun(name: String, args: JSONObject): String {
+        fun str(k: String) = args.optString(k).takeIf { it.isNotBlank() && it != "null" }
+        fun int(k: String) = if (args.has(k) && !args.isNull(k)) args.optInt(k) else null
+        return try {
+            when (name) {
+                "phone_open_app" -> phone.openApp(str("app") ?: return "¿Qué app?")
+                "phone_volume" -> phone.volume(str("stream"), str("action") ?: "set", int("percent"))
+                "phone_brightness" -> phone.brightness(str("action") ?: "set", int("percent"))
+                "phone_toggle" -> {
+                    val on = args.optBoolean("on", true)
+                    when (str("what")) {
+                        "flashlight" -> phone.flashlight(on)
+                        "do_not_disturb" -> phone.doNotDisturb(on)
+                        "rotation" -> phone.rotation(on)
+                        else -> "No sé cambiar eso."
+                    }
+                }
+                "phone_settings_panel" -> phone.openPanel(str("panel") ?: "settings")
+                "phone_media" -> phone.media(str("action") ?: "play_pause")
+                "phone_status" -> phone.status()
+                "phone_alarm" -> if (str("kind") == "timer") {
+                    phone.timer(int("seconds") ?: return "¿Cuántos segundos?", str("label"))
+                } else {
+                    phone.alarm(int("hour") ?: return "¿A qué hora?", int("minute") ?: 0, str("label"), str("days")?.split(',')?.mapNotNull { it.trim().toIntOrNull() })
+                }
+                "phone_calendar" -> phone.calendarEvent(str("title") ?: "Evento", str("start") ?: return "¿Cuándo?", int("minutes"))
+                "phone_contact" -> {
+                    val contact = str("contact") ?: return "¿A quién?"
+                    when (str("action")) {
+                        "call" -> phone.call(contact)
+                        "sms" -> phone.message(contact, str("text").orEmpty(), "sms")
+                        else -> phone.message(contact, str("text").orEmpty(), "whatsapp")
+                    }
+                }
+                "phone_web" -> phone.web(str("kind") ?: "search", str("query") ?: return "¿Qué busco?")
+                "phone_screen" -> screen(str("action") ?: "read", int("element"), str("text"))
+                "files" -> files(str("action") ?: "list", str("path"), str("target"), str("query"))
+                else -> "Herramienta desconocida"
+            }
+        } catch (e: DexterAccessibility.Refused) {
+            e.message.orEmpty()
+        } catch (e: IllegalStateException) {
+            e.message.orEmpty()
+        } catch (e: IllegalArgumentException) {
+            e.message.orEmpty()
+        } catch (e: SecurityException) {
+            "Android no me dio permiso para eso."
+        }
+    }
+
+    private fun screen(action: String, element: Int?, text: String?): String {
+        val hands = DexterAccessibility.instance
+            ?: return "Para usar la pantalla activa «Control del teléfono» en Dexter › Claves (es un permiso de accesibilidad)."
+        return when (action) {
+            "read" -> hands.readScreen()
+            "tap", "long_press" -> {
+                val label = hands.labelFor(element, text) ?: return "No encuentro ese elemento. Lee la pantalla otra vez."
+                if (PhoneSafety.isRisky(label) && !confirmedLater("tap:" + PhoneSafety.norm(label))) {
+                    return "CONFIRMACIÓN NECESARIA: tocar «${label.trim()}» puede enviar, pagar, borrar o llamar. Pregunta al usuario si lo hago y vuelve a pedirlo solo cuando diga que sí."
+                }
+                hands.tap(element, text, action == "long_press")
+            }
+            "type" -> hands.type(element, text ?: return "¿Qué escribo?")
+            "scroll_down" -> hands.scroll(true)
+            "scroll_up" -> hands.scroll(false)
+            else -> hands.global(action)
+        }
+    }
+
+    private fun files(action: String, path: String?, target: String?, query: String?): String {
+        return when (action) {
+            "list" -> phone.listFiles(path, null)
+            "search" -> phone.listFiles(path, query ?: target ?: return "¿Qué nombre busco?")
+            "read" -> phone.readFile(path ?: return "¿Qué archivo?")
+            "open" -> phone.openFile(path ?: return "¿Qué archivo?")
+            "delete" -> {
+                val p = path ?: return "¿Qué borro?"
+                if (!confirmedLater("delete:" + PhoneSafety.norm(p))) {
+                    "CONFIRMACIÓN NECESARIA: borrar ${phone.describePath(p)}. No se puede deshacer. Pregunta al usuario y vuelve a pedirlo solo si dice que sí."
+                } else {
+                    phone.delete(p)
+                }
+            }
+            else -> phone.manageFile(action, path ?: return "¿Qué archivo?", target)
+        }
+    }
+
     /** Runs [block] only when WhatsApp reading is set up and the phone is unlocked. */
     private fun whatsapp(block: (WhatsAppVault) -> String): String {
         val vault = WhatsAppVault(context)
         return when {
             !vault.enabled || !vault.hasAccess -> "No tengo acceso a tus mensajes de WhatsApp. Actívalo en Dexter › Claves › WhatsApp."
             else -> try {
-                block(vault)
+                block(vault).also { runCatching { log.add("whatsapp: Dexter leyó tus mensajes") } }
             } catch (e: WhatsAppVault.LockedException) {
                 "Tu teléfono está bloqueado: desbloquéalo y vuelve a pedírmelo. Así nadie puede leer tus mensajes con el teléfono bloqueado."
             }

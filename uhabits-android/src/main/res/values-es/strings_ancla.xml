@@ -473,4 +473,31 @@
     <string name="whatsapp_locked">Desbloquea el teléfono para ver tus mensajes.</string>
     <string name="whatsapp_read_error">No se pudieron descifrar los mensajes.</string>
     <string name="whatsapp_empty">Aún no hay mensajes guardados. Llegarán aquí cuando WhatsApp te notifique mensajes nuevos.</string>
+
+    <!-- Phone control -->
+    <string name="phone_accessibility_label">Dexter · control del teléfono</string>
+    <string name="phone_accessibility_description">Permite que Dexter lea la pantalla y toque, escriba y desplace en otras apps solo cuando se lo pides con la voz. Nunca actúa con el teléfono bloqueado, en apps de bancos, pagos o contraseñas, ni escribe contraseñas. Muestra un aviso cada vez que actúa.</string>
+    <string name="phone_title">Control del teléfono</string>
+    <string name="phone_explain">Di «Oye Dexter» o «Hey Dexter» en cualquier parte (activa «Siempre escuchando») y pídele lo que necesites: volumen, brillo, linterna, abrir apps, alarmas, llamar o escribir a alguien, tus carpetas y archivos, o usar cualquier app por ti. Cada permiso se activa por separado:</string>
+    <string name="phone_grant">Activar</string>
+    <string name="phone_open">Abrir</string>
+    <string name="phone_grant_screen">Usar la pantalla</string>
+    <string name="phone_grant_screen_detail">Accesibilidad: leer, tocar, escribir y desplazar en cualquier app; atrás, inicio, notificaciones, captura. También permite abrir apps con la pantalla de Ancla cerrada.</string>
+    <string name="phone_grant_files">Carpetas y archivos</string>
+    <string name="phone_grant_files_detail">Acceso a todos los archivos: listar, buscar, leer, abrir, mover, copiar, renombrar y borrar (borrar siempre te lo pregunta).</string>
+    <string name="phone_grant_system">Brillo y rotación</string>
+    <string name="phone_grant_system_detail">Modificar ajustes del sistema: brillo, brillo automático y rotación.</string>
+    <string name="phone_grant_dnd">No molestar</string>
+    <string name="phone_grant_dnd_detail">Activar y desactivar «No molestar» y cambiar el timbre mientras está activo.</string>
+    <string name="phone_grant_contacts">Contactos</string>
+    <string name="phone_grant_contacts_detail">Para «llama a mamá» o «escríbele a Ana»: busca el número en tus contactos.</string>
+    <string name="phone_grant_assistant">Asistente del teléfono</string>
+    <string name="phone_grant_assistant_detail">Elige Ancla como app de asistente digital para abrir Dexter manteniendo pulsado inicio o el botón de encendido.</string>
+    <string name="phone_safety">Seguridad: con el teléfono bloqueado solo hace cosas inofensivas (volumen, linterna, alarmas, música); enviar, pagar, llamar, instalar o borrar siempre necesita tu «sí» en otro mensaje; no toca apps de bancos, pagos ni contraseñas; lo que lee en la pantalla nunca lo toma como órdenes.</string>
+    <string name="phone_active">Activo</string>
+    <string name="phone_paused">Pausado</string>
+    <string name="phone_paused_hint">En pausa, Dexter no toca nada del teléfono (ni pantalla, ni archivos, ni ajustes) hasta que lo reactives.</string>
+    <string name="phone_history">Lo que hizo Dexter (cifrado)</string>
+    <string name="phone_history_empty">Todavía nada.</string>
+    <string name="phone_history_clear">Borrar historial</string>
 </resources>

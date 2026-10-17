@@ -474,4 +474,31 @@
     <string name="whatsapp_locked">Unlock the phone to see your messages.</string>
     <string name="whatsapp_read_error">The messages couldn\'t be decrypted.</string>
     <string name="whatsapp_empty">No saved messages yet. They\'ll appear when WhatsApp notifies you of new ones.</string>
+
+    <!-- Phone control -->
+    <string name="phone_accessibility_label">Dexter · phone control</string>
+    <string name="phone_accessibility_description">Lets Dexter read the screen and tap, type and scroll in other apps only when you ask by voice. It never acts with the phone locked, in banking, payment or password apps, and never types passwords. It shows a label every time it acts.</string>
+    <string name="phone_title">Phone control</string>
+    <string name="phone_explain">Say “Oye Dexter” or “Hey Dexter” anywhere (turn on “Always listening”) and ask for what you need: volume, brightness, flashlight, opening apps, alarms, calling or texting someone, your folders and files, or using any app for you. Each permission is turned on separately:</string>
+    <string name="phone_grant">Turn on</string>
+    <string name="phone_open">Open</string>
+    <string name="phone_grant_screen">Use the screen</string>
+    <string name="phone_grant_screen_detail">Accessibility: read, tap, type and scroll in any app; back, home, notifications, screenshot. Also lets it open apps while Ancla is closed.</string>
+    <string name="phone_grant_files">Folders and files</string>
+    <string name="phone_grant_files_detail">All files access: list, search, read, open, move, copy, rename and delete (it always asks before deleting).</string>
+    <string name="phone_grant_system">Brightness and rotation</string>
+    <string name="phone_grant_system_detail">Modify system settings: brightness, auto-brightness and rotation.</string>
+    <string name="phone_grant_dnd">Do not disturb</string>
+    <string name="phone_grant_dnd_detail">Turn do not disturb on and off and change the ringer while it\'s on.</string>
+    <string name="phone_grant_contacts">Contacts</string>
+    <string name="phone_grant_contacts_detail">For “call mom” or “text Ana”: finds the number in your contacts.</string>
+    <string name="phone_grant_assistant">Phone assistant</string>
+    <string name="phone_grant_assistant_detail">Pick Ancla as the digital assistant app to open Dexter by holding home or the power button.</string>
+    <string name="phone_safety">Safety: with the phone locked it only does harmless things (volume, flashlight, alarms, music); sending, paying, calling, installing or deleting always needs your “yes” in another message; it doesn\'t touch banking, payment or password apps; what it reads on screen is never taken as orders.</string>
+    <string name="phone_active">On</string>
+    <string name="phone_paused">Paused</string>
+    <string name="phone_paused_hint">While paused, Dexter touches nothing on the phone (no screen, files or settings) until you turn it back on.</string>
+    <string name="phone_history">What Dexter did (encrypted)</string>
+    <string name="phone_history_empty">Nothing yet.</string>
+    <string name="phone_history_clear">Clear history</string>
 </resources>
