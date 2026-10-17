@@ -35,7 +35,7 @@ import java.util.concurrent.TimeUnit
 /** The Gemini voices offered in settings; [PHONE] means Android's own text-to-speech. */
 object BroteVoices {
     const val PHONE = "phone"
-    val GEMINI = listOf("Charon", "Orus", "Algieba", "Sadaltager", "Kore", "Sulafat", "Puck")
+    val GEMINI = listOf("Charon", "Iapetus", "Sadaltager", "Algenib", "Orus", "Algieba", "Kore", "Sulafat")
 }
 
 /**
@@ -167,10 +167,19 @@ internal class GeminiVoice(
             )
     }
 
+    /** Per model, when it may be used again after hitting its quota (each TTS model has its own). */
+    private val limitedUntil = HashMap<String, Long>()
+
+    private fun nextModel(): String? {
+        val now = System.currentTimeMillis()
+        return MODELS.firstOrNull { (limitedUntil[it] ?: 0) <= now }
+    }
+
     private fun synthesize(gen: Int, apiKey: String, voice: String, text: String) {
-        // Older request shapes are tried once if the API rejects the newer fields.
-        repeat(3) {
-            val conn = (URL("https://generativelanguage.googleapis.com/v1beta/models/$MODEL:streamGenerateContent?alt=sse").openConnection() as HttpURLConnection).apply {
+        // On a quota error the next TTS model is tried; older request shapes are tried if the API rejects newer fields.
+        repeat(MODELS.size + 2) {
+            val model = nextModel() ?: throw IllegalStateException("all TTS models rate limited")
+            val conn = (URL("https://generativelanguage.googleapis.com/v1beta/models/$model:streamGenerateContent?alt=sse").openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
                 doOutput = true
                 connectTimeout = 10000
@@ -182,6 +191,17 @@ internal class GeminiVoice(
                 val sent = System.currentTimeMillis()
                 conn.outputStream.use { it.write(body(voice, text).toString().toByteArray()) }
                 val code = conn.responseCode
+                if (code == 429 || code == 404) {
+                    val err = conn.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                    val wait = when {
+                        code == 404 -> Long.MAX_VALUE / 2
+                        err.contains("PerDay") -> 6 * 60 * 60 * 1000L
+                        else -> 60 * 1000L
+                    }
+                    limitedUntil[model] = System.currentTimeMillis() + wait
+                    Log.w(TAG, "$model HTTP $code, trying another voice model")
+                    return@repeat
+                }
                 if (code == 400) {
                     val err = conn.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
                     Log.w(TAG, "TTS 400: ${err.take(300)}")
@@ -231,9 +251,12 @@ internal class GeminiVoice(
 
     companion object {
         private const val TAG = "AnclaVoice"
-        const val MODEL = "gemini-3.8-flash-tts"
+        /** Tried in order; each has its own free quota. */
+        val MODELS = listOf("gemini-3.8-flash-tts", "gemini-3.8-flash-lite-tts", "gemini-3.1-flash-tts-preview")
         private const val SAMPLE_RATE = 24000
         private const val SLICE = 2400 // 50 ms of audio
-        private const val STYLE = "calm, confident and warm, like a refined personal AI assistant; natural pace"
+        private const val STYLE = "Like JARVIS, a sophisticated AI butler: deep, calm and composed male voice, " +
+            "refined and slightly formal, effortlessly confident, with a subtle dry wit. Measured pace, crisp diction, " +
+            "smooth natural intonation, never robotic or rushed."
     }
 }

@@ -206,7 +206,7 @@
     <string name="keys_gemini_transcription_note">Gemini listens to your audio directly and acts in one step: the fastest option, free with your Gemini key.</string>
     <string name="keys_voice">Brote\'s voice</string>
     <string name="keys_voice_phone">Phone</string>
-    <string name="keys_voice_gemini_note">Natural Gemini voice, free with your Gemini key. Charon sounds the most like Jarvis. Tap a voice to hear it.</string>
+    <string name="keys_voice_gemini_note">Natural Gemini voice in a Jarvis style, free with your key. Charon, Iapetus and Sadaltager are deep male voices. If it ever sounds robotic, the free quota ran out for now and the phone\'s voice takes over. Tap a voice to hear it.</string>
     <string name="keys_voice_phone_note">The phone\'s own voice: works offline but sounds more robotic.</string>
-    <string name="voice_sample">Hi, I\'m Brote. Tell me what you need and I\'ll take care of it.</string>
+    <string name="voice_sample">At your service. Tell me what you need and I\'ll take care of it right away.</string>
 </resources>

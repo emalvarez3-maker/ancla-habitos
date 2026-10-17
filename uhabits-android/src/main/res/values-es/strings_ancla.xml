@@ -205,7 +205,7 @@
     <string name="keys_gemini_transcription_note">Gemini escucha tu audio directamente y actúa en un solo paso: la opción más rápida, gratis con tu clave de Gemini.</string>
     <string name="keys_voice">Voz de Brote</string>
     <string name="keys_voice_phone">Teléfono</string>
-    <string name="keys_voice_gemini_note">Voz natural de Gemini, gratis con tu clave de Gemini. Charon es la más parecida a Jarvis. Toca una voz para escucharla.</string>
+    <string name="keys_voice_gemini_note">Voz natural de Gemini con estilo Jarvis, gratis con tu clave. Charon, Iapetus y Sadaltager son voces masculinas graves. Si alguna vez suena robótica, se acabó la cuota gratuita del momento y habla la voz del teléfono. Toca una voz para escucharla.</string>
     <string name="keys_voice_phone_note">La voz del propio teléfono: funciona sin internet, pero suena más robótica.</string>
-    <string name="voice_sample">Hola, soy Brote. Dime qué necesitas y yo me encargo.</string>
+    <string name="voice_sample">A su servicio. Dígame qué necesita y me encargo de inmediato.</string>
 </resources>

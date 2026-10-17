@@ -50,7 +50,6 @@ class Speaker(
     /** Gemini key and voice for the current reply, or null to use the phone's voice. */
     private var cloud: Pair<String, String>? = null
     private var cloudGen = 0
-    private var cloudSegments = 0
     private val cloudText = StringBuilder()
     private var cloudPausedUntil = 0L
 
@@ -147,7 +146,6 @@ class Speaker(
     fun stop() {
         buffer.clear()
         cloudText.clear()
-        cloudSegments = 0
         pending.set(0)
         onDone = null
         finished = false
@@ -161,7 +159,6 @@ class Speaker(
         stop()
         cloudPausedUntil = 0
         cloud = if (voiceName == BroteVoices.PHONE || key.isBlank()) null else key to voiceName
-        cloudSegments = 0
         speak(text)
         flushCloud()
         finished = true
@@ -180,12 +177,10 @@ class Speaker(
             speakLocal(clean)
             return
         }
-        // A short opening goes out alone so Brote starts talking fast, yet long enough to cover the
-        // next request while it plays; the rest is grouped into fewer, longer requests, which
-        // sound more natural and spare the free quota.
+        // Short replies go out as one request when the text is complete: the whole reply gets one
+        // natural intonation and the free quota lasts longer. Long replies are sent in parts.
         cloudText.append(clean).append(' ')
-        val limit = if (cloudSegments == 0) FIRST_CHARS else GROUP_CHARS
-        if (cloudText.length >= limit) flushCloud()
+        if (cloudText.length >= GROUP_CHARS) flushCloud()
     }
 
     private fun flushCloud() {
@@ -193,7 +188,6 @@ class Speaker(
         val text = cloudText.toString().trim()
         cloudText.clear()
         if (text.isEmpty()) return
-        cloudSegments++
         pending.incrementAndGet()
         voice.speak(cloudGen, key, name, text)
     }
@@ -218,7 +212,6 @@ class Speaker(
     }
 
     companion object {
-        private const val FIRST_CHARS = 40
-        private const val GROUP_CHARS = 160
+        private const val GROUP_CHARS = 280
     }
 }
