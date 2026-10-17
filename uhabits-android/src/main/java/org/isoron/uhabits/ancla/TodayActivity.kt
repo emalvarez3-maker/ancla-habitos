@@ -79,12 +79,13 @@ class TodayActivity : AppCompatActivity(), CommandRunner.Listener {
 
     override fun onResume() {
         super.onResume()
+        voice.onResume()
         component.commandRunner.addListener(this)
         refresh()
     }
 
     override fun onPause() {
-        voice.cancel()
+        voice.onPause()
         component.commandRunner.removeListener(this)
         super.onPause()
     }

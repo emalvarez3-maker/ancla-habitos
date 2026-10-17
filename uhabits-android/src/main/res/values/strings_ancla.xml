@@ -197,4 +197,11 @@
     <string name="keys_claude_short">Claude</string>
     <string name="keys_gemini">Gemini API key (AIza…)</string>
     <string name="keys_gemini_note">Get it free at aistudio.google.com → Get API key. The free tier has daily limits.</string>
+    <string name="voice_message_label">🎤 Voice message</string>
+    <string name="voice_pill_conversation">I\'m listening… talk whenever you want</string>
+    <string name="voice_pill_speaking">Brote is speaking · tap the mic to interrupt</string>
+    <string name="voice_toggle_speak">Voice</string>
+    <string name="voice_toggle_jarvis">Jarvis mode</string>
+    <string name="keys_gemini_transcription">Gemini</string>
+    <string name="keys_gemini_transcription_note">Gemini listens to your audio directly and acts in one step: the fastest option, free with your Gemini key.</string>
 </resources>

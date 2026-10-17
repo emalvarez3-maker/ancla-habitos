@@ -89,17 +89,28 @@ class VoiceAgentController(private val activity: ComponentActivity, private val 
     val error = mutableStateOf<String?>(null)
     val turns = mutableStateOf<List<AgentTurn>>(emptyList())
 
+    /** The reply being written right now, while it streams and is spoken. */
+    val liveReply = mutableStateOf("")
+    val speaking = mutableStateOf(false)
+    val conversation = mutableStateOf(keys.conversationMode)
+    val speak = mutableStateOf(keys.speakReplies)
+
     private var agent: AssistantAgent? = null
     private var agentKey = ""
     private var pendingMode: DictationMode? = null
     private var turnGeneration = 0
+    private var resumed = true
+
+    private val speaker = Speaker(activity) { speaking.value = it }
 
     private val engine = Dictation(
         activity,
         keys,
         onState = { dictation.value = it },
         onTranscript = { send(it) },
-        onError = { error.value = it }
+        onError = { error.value = it },
+        onAudio = { sendAudio(it) },
+        onSilence = { /* no speech in a Jarvis turn: the loop just stops */ }
     )
 
     private val permission = activity.registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -112,6 +123,8 @@ class VoiceAgentController(private val activity: ComponentActivity, private val 
 
     private fun begin(mode: DictationMode) {
         error.value = null
+        speaker.stop() // talking over Brote interrupts it
+        if (!resumed) return
         if (ContextCompat.checkSelfPermission(activity, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
             engine.start(mode)
         } else {
@@ -129,14 +142,39 @@ class VoiceAgentController(private val activity: ComponentActivity, private val 
 
     fun singleTap() {
         val s = dictation.value
-        if (s is DictationState.Listening && s.mode == DictationMode.HANDS_FREE) engine.stop()
-        else error.value = activity.getString(R.string.voice_hint)
+        when {
+            s is DictationState.Listening && s.mode != DictationMode.HOLD -> engine.stop()
+            speaking.value -> speaker.stop()
+            conversation.value -> begin(DictationMode.CONVERSATION)
+            else -> error.value = activity.getString(R.string.voice_hint)
+        }
     }
 
     fun cancel() {
         turnGeneration++
         engine.cancel()
+        speaker.stop()
         thinking.value = false
+    }
+
+    fun setConversation(on: Boolean) {
+        conversation.value = on
+        keys.conversationMode = on
+    }
+
+    fun setSpeak(on: Boolean) {
+        speak.value = on
+        keys.speakReplies = on
+        if (!on) speaker.stop()
+    }
+
+    fun onResume() {
+        resumed = true
+    }
+
+    fun onPause() {
+        resumed = false
+        cancel()
     }
 
     fun dismiss() {
@@ -144,12 +182,10 @@ class VoiceAgentController(private val activity: ComponentActivity, private val 
         error.value = null
     }
 
-    /** Sends typed or dictated text to the agent. */
-    fun send(text: String) {
-        if (text.isBlank()) return
+    private fun currentAgent(): AssistantAgent? {
         val (provider, key) = keys.usableAssistant ?: run {
             error.value = activity.getString(R.string.voice_need_key)
-            return
+            return null
         }
         if (agent == null || "$provider:$key" != agentKey) {
             agent = when (provider) {
@@ -158,17 +194,50 @@ class VoiceAgentController(private val activity: ComponentActivity, private val 
             }
             agentKey = "$provider:$key"
         }
-        val current = agent!!
+        return agent
+    }
+
+    /** Sends typed or dictated text to the agent. */
+    fun send(text: String) {
+        if (text.isBlank()) return
+        val current = currentAgent() ?: return
+        runTurn(text) { onEvent -> current.send(text, onEvent) }
+    }
+
+    /** Sends recorded speech straight to Gemini (understands and acts in one call). */
+    private fun sendAudio(file: java.io.File) {
+        val current = currentAgent() as? GeminiAgent
+        if (current == null) {
+            file.delete()
+            if (error.value == null) error.value = activity.getString(R.string.voice_failed)
+            return
+        }
+        val audio = file.readBytes().also { file.delete() }
+        runTurn(activity.getString(R.string.voice_message_label)) { onEvent -> current.sendAudio(audio, "audio/mp4", onEvent) }
+    }
+
+    /** Runs one assistant turn: streams the text on screen and speaks it as it arrives. */
+    private fun runTurn(heard: String, call: ((AgentEvent) -> Unit) -> Unit) {
         val gen = ++turnGeneration
         thinking.value = true
         error.value = null
+        liveReply.value = ""
+        lastTurn.value = null
+        if (speak.value) speaker.begin { onSpokenFully(gen) } else speaker.stop()
         Thread {
-            val replies = mutableListOf<String>()
+            val replies = StringBuilder()
             val actions = mutableListOf<String>()
             val failure = runCatching {
-                current.send(text) { event ->
+                call { event ->
                     when (event) {
-                        is AgentEvent.Reply -> replies.add(event.text)
+                        is AgentEvent.Reply -> {
+                            replies.append(event.text)
+                            activity.runOnUiThread {
+                                if (gen != turnGeneration) return@runOnUiThread
+                                liveReply.value = replies.toString()
+                                if (speak.value) speaker.append(event.text)
+                            }
+                        }
                         is AgentEvent.Action -> actions.add(event.description)
                     }
                 }
@@ -176,6 +245,8 @@ class VoiceAgentController(private val activity: ComponentActivity, private val 
             activity.runOnUiThread {
                 if (gen != turnGeneration) return@runOnUiThread
                 thinking.value = false
+                liveReply.value = ""
+                if (speak.value) speaker.finish() else onSpokenFully(gen)
                 if (failure != null) {
                     error.value = activity.getString(
                         when ((failure as? AgentException)?.kind) {
@@ -188,16 +259,26 @@ class VoiceAgentController(private val activity: ComponentActivity, private val 
                     )
                 }
                 if (replies.isNotEmpty() || actions.isNotEmpty()) {
-                    val turn = AgentTurn(text, replies.joinToString("\n\n"), actions)
+                    val turn = AgentTurn(heard, replies.toString().trim(), actions)
                     lastTurn.value = turn
                     turns.value = turns.value + turn
                 }
+                if (failure != null) speaker.stop()
                 onChanged()
             }
         }.start()
     }
 
-    fun release() = engine.release()
+    /** Jarvis mode: once Brote has finished talking, listen for the next request. */
+    private fun onSpokenFully(gen: Int) {
+        if (gen != turnGeneration || !conversation.value || !resumed || error.value != null) return
+        begin(DictationMode.CONVERSATION)
+    }
+
+    fun release() {
+        engine.release()
+        speaker.shutdown()
+    }
 }
 
 /**
@@ -264,7 +345,8 @@ fun DictationPill(controller: VoiceAgentController, modifier: Modifier = Modifie
     val c = Ancla.colors
     val state = controller.dictation.value
     val thinking = controller.thinking.value
-    val visible = state != DictationState.Idle || thinking
+    val speaking = controller.speaking.value
+    val visible = state != DictationState.Idle || thinking || speaking
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(state is DictationState.Listening) {
         while (state is DictationState.Listening) {
@@ -286,12 +368,14 @@ fun DictationPill(controller: VoiceAgentController, modifier: Modifier = Modifie
                 Box(Modifier.size(10.dp).clip(CircleShape).background(if (state is DictationState.Listening) Color(0xFFFF6B5E) else c.lilac))
                 val label = when {
                     state is DictationState.Listening && state.mode == DictationMode.HOLD -> stringResource(R.string.voice_pill_hold)
+                    state is DictationState.Listening && state.mode == DictationMode.CONVERSATION -> stringResource(R.string.voice_pill_conversation)
                     state is DictationState.Listening -> {
                         val secs = ((now - state.startedAt) / 1000).coerceAtLeast(0)
                         stringResource(R.string.voice_pill_free, secs / 60, secs % 60)
                     }
                     state is DictationState.Transcribing -> stringResource(R.string.voice_pill_transcribing)
-                    else -> stringResource(R.string.voice_pill_thinking)
+                    thinking -> stringResource(R.string.voice_pill_thinking)
+                    else -> stringResource(R.string.voice_pill_speaking)
                 }
                 Text(label, style = MaterialTheme.typography.labelLarge, color = c.onInk, modifier = Modifier.weight(1f))
                 if (state is DictationState.Listening) Waveform(state.level)
@@ -326,7 +410,8 @@ fun AgentResultCard(controller: VoiceAgentController, onOpenChat: () -> Unit, mo
     val c = Ancla.colors
     val turn = controller.lastTurn.value
     val err = controller.error.value
-    AnimatedVisibility(turn != null || err != null, enter = fadeIn() + scaleIn(initialScale = 0.95f), exit = fadeOut(), modifier = modifier) {
+    val live = controller.liveReply.value
+    AnimatedVisibility(turn != null || err != null || live.isNotBlank(), enter = fadeIn() + scaleIn(initialScale = 0.95f), exit = fadeOut(), modifier = modifier) {
         Column(
             Modifier
                 .fillMaxWidth()
@@ -339,6 +424,8 @@ fun AgentResultCard(controller: VoiceAgentController, onOpenChat: () -> Unit, mo
         ) {
             if (err != null) {
                 Text(err, style = MaterialTheme.typography.bodyLarge, color = c.amberInk)
+            } else if (live.isNotBlank()) {
+                Text(live.trim(), style = MaterialTheme.typography.bodyLarge, color = c.ink)
             } else if (turn != null) {
                 Text("«${turn.heard}»", style = MaterialTheme.typography.bodyMedium, color = c.muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 turn.actions.forEach { a ->

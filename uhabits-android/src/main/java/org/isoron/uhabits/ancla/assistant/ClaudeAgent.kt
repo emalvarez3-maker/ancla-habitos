@@ -158,7 +158,7 @@ class ClaudeAgent(apiKey: String, private val actions: AgentActions) : Assistant
 
                 val text = response.content().flatMap { b -> b.text().map { listOf(it.text()) }.orElse(emptyList()) }
                     .joinToString("\n").trim()
-                if (text.isNotEmpty()) onEvent(AgentEvent.Reply(text))
+                if (text.isNotEmpty()) onEvent(AgentEvent.Reply(text + "\n\n"))
                 if (stop != BetaStopReason.TOOL_USE) return
 
                 val results = response.content().mapNotNull { block -> block.toolUse().orElse(null) }.map { use ->

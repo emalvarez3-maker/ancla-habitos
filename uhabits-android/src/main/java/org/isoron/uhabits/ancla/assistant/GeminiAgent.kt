@@ -96,30 +96,35 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
         )
     )
 
-    override fun send(userText: String, onEvent: (AgentEvent) -> Unit) {
-        history.put(JSONObject().put("role", "user").put("parts", JSONArray().put(JSONObject().put("text", userText))))
+    override fun send(userText: String, onEvent: (AgentEvent) -> Unit) =
+        run(JSONArray().put(JSONObject().put("text", userText)), onEvent)
+
+    /** Sends recorded speech straight to Gemini, which understands and acts on it in one call. */
+    fun sendAudio(audio: ByteArray, mimeType: String, onEvent: (AgentEvent) -> Unit) = run(
+        JSONArray()
+            .put(JSONObject().put("inlineData", JSONObject().put("mimeType", mimeType).put("data", android.util.Base64.encodeToString(audio, android.util.Base64.NO_WRAP))))
+            .put(JSONObject().put("text", "(Voice message from the user. Act on what they said.)")),
+        onEvent
+    )
+
+    private fun run(userParts: JSONArray, onEvent: (AgentEvent) -> Unit) {
+        history.put(JSONObject().put("role", "user").put("parts", userParts))
         repeat(MAX_STEPS) {
             val body = JSONObject()
                 .put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", assistantInstructions()))))
                 .put("contents", history)
                 .put("tools", tools)
-            val response = post(body)
-            val candidate = response.optJSONArray("candidates")?.optJSONObject(0)
-                ?: throw AgentException(AgentException.Kind.REFUSED, "no candidates")
-            val content = candidate.optJSONObject("content") ?: JSONObject().put("role", "model").put("parts", JSONArray())
-            if (!content.has("role")) content.put("role", "model")
-            history.put(content)
-
-            val parts = content.optJSONArray("parts") ?: JSONArray()
-            val text = (0 until parts.length()).mapNotNull { i ->
+            val (parts, finishReason) = stream(body) { delta -> onEvent(AgentEvent.Reply(delta)) }
+            // The model turn goes back exactly as streamed, so thought signatures are preserved.
+            history.put(JSONObject().put("role", "model").put("parts", parts))
+            val text = (0 until parts.length()).joinToString("") { i ->
                 val p = parts.getJSONObject(i)
-                if (p.optBoolean("thought", false)) null else p.optString("text").takeIf { it.isNotBlank() }
-            }.joinToString("\n").trim()
-            if (text.isNotEmpty()) onEvent(AgentEvent.Reply(text))
+                if (p.optBoolean("thought", false)) "" else p.optString("text")
+            }.trim()
 
             val calls = (0 until parts.length()).mapNotNull { parts.getJSONObject(it).optJSONObject("functionCall") }
             if (calls.isEmpty()) {
-                if (candidate.optString("finishReason") == "SAFETY" && text.isEmpty()) throw AgentException(AgentException.Kind.REFUSED, "safety")
+                if (finishReason == "SAFETY" && text.isEmpty()) throw AgentException(AgentException.Kind.REFUSED, "safety")
                 return
             }
             val responses = JSONArray()
@@ -134,8 +139,12 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
         }
     }
 
-    private fun post(body: JSONObject): JSONObject {
-        val conn = (URL("https://generativelanguage.googleapis.com/v1beta/models/$MODEL:generateContent").openConnection() as HttpURLConnection).apply {
+    /**
+     * Calls streamGenerateContent (server-sent events), reporting visible text as it arrives.
+     * Returns every part received, in order, and the finish reason.
+     */
+    private fun stream(body: JSONObject, onText: (String) -> Unit): Pair<JSONArray, String> {
+        val conn = (URL("https://generativelanguage.googleapis.com/v1beta/models/$MODEL:streamGenerateContent?alt=sse").openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             doOutput = true
             connectTimeout = 15000
@@ -146,20 +155,38 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
         try {
             conn.outputStream.use { it.write(body.toString().toByteArray()) }
             val code = conn.responseCode
-            val text = (if (code in 200..299) conn.inputStream else conn.errorStream)?.bufferedReader()?.use { it.readText() }.orEmpty()
-            when {
-                code in 200..299 -> return JSONObject(text)
-                code == 400 && text.contains("API_KEY_INVALID") -> throw AgentException(AgentException.Kind.BAD_KEY, "invalid key")
-                code == 401 || code == 403 -> throw AgentException(AgentException.Kind.BAD_KEY, "HTTP $code")
-                code == 429 -> throw AgentException(AgentException.Kind.RATE_LIMIT, "HTTP 429")
-                else -> throw AgentException(AgentException.Kind.OTHER, "HTTP $code: ${text.take(300)}")
+            if (code !in 200..299) {
+                val text = conn.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                throw when {
+                    code == 400 && text.contains("API_KEY_INVALID") -> AgentException(AgentException.Kind.BAD_KEY, "invalid key")
+                    code == 401 || code == 403 -> AgentException(AgentException.Kind.BAD_KEY, "HTTP $code")
+                    code == 429 -> AgentException(AgentException.Kind.RATE_LIMIT, "HTTP 429")
+                    else -> AgentException(AgentException.Kind.OTHER, "HTTP $code: ${text.take(300)}")
+                }
             }
+            val parts = JSONArray()
+            var finish = ""
+            conn.inputStream.bufferedReader().useLines { lines ->
+                lines.filter { it.startsWith("data:") }.forEach { line ->
+                    val chunk = JSONObject(line.removePrefix("data:").trim())
+                    val candidate = chunk.optJSONArray("candidates")?.optJSONObject(0) ?: return@forEach
+                    candidate.optString("finishReason").takeIf { it.isNotEmpty() }?.let { finish = it }
+                    val chunkParts = candidate.optJSONObject("content")?.optJSONArray("parts") ?: return@forEach
+                    for (i in 0 until chunkParts.length()) {
+                        val p = chunkParts.getJSONObject(i)
+                        parts.put(p)
+                        if (!p.optBoolean("thought", false)) p.optString("text").takeIf { it.isNotEmpty() }?.let(onText)
+                    }
+                }
+            }
+            return parts to finish
         } catch (e: IOException) {
             throw AgentException(AgentException.Kind.NETWORK, e.message ?: "network")
         } finally {
             conn.disconnect()
         }
     }
+
 
     companion object {
         const val MODEL = "gemini-3.8-flash"

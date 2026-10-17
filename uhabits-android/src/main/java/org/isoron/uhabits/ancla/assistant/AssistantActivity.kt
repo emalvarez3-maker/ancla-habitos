@@ -89,8 +89,13 @@ class AssistantActivity : AppCompatActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        controller.onResume()
+    }
+
     override fun onPause() {
-        controller.cancel()
+        controller.onPause()
         super.onPause()
     }
 
@@ -136,6 +141,10 @@ private fun AssistantScreen(controller: VoiceAgentController, settingsOpen: Bool
                 modifier = Modifier.clip(RoundedCornerShape(12.dp)).combinedClickableCompat(Role.Button, { onSettings(true) }).padding(10.dp)
             )
         }
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ToggleChip(stringResource(R.string.voice_toggle_speak), controller.speak.value) { controller.setSpeak(it) }
+            ToggleChip(stringResource(R.string.voice_toggle_jarvis), controller.conversation.value) { controller.setConversation(it) }
+        }
         LazyColumn(
             Modifier.weight(1f).fillMaxWidth(),
             state = list,
@@ -150,6 +159,7 @@ private fun AssistantScreen(controller: VoiceAgentController, settingsOpen: Bool
                 t.actions.forEach { a -> item { Text("✓ $a", style = MaterialTheme.typography.titleMedium, color = c.mintInk, modifier = Modifier.padding(start = 6.dp)) } }
                 if (t.reply.isNotBlank()) item { Bubble(t.reply, mine = false) }
             }
+            if (controller.liveReply.value.isNotBlank()) item { Bubble(controller.liveReply.value.trim(), mine = false) }
             controller.error.value?.let { e -> item { Text(e, style = MaterialTheme.typography.bodyMedium, color = c.amberInk) } }
         }
         DictationPill(controller, Modifier.padding(horizontal = 16.dp))
@@ -177,6 +187,18 @@ private fun AssistantScreen(controller: VoiceAgentController, settingsOpen: Bool
             }
         }
     }
+}
+
+@Composable
+private fun ToggleChip(label: String, on: Boolean, onChange: (Boolean) -> Unit) {
+    val c = Ancla.colors
+    Text(
+        (if (on) "● " else "○ ") + label,
+        style = MaterialTheme.typography.labelLarge,
+        color = if (on) c.onInk else c.inkSoft,
+        modifier = Modifier.clip(CircleShape).background(if (on) c.lilac else c.card)
+            .combinedClickableCompat(Role.Switch, { onChange(!on) }).padding(horizontal = 14.dp, vertical = 9.dp)
+    )
 }
 
 @Composable
@@ -244,6 +266,7 @@ private fun KeysSheet(keys: SecureKeys, onDone: () -> Unit) {
                                 TranscriptionProvider.ANDROID -> R.string.keys_android
                                 TranscriptionProvider.GROQ -> R.string.keys_groq_short
                                 TranscriptionProvider.OPENAI -> R.string.keys_openai_short
+                                TranscriptionProvider.GEMINI -> R.string.keys_gemini_transcription
                             }
                         ),
                         style = MaterialTheme.typography.labelLarge,
@@ -259,6 +282,7 @@ private fun KeysSheet(keys: SecureKeys, onDone: () -> Unit) {
                 TranscriptionProvider.OPENAI -> OutlinedTextField(openai, { openai = it }, label = { Text(stringResource(R.string.keys_openai)) }, singleLine = true,
                     visualTransformation = PasswordVisualTransformation(), colors = colors, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth())
                 TranscriptionProvider.ANDROID -> Text(stringResource(R.string.keys_android_note), style = MaterialTheme.typography.bodyMedium, color = c.muted)
+                TranscriptionProvider.GEMINI -> Text(stringResource(R.string.keys_gemini_transcription_note), style = MaterialTheme.typography.bodyMedium, color = c.muted)
             }
             Box(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.ink)

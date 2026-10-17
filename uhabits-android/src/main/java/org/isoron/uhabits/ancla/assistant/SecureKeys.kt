@@ -29,7 +29,7 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
-enum class TranscriptionProvider { ANDROID, GROQ, OPENAI }
+enum class TranscriptionProvider { ANDROID, GROQ, OPENAI, GEMINI }
 
 enum class AssistantProvider { GEMINI, CLAUDE }
 
@@ -69,7 +69,7 @@ class SecureKeys(context: Context) {
         set(v) = write("openai", v)
 
     var transcription: TranscriptionProvider
-        get() = TranscriptionProvider.entries.getOrElse(prefs.getInt("transcription", 0)) { TranscriptionProvider.ANDROID }
+        get() = TranscriptionProvider.entries.getOrElse(prefs.getInt("transcription", TranscriptionProvider.GEMINI.ordinal)) { TranscriptionProvider.GEMINI }
         set(v) = prefs.edit().putInt("transcription", v.ordinal).apply()
 
     /** The provider actually usable now: falls back to Android when the chosen one has no key. */
@@ -78,7 +78,19 @@ class SecureKeys(context: Context) {
             TranscriptionProvider.GROQ -> if (groqKey.isNotBlank()) TranscriptionProvider.GROQ else TranscriptionProvider.ANDROID
             TranscriptionProvider.OPENAI -> if (openAiKey.isNotBlank()) TranscriptionProvider.OPENAI else TranscriptionProvider.ANDROID
             TranscriptionProvider.ANDROID -> TranscriptionProvider.ANDROID
+            TranscriptionProvider.GEMINI ->
+                if (usableAssistant?.first == AssistantProvider.GEMINI) TranscriptionProvider.GEMINI else TranscriptionProvider.ANDROID
         }
+
+    /** Read replies aloud. */
+    var speakReplies: Boolean
+        get() = prefs.getBoolean("speak", true)
+        set(v) = prefs.edit().putBoolean("speak", v).apply()
+
+    /** Jarvis mode: after Brote speaks, listen again automatically. */
+    var conversationMode: Boolean
+        get() = prefs.getBoolean("conversation", false)
+        set(v) = prefs.edit().putBoolean("conversation", v).apply()
 
     private fun key(): SecretKey {
         val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }

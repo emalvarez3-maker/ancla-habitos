@@ -34,7 +34,8 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.UUID
 
-enum class DictationMode { HOLD, HANDS_FREE }
+/** HOLD: while pressed. HANDS_FREE: until tapped again. CONVERSATION: Jarvis turn, ends when the user stops talking. */
+enum class DictationMode { HOLD, HANDS_FREE, CONVERSATION }
 
 sealed class DictationState {
     data object Idle : DictationState()
@@ -52,7 +53,11 @@ class Dictation(
     private val keys: SecureKeys,
     private val onState: (DictationState) -> Unit,
     private val onTranscript: (String) -> Unit,
-    private val onError: (String) -> Unit
+    private val onError: (String) -> Unit,
+    /** Gemini mode: the recorded audio goes to the assistant as is (the receiver deletes the file). */
+    private val onAudio: (File) -> Unit = {},
+    /** A conversation turn ended without speech: the Jarvis loop should stop quietly. */
+    private val onSilence: () -> Unit = {}
 ) {
     private val main = Handler(Looper.getMainLooper())
     private var state: DictationState = DictationState.Idle
@@ -72,12 +77,33 @@ class Dictation(
     val isActive get() = state != DictationState.Idle
 
     private val autoStop = Runnable { stop() }
+    // Simple voice-activity detection for conversation turns on recorded audio.
+    private var heardSpeech = false
+    private var lastLoud = 0L
+
     private val meter = object : Runnable {
         override fun run() {
             val s = state as? DictationState.Listening ?: return
             recorder?.let { r ->
-                val level = (r.maxAmplitude / 12000f).coerceIn(0f, 1f)
+                val amplitude = r.maxAmplitude
+                val level = (amplitude / 12000f).coerceIn(0f, 1f)
                 state = s.copy(level = level)
+                val now = System.currentTimeMillis()
+                if (amplitude > SPEECH_AMPLITUDE) {
+                    heardSpeech = true
+                    lastLoud = now
+                }
+                if (s.mode == DictationMode.CONVERSATION) {
+                    if (heardSpeech && now - lastLoud > END_SILENCE_MS) {
+                        stop()
+                        return
+                    }
+                    if (!heardSpeech && now - s.startedAt > NO_SPEECH_MS) {
+                        cancel()
+                        onSilence()
+                        return
+                    }
+                }
             }
             main.postDelayed(this, 90)
         }
@@ -87,6 +113,8 @@ class Dictation(
         if (isActive) return
         provider = keys.effectiveTranscription
         heard.clear()
+        heardSpeech = false
+        lastLoud = System.currentTimeMillis()
         generation++
         state = DictationState.Listening(mode, System.currentTimeMillis(), "", 0f)
         main.postDelayed(autoStop, MAX_MILLIS)
@@ -113,6 +141,11 @@ class Dictation(
             stopRecorder()
             if (file == null || System.currentTimeMillis() - listening.startedAt < 500) {
                 reset()
+                return
+            }
+            if (provider == TranscriptionProvider.GEMINI) {
+                reset()
+                onAudio(file)
                 return
             }
             state = DictationState.Transcribing
@@ -246,6 +279,13 @@ class Dictation(
                     listenAgain()
                     return
                 }
+                if (s is DictationState.Listening && s.mode == DictationMode.CONVERSATION && heard.isEmpty()) {
+                    recognizer?.destroy()
+                    recognizer = null
+                    reset()
+                    onSilence()
+                    return
+                }
                 recognizer?.destroy()
                 recognizer = null
                 if (s is DictationState.Transcribing || heard.isNotEmpty()) deliver(heard.toString()) else {
@@ -290,5 +330,14 @@ class Dictation(
     companion object {
         /** Safety stop so a forgotten hands-free session cannot record all afternoon. */
         const val MAX_MILLIS = 5 * 60 * 1000L
+
+        /** Microphone amplitude above which we consider the user is talking. */
+        private const val SPEECH_AMPLITUDE = 2500
+
+        /** Silence after speech that ends a conversation turn. */
+        private const val END_SILENCE_MS = 1400L
+
+        /** A conversation turn with no speech at all ends the Jarvis loop. */
+        private const val NO_SPEECH_MS = 7000L
     }
 }
