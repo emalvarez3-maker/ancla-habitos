@@ -21,6 +21,8 @@ package org.isoron.uhabits.ancla.assistant
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.os.SystemClock
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -101,7 +103,13 @@ class VoiceAgentController(private val activity: ComponentActivity, private val 
     private var turnGeneration = 0
     private var resumed = true
 
-    private val speaker = Speaker(activity) { speaking.value = it }
+    private val speaker = Speaker(activity, { keys.cloudVoice }) { speaking.value = it }
+
+    /** Plays a short sample of a voice from the settings sheet. */
+    fun previewVoice(voiceName: String, geminiKey: String) {
+        cancel()
+        speaker.preview(activity.getString(R.string.voice_sample), geminiKey, voiceName)
+    }
 
     private val engine = Dictation(
         activity,
@@ -219,6 +227,7 @@ class VoiceAgentController(private val activity: ComponentActivity, private val 
     /** Runs one assistant turn: streams the text on screen and speaks it as it arrives. */
     private fun runTurn(heard: String, call: ((AgentEvent) -> Unit) -> Unit) {
         val gen = ++turnGeneration
+        val started = SystemClock.elapsedRealtime()
         thinking.value = true
         error.value = null
         liveReply.value = ""
@@ -231,6 +240,7 @@ class VoiceAgentController(private val activity: ComponentActivity, private val 
                 call { event ->
                     when (event) {
                         is AgentEvent.Reply -> {
+                            if (replies.isEmpty()) Log.d("AnclaVoice", "first words after ${SystemClock.elapsedRealtime() - started} ms")
                             replies.append(event.text)
                             activity.runOnUiThread {
                                 if (gen != turnGeneration) return@runOnUiThread

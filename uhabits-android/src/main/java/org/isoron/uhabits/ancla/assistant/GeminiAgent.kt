@@ -47,6 +47,7 @@ internal fun dispatchTool(actions: AgentActions, name: String, input: JSONObject
  */
 class GeminiAgent(private val apiKey: String, private val actions: AgentActions) : AssistantAgent {
     private val history = JSONArray()
+    private var lowThinking = true
 
     private fun prop(type: String, description: String? = null, nullable: Boolean = false) = JSONObject().apply {
         put("type", type)
@@ -109,12 +110,25 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
 
     private fun run(userParts: JSONArray, onEvent: (AgentEvent) -> Unit) {
         history.put(JSONObject().put("role", "user").put("parts", userParts))
+        val instructions = assistantInstructions(actions.snapshot())
         repeat(MAX_STEPS) {
             val body = JSONObject()
-                .put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", assistantInstructions()))))
+                .put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", instructions))))
                 .put("contents", history)
                 .put("tools", tools)
-            val (parts, finishReason) = stream(body) { delta -> onEvent(AgentEvent.Reply(delta)) }
+            // Thinking adds seconds before the first word; minimal is plenty for a quick voice assistant.
+            if (lowThinking) {
+                body.put("generationConfig", JSONObject().put("thinkingConfig", JSONObject().put("thinkingLevel", "minimal")))
+            }
+            val (parts, finishReason) = try {
+                stream(body) { delta -> onEvent(AgentEvent.Reply(delta)) }
+            } catch (e: AgentException) {
+                if (!lowThinking || e.kind != AgentException.Kind.OTHER || !e.message.orEmpty().startsWith("HTTP 400")) throw e
+                android.util.Log.w("AnclaVoice", "thinkingLevel rejected: ${e.message?.take(200)}")
+                lowThinking = false
+                body.remove("generationConfig")
+                stream(body) { delta -> onEvent(AgentEvent.Reply(delta)) }
+            }
             // The model turn goes back exactly as streamed, so thought signatures are preserved.
             history.put(JSONObject().put("role", "model").put("parts", parts))
             val text = (0 until parts.length()).joinToString("") { i ->
@@ -123,6 +137,7 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
             }.trim()
 
             val calls = (0 until parts.length()).mapNotNull { parts.getJSONObject(it).optJSONObject("functionCall") }
+            android.util.Log.d("AnclaVoice", "step ${it + 1}: ${calls.map { c -> c.optString("name") }} finish=$finishReason")
             if (calls.isEmpty()) {
                 if (finishReason == "SAFETY" && text.isEmpty()) throw AgentException(AgentException.Kind.REFUSED, "safety")
                 return
@@ -154,7 +169,9 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
         }
         try {
             conn.outputStream.use { it.write(body.toString().toByteArray()) }
+            val sent = System.currentTimeMillis()
             val code = conn.responseCode
+            android.util.Log.d("AnclaVoice", "Gemini HTTP $code after ${System.currentTimeMillis() - sent} ms")
             if (code !in 200..299) {
                 val text = conn.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
                 throw when {
@@ -189,7 +206,7 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
 
 
     companion object {
-        const val MODEL = "gemini-3.8-flash"
+        const val MODEL = "gemini-3.6-flash"
         private const val MAX_STEPS = 6
     }
 }

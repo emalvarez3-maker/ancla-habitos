@@ -335,7 +335,7 @@ class Dictation(
         private const val SPEECH_AMPLITUDE = 2500
 
         /** Silence after speech that ends a conversation turn. */
-        private const val END_SILENCE_MS = 1400L
+        private const val END_SILENCE_MS = 850L
 
         /** A conversation turn with no speech at all ends the Jarvis loop. */
         private const val NO_SPEECH_MS = 7000L

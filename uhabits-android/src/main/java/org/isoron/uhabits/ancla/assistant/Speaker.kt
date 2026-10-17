@@ -29,10 +29,16 @@ import java.util.Locale
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * Speaks the assistant's reply as it streams in: text is buffered and each complete sentence
- * is queued on Android's text-to-speech, so Brote starts talking before the reply is finished.
+ * Speaks the assistant's reply as it streams in: text is buffered and complete sentences are
+ * spoken right away, so Brote starts talking before the reply is finished. Uses a natural Gemini
+ * voice when [cloudVoice] returns a key and voice name, and Android's text-to-speech otherwise
+ * or whenever Gemini fails (offline, quota).
  */
-class Speaker(context: Context, private val onSpeaking: (Boolean) -> Unit) {
+class Speaker(
+    context: Context,
+    private val cloudVoice: () -> Pair<String, String>? = { null },
+    private val onSpeaking: (Boolean) -> Unit
+) {
     private val main = Handler(Looper.getMainLooper())
     private var ready = false
     private val buffer = StringBuilder()
@@ -40,6 +46,28 @@ class Speaker(context: Context, private val onSpeaking: (Boolean) -> Unit) {
     private var finished = false
     private var onDone: (() -> Unit)? = null
     private var counter = 0
+
+    /** Gemini key and voice for the current reply, or null to use the phone's voice. */
+    private var cloud: Pair<String, String>? = null
+    private var cloudGen = 0
+    private var cloudSegments = 0
+    private val cloudText = StringBuilder()
+    private var cloudPausedUntil = 0L
+
+    private val voice = GeminiVoice(
+        onAudioStart = { gen -> main.post { if (gen == cloudGen) onSpeaking(true) } },
+        onSegmentDone = { gen -> main.post { if (gen == cloudGen) utteranceEnded() } },
+        onFailed = { gen, text ->
+            main.post {
+                if (gen != cloudGen) return@post
+                // Quota or network trouble: finish this reply (and the next minute) with the phone's voice.
+                cloud = null
+                cloudPausedUntil = System.currentTimeMillis() + 60_000
+                speakLocal(text)
+                utteranceEnded()
+            }
+        }
+    )
 
     private val tts: TextToSpeech = TextToSpeech(context.applicationContext) { status ->
         if (status == TextToSpeech.SUCCESS) {
@@ -72,12 +100,14 @@ class Speaker(context: Context, private val onSpeaking: (Boolean) -> Unit) {
     private fun configure() {
         val locale = Locale.getDefault().takeIf { it.language == "es" } ?: Locale("es", "US")
         tts.language = locale
-        // Prefer a high-quality, network-free neural voice in Spanish when the phone has one.
-        tts.voices?.filter { it.locale.language == "es" && !it.isNetworkConnectionRequired && Voice.QUALITY_HIGH <= it.quality }
-            ?.maxByOrNull { (if (it.locale.country == locale.country) 10 else 0) + it.quality / 100 }
+        // Prefer the most natural Spanish voice: network neural voices first, then high-quality local ones.
+        tts.voices?.filter { it.locale.language == "es" && Voice.QUALITY_HIGH <= it.quality && "legacySetLanguageVoice" !in it.features.orEmpty() }
+            ?.maxByOrNull {
+                (if (it.locale.country == locale.country) 100 else 0) + (if (it.isNetworkConnectionRequired) 50 else 0) + it.quality / 100
+            }
             ?.let { tts.voice = it }
-        tts.setSpeechRate(1.07f)
-        tts.setPitch(0.95f)
+        tts.setSpeechRate(1.05f)
+        tts.setPitch(1.0f)
     }
 
     /** Starts a new reply; [onFinished] runs after the last sentence has been spoken. */
@@ -85,6 +115,7 @@ class Speaker(context: Context, private val onSpeaking: (Boolean) -> Unit) {
         stop()
         finished = false
         onDone = onFinished
+        cloud = if (System.currentTimeMillis() < cloudPausedUntil) null else cloudVoice()
     }
 
     /** Adds streamed text; complete sentences are spoken immediately. */
@@ -92,7 +123,11 @@ class Speaker(context: Context, private val onSpeaking: (Boolean) -> Unit) {
         buffer.append(delta)
         while (true) {
             val text = buffer.toString()
-            val end = Regex("[.!?¡¿…:;\\n](\\s|$)").find(text)?.range?.last ?: break
+            val end = Regex("[.!?¡¿…:;\\n](\\s|$)").find(text)?.range?.last
+                // A long first sentence is cut at a comma so the voice starts sooner.
+                ?: Regex(",\\s").findAll(text).map { it.range.last }.firstOrNull { it > 50 }
+                    ?.takeIf { pending.get() == 0 && cloudText.isEmpty() }
+                ?: break
             val sentence = text.substring(0, end + 1).trim()
             buffer.delete(0, end + 1)
             speak(sentence)
@@ -104,29 +139,69 @@ class Speaker(context: Context, private val onSpeaking: (Boolean) -> Unit) {
         val rest = buffer.toString().trim()
         buffer.clear()
         if (rest.isNotEmpty()) speak(rest)
+        flushCloud()
         finished = true
         if (pending.get() == 0) complete()
     }
 
     fun stop() {
         buffer.clear()
+        cloudText.clear()
+        cloudSegments = 0
         pending.set(0)
         onDone = null
         finished = false
+        cloudGen = voice.reset()
         if (ready) tts.stop()
         onSpeaking(false)
     }
 
+    /** Says a short sample with the given voice, for the settings screen. */
+    fun preview(text: String, key: String, voiceName: String) {
+        stop()
+        cloudPausedUntil = 0
+        cloud = if (voiceName == BroteVoices.PHONE || key.isBlank()) null else key to voiceName
+        cloudSegments = 0
+        speak(text)
+        flushCloud()
+        finished = true
+    }
+
     fun shutdown() {
         stop()
+        voice.shutdown()
         tts.shutdown()
     }
 
     private fun speak(sentence: String) {
         val clean = sentence.replace(Regex("[*_#`>]"), "").trim()
-        if (clean.isEmpty() || !ready) return
+        if (clean.isEmpty()) return
+        if (cloud == null) {
+            speakLocal(clean)
+            return
+        }
+        // A short opening goes out alone so Brote starts talking fast, yet long enough to cover the
+        // next request while it plays; the rest is grouped into fewer, longer requests, which
+        // sound more natural and spare the free quota.
+        cloudText.append(clean).append(' ')
+        val limit = if (cloudSegments == 0) FIRST_CHARS else GROUP_CHARS
+        if (cloudText.length >= limit) flushCloud()
+    }
+
+    private fun flushCloud() {
+        val (key, name) = cloud ?: return
+        val text = cloudText.toString().trim()
+        cloudText.clear()
+        if (text.isEmpty()) return
+        cloudSegments++
         pending.incrementAndGet()
-        tts.speak(clean, TextToSpeech.QUEUE_ADD, null, "brote-${counter++}")
+        voice.speak(cloudGen, key, name, text)
+    }
+
+    private fun speakLocal(text: String) {
+        if (!ready) return
+        pending.incrementAndGet()
+        tts.speak(text, TextToSpeech.QUEUE_ADD, null, "brote-${counter++}")
     }
 
     private fun utteranceEnded() {
@@ -140,5 +215,10 @@ class Speaker(context: Context, private val onSpeaking: (Boolean) -> Unit) {
         onDone = null
         finished = false
         done?.invoke()
+    }
+
+    companion object {
+        private const val FIRST_CHARS = 40
+        private const val GROUP_CHARS = 160
     }
 }

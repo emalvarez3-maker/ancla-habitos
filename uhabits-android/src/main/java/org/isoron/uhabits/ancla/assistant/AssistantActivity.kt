@@ -26,6 +26,9 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -117,7 +120,7 @@ private fun AssistantScreen(controller: VoiceAgentController, settingsOpen: Bool
     val list = rememberLazyListState()
     LaunchedEffect(turns.size, controller.thinking.value) { if (turns.isNotEmpty()) list.animateScrollToItem(turns.size) }
 
-    if (settingsOpen) KeysSheet(controller.keys) { onSettings(false) }
+    if (settingsOpen) KeysSheet(controller.keys, onPreview = controller::previewVoice) { onSettings(false) }
 
     Column(Modifier.fillMaxSize().background(c.ground).statusBarsPadding().imePadding()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -219,7 +222,7 @@ private fun Bubble(text: String, mine: Boolean) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun KeysSheet(keys: SecureKeys, onDone: () -> Unit) {
+private fun KeysSheet(keys: SecureKeys, onPreview: (String, String) -> Unit, onDone: () -> Unit) {
     val c = Ancla.colors
     var claude by remember { mutableStateOf(keys.claudeKey) }
     var gemini by remember { mutableStateOf(keys.geminiKey) }
@@ -227,10 +230,11 @@ private fun KeysSheet(keys: SecureKeys, onDone: () -> Unit) {
     var groq by remember { mutableStateOf(keys.groqKey) }
     var openai by remember { mutableStateOf(keys.openAiKey) }
     var provider by remember { mutableStateOf(keys.transcription) }
+    var voice by remember { mutableStateOf(keys.voice) }
     val colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = c.lilac, unfocusedBorderColor = c.track, focusedTextColor = c.ink, unfocusedTextColor = c.ink)
     ModalBottomSheet(onDismissRequest = onDone, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = c.card) {
         Column(
-            Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 20.dp).navigationBarsPadding().imePadding(),
+            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 20.dp, end = 20.dp, bottom = 20.dp).navigationBarsPadding().imePadding(),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(stringResource(R.string.keys_title), style = MaterialTheme.typography.headlineSmall, color = c.ink)
@@ -284,6 +288,27 @@ private fun KeysSheet(keys: SecureKeys, onDone: () -> Unit) {
                 TranscriptionProvider.ANDROID -> Text(stringResource(R.string.keys_android_note), style = MaterialTheme.typography.bodyMedium, color = c.muted)
                 TranscriptionProvider.GEMINI -> Text(stringResource(R.string.keys_gemini_transcription_note), style = MaterialTheme.typography.bodyMedium, color = c.muted)
             }
+            Text(stringResource(R.string.keys_voice), style = MaterialTheme.typography.titleMedium, color = c.ink)
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                (BroteVoices.GEMINI + BroteVoices.PHONE).forEach { v ->
+                    val on = voice == v
+                    Text(
+                        if (v == BroteVoices.PHONE) stringResource(R.string.keys_voice_phone) else v,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = if (on) c.onInk else c.inkSoft,
+                        modifier = Modifier.clip(CircleShape).background(if (on) c.ink else c.ground)
+                            .combinedClickableCompat(Role.RadioButton, {
+                                voice = v
+                                onPreview(v, gemini)
+                            }).padding(horizontal = 14.dp, vertical = 10.dp)
+                    )
+                }
+            }
+            Text(
+                stringResource(if (voice == BroteVoices.PHONE) R.string.keys_voice_phone_note else R.string.keys_voice_gemini_note),
+                style = MaterialTheme.typography.bodyMedium,
+                color = c.muted
+            )
             Box(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.ink)
                     .combinedClickableCompat(Role.Button, {
@@ -293,6 +318,7 @@ private fun KeysSheet(keys: SecureKeys, onDone: () -> Unit) {
                         keys.groqKey = groq
                         keys.openAiKey = openai
                         keys.transcription = provider
+                        keys.voice = voice
                         onDone()
                     }).padding(14.dp),
                 contentAlignment = Alignment.Center

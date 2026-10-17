@@ -63,18 +63,24 @@ interface AssistantAgent {
 }
 
 /** Shared instructions for every provider. */
-fun assistantInstructions(): String {
+fun assistantInstructions(today: String = ""): String {
     val now = ZonedDateTime.now()
     val date = now.format(DateTimeFormatter.ofPattern("EEEE d 'de' MMMM yyyy, HH:mm", Locale("es")))
     return """
         You are Brote, the assistant inside Ancla, a habit, task and reading app. Speak Spanish unless the user writes in another language.
         The user often dictates by voice: transcripts may contain filler words, repetitions or punctuation errors. Interpret the intent, and when you create tasks, write clean titles.
         When the user dictates something to do, call create_task right away instead of asking for confirmation; ask a question only if the request is genuinely ambiguous.
-        Use today_summary or reading_summary before giving advice about their day or their reading, so your answer uses real data.
-        Keep replies short and warm: one to three sentences, no lists unless asked. After acting, say what you did in plain words.
+        A snapshot of today and of their reading is included below, so answer questions about them right away; call today_summary or reading_summary only for fresh data after you change something.
+        Your replies are read aloud: keep them short and warm, one to three sentences, no lists, emoji or markdown. After acting, say what you did in plain words.
         Current date and time: $date (${now.zone}).
-    """.trimIndent()
+    """.trimIndent() + if (today.isBlank()) "" else "\n\nToday at the start of this turn:\n$today"
 }
+
+/** Today's and reading summaries for the instructions, so common questions need no extra tool round trip. */
+internal fun AgentActions.snapshot(): String =
+    listOf(runCatching { todaySummary() }, runCatching { "Lectura:\n" + readingSummary() })
+        .mapNotNull { it.getOrNull() }
+        .joinToString("\n")
 
 /**
  * A small tool-using agent on the Claude API: keeps the conversation, runs tools locally
@@ -138,12 +144,13 @@ class ClaudeAgent(apiKey: String, private val actions: AgentActions) : Assistant
     /** Sends [userText] and runs the tool loop. Blocking: call off the main thread. */
     override fun send(userText: String, onEvent: (AgentEvent) -> Unit) {
         history.add(BetaMessageParam.builder().role(BetaMessageParam.Role.USER).content(userText).build())
+        val instructions = assistantInstructions(actions.snapshot())
         try {
             repeat(MAX_STEPS) {
                 val params = MessageCreateParams.builder()
                     .model(MODEL)
                     .maxTokens(4096L)
-                    .system(assistantInstructions())
+                    .system(instructions)
                     .outputConfig(BetaOutputConfig.builder().effort(BetaOutputConfig.Effort.LOW).build())
                     .tools(tools.map { com.anthropic.models.beta.messages.BetaToolUnion.ofBetaTool(it) })
                     .messages(history)

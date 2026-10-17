@@ -87,6 +87,15 @@ class SecureKeys(context: Context) {
         get() = prefs.getBoolean("speak", true)
         set(v) = prefs.edit().putBoolean("speak", v).apply()
 
+    /** Brote's voice: a Gemini voice name, or [BroteVoices.PHONE] for Android's own. */
+    var voice: String
+        get() = prefs.getString("voice", null) ?: BroteVoices.GEMINI.first()
+        set(v) = prefs.edit().putString("voice", v).apply()
+
+    /** The Gemini key and voice to speak with, or null to use the phone's voice. */
+    val cloudVoice: Pair<String, String>?
+        get() = voice.takeIf { it != BroteVoices.PHONE }?.let { v -> geminiKey.takeIf { it.isNotBlank() }?.let { it to v } }
+
     /** Jarvis mode: after Brote speaks, listen again automatically. */
     var conversationMode: Boolean
         get() = prefs.getBoolean("conversation", false)

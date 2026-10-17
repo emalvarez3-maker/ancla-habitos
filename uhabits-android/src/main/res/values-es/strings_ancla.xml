@@ -203,4 +203,9 @@
     <string name="voice_toggle_jarvis">Modo Jarvis</string>
     <string name="keys_gemini_transcription">Gemini</string>
     <string name="keys_gemini_transcription_note">Gemini escucha tu audio directamente y actúa en un solo paso: la opción más rápida, gratis con tu clave de Gemini.</string>
+    <string name="keys_voice">Voz de Brote</string>
+    <string name="keys_voice_phone">Teléfono</string>
+    <string name="keys_voice_gemini_note">Voz natural de Gemini, gratis con tu clave de Gemini. Charon es la más parecida a Jarvis. Toca una voz para escucharla.</string>
+    <string name="keys_voice_phone_note">La voz del propio teléfono: funciona sin internet, pero suena más robótica.</string>
+    <string name="voice_sample">Hola, soy Brote. Dime qué necesitas y yo me encargo.</string>
 </resources>
