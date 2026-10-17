@@ -104,6 +104,7 @@ class ReaderActivity : AppCompatActivity() {
         }
         fontSize.intValue = prefs.getInt("fontSize", 19)
         theme.value = ReaderTheme.entries.getOrElse(prefs.getInt("theme", 0)) { ReaderTheme.LIGHT }
+        applySystemBars()
         val parts = book.location.split(':')
         chapter.intValue = parts.getOrNull(0)?.toIntOrNull()?.coerceIn(0, epub.chapters.size - 1) ?: 0
         restoreFraction = parts.getOrNull(1)?.toDoubleOrNull() ?: 0.0
@@ -180,6 +181,7 @@ class ReaderActivity : AppCompatActivity() {
                    line-height: 1.65 !important; margin: 0 auto !important; max-width: 38em;
                    padding: 72px 22px 140px !important; word-wrap: break-word; -webkit-text-size-adjust: 100%; }
             p, li, div, span { font-size: inherit !important; line-height: inherit !important; color: inherit !important; }
+            p, li { text-align: start !important; -webkit-hyphens: auto; hyphens: auto; }
             a { color: ${t.link} !important; }
             img, svg, video { max-width: 100% !important; height: auto !important; }
             h1, h2, h3 { line-height: 1.25 !important; }
@@ -193,11 +195,11 @@ class ReaderActivity : AppCompatActivity() {
             <style id="ancla-style">${css()}</style>
             <script>
               (function(){
-                var last = 0;
+                var last = 0, quiet = 0;
                 function frac(){ var h = document.documentElement.scrollHeight - window.innerHeight; return h > 0 ? window.scrollY / h : 1; }
-                window.addEventListener('scroll', function(){ var n = Date.now(); if (n - last > 400) { last = n; Ancla.onScroll(frac()); } }, {passive:true});
+                window.addEventListener('scroll', function(){ var n = Date.now(); if (n < quiet) return; if (n - last > 400) { last = n; Ancla.onScroll(frac(), true); } }, {passive:true});
                 document.addEventListener('click', function(e){ if (!e.target.closest('a')) Ancla.onTap(); });
-                window.anclaRestore = function(f){ var h = document.documentElement.scrollHeight - window.innerHeight; window.scrollTo(0, Math.max(0, h * f)); Ancla.onScroll(frac()); };
+                window.anclaRestore = function(f){ quiet = Date.now() + 600; var h = document.documentElement.scrollHeight - window.innerHeight; window.scrollTo(0, Math.max(0, h * f)); Ancla.onScroll(frac(), false); };
                 window.anclaStyle = function(css){ document.getElementById('ancla-style').textContent = css; };
               })();
             </script>
@@ -239,6 +241,14 @@ class ReaderActivity : AppCompatActivity() {
         savePosition()
     }
 
+    private fun applySystemBars() {
+        val light = theme.value != ReaderTheme.DARK
+        androidx.core.view.WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = light
+            isAppearanceLightNavigationBars = light
+        }
+    }
+
     private fun setFont(size: Int) {
         fontSize.intValue = size.coerceIn(14, 30)
         prefs.edit().putInt("fontSize", fontSize.intValue).apply()
@@ -247,6 +257,7 @@ class ReaderActivity : AppCompatActivity() {
 
     private fun cycleTheme() {
         theme.value = ReaderTheme.entries[(theme.value.ordinal + 1) % ReaderTheme.entries.size]
+        applySystemBars()
         prefs.edit().putInt("theme", theme.value.ordinal).apply()
         restyle()
     }
@@ -316,11 +327,13 @@ class ReaderActivity : AppCompatActivity() {
 
     private inner class Bridge {
         @JavascriptInterface
-        fun onScroll(f: Double) {
+        fun onScroll(f: Double, user: Boolean) {
             handler.post {
-                interacted()
                 fraction.doubleValue = f.coerceIn(0.0, 1.0)
-                if (f > 0.02) barsVisible.value = false
+                if (user) {
+                    interacted()
+                    if (f > 0.02) barsVisible.value = false
+                }
             }
         }
 
