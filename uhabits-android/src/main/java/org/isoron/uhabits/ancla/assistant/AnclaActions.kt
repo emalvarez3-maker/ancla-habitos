@@ -32,6 +32,7 @@ import org.isoron.uhabits.ancla.reading.FreeBooks
 import org.isoron.uhabits.ancla.reading.IdeaGraph
 import org.isoron.uhabits.ancla.reading.IdeaKind
 import org.isoron.uhabits.ancla.reading.IdeasActivity
+import org.isoron.uhabits.ancla.reading.ObsidianExport
 import org.isoron.uhabits.ancla.reading.Library
 import org.isoron.uhabits.ancla.reading.OpenLibrary
 import org.isoron.uhabits.ancla.reading.ReaderActivity
@@ -143,7 +144,7 @@ class AnclaActions(private val context: Context) : AgentActions {
         }
     }
 
-    override fun remember(fact: String) = memory.remember(fact)
+    override fun remember(fact: String) = memory.remember(fact).also { syncObsidian() }
 
     override fun forget(fact: String) = memory.forget(fact)
 
@@ -201,8 +202,27 @@ class AnclaActions(private val context: Context) : AgentActions {
         }
     }
 
+    // Deleting needs the user's own yes in a later message, so text inside a book, a note or a
+    // tool result can never make Dexter delete something by itself.
+    private var turn = 0
+    private var pendingRemoval: Pair<Long, Int>? = null
+
+    override fun userTurn() {
+        turn++
+    }
+
     override fun updateBook(title: String, status: String?, rating: Int?, remove: Boolean): String {
         val book = findBook(title)
+        if (remove) {
+            val id = book.id ?: throw IllegalArgumentException("Libro sin id")
+            val pending = pendingRemoval
+            if (pending == null || pending.first != id || turn <= pending.second) {
+                pendingRemoval = id to turn
+                return "CONFIRMATION REQUIRED: nothing was deleted. Ask the user whether to delete «${book.title}» " +
+                    "(and its file) and call update_book with remove=true again only after they say yes in their next message."
+            }
+            pendingRemoval = null
+        }
         return onMain {
             if (remove) {
                 library.delete(book)
@@ -227,6 +247,13 @@ class AnclaActions(private val context: Context) : AgentActions {
     // --- Summaries and the idea map ---
 
     private val ideas by lazy { IdeaGraph(context) }
+
+    /** Mirrors the idea map, books and memory into the Obsidian vault, if the user connected one. */
+    private fun syncObsidian() {
+        if (!ObsidianExport.isConfigured(context)) return
+        val allBooks = onMain { books.findAll() }
+        Thread { runCatching { ObsidianExport.export(context, allBooks, IdeaGraph(context), memory.facts) } }.start()
+    }
 
     override fun readBookText(title: String?, chapter: Int?): String {
         val book = onMain {
@@ -254,12 +281,14 @@ class AnclaActions(private val context: Context) : AgentActions {
 
     override fun saveIdea(title: String, note: String, source: String?, kind: String): String {
         val idea = ideas.save(title, note, source.orEmpty(), kindOf(kind))
+        syncObsidian()
         return "Idea guardada en tu mapa: «${idea.title}»"
     }
 
     override fun linkIdeas(from: String, to: String, relation: String): String {
         val (a, b) = ideas.link(from, to, relation)
             ?: throw IllegalArgumentException("No encontré una de las dos ideas. Ideas: ${ideas.ideas.joinToString { it.title }}")
+        syncObsidian()
         return "Conectado: «${a.title}» → ${relation.ifBlank { "se relaciona con" }} → «${b.title}»"
     }
 

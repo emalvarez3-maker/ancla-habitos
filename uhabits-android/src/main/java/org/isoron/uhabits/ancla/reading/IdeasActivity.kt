@@ -20,6 +20,8 @@
 package org.isoron.uhabits.ancla.reading
 
 import android.os.Bundle
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
@@ -91,6 +93,30 @@ class IdeasActivity : AppCompatActivity() {
     private lateinit var graph: IdeaGraph
     private val version = mutableStateOf(0)
 
+    private val pickVault = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { tree ->
+        if (tree == null) return@registerForActivityResult
+        ObsidianExport.setFolder(this, tree)
+        exportToObsidian()
+    }
+
+    /** Connects an Obsidian vault the first time, then mirrors everything into it. */
+    private fun onObsidian() {
+        if (ObsidianExport.isConfigured(this)) exportToObsidian() else pickVault.launch(null)
+    }
+
+    private fun exportToObsidian() {
+        Toast.makeText(this, R.string.obsidian_exporting, Toast.LENGTH_SHORT).show()
+        val books = Library(this).repo.findAll()
+        val facts = org.isoron.uhabits.ancla.assistant.DexterMemory(this).facts
+        Thread {
+            val count = runCatching { ObsidianExport.export(this, books, IdeaGraph(this), facts) }.getOrDefault(-1)
+            runOnUiThread {
+                val msg = if (count < 0) getString(R.string.obsidian_failed) else getString(R.string.obsidian_done, count)
+                Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+            }
+        }.start()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
@@ -108,7 +134,8 @@ class IdeasActivity : AppCompatActivity() {
                     onDelete = { idea ->
                         graph.delete(idea.id)
                         version.value++
-                    }
+                    },
+                    onObsidian = ::onObsidian
                 )
             }
         }
@@ -129,7 +156,14 @@ private fun kindColor(kind: IdeaKind): Color = when (kind) {
 }
 
 @Composable
-fun IdeasScreen(ideas: List<Idea>, links: List<IdeaLink>, onBack: () -> Unit, onAskDexter: () -> Unit, onDelete: (Idea) -> Unit) {
+fun IdeasScreen(
+    ideas: List<Idea>,
+    links: List<IdeaLink>,
+    onBack: () -> Unit,
+    onAskDexter: () -> Unit,
+    onDelete: (Idea) -> Unit,
+    onObsidian: () -> Unit
+) {
     val c = Ancla.colors
     val positions = remember { mutableStateMapOf<String, Offset>() }
     var selected by remember { mutableStateOf<String?>(null) }
@@ -244,6 +278,13 @@ fun IdeasScreen(ideas: List<Idea>, links: List<IdeaLink>, onBack: () -> Unit, on
                     Text(stringResource(R.string.ideas_title), style = MaterialTheme.typography.titleLarge, color = c.ink)
                     Text(stringResource(R.string.ideas_count, ideas.size, links.size), style = MaterialTheme.typography.labelMedium, color = c.muted)
                 }
+                Text(
+                    stringResource(R.string.obsidian_button),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = c.lilacInk,
+                    modifier = Modifier.clip(RoundedCornerShape(14.dp)).background(c.lilacSoft)
+                        .combinedClickableCompat(Role.Button, onObsidian).padding(horizontal = 14.dp, vertical = 10.dp)
+                )
             }
             Row(Modifier.padding(top = 6.dp, start = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Legend(c.lilac, stringResource(R.string.ideas_kind_idea))

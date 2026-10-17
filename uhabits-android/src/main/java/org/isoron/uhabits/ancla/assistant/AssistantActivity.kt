@@ -347,6 +347,16 @@ private fun KeysSheet(
                 Text(stringResource(R.string.keys_phone_voice_note), style = MaterialTheme.typography.bodyMedium, color = c.muted)
             }
             val context = LocalContext.current
+            Text(
+                stringResource(R.string.keyboard_enable),
+                style = MaterialTheme.typography.labelLarge,
+                color = c.lilacInk,
+                modifier = Modifier.clip(CircleShape).background(c.lilacSoft)
+                    .combinedClickableCompat(Role.Button, {
+                        context.startActivity(Intent(android.provider.Settings.ACTION_INPUT_METHOD_SETTINGS))
+                    }).padding(horizontal = 14.dp, vertical = 10.dp)
+            )
+            Text(stringResource(R.string.keyboard_enable_note), style = MaterialTheme.typography.bodyMedium, color = c.muted)
             val memory = remember { DexterMemory(context) }
             var facts by remember { mutableStateOf(memory.facts) }
             Text(stringResource(R.string.memory_title), style = MaterialTheme.typography.titleMedium, color = c.ink)

@@ -228,6 +228,7 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
     )
 
     private fun run(userParts: JSONArray, onEvent: (AgentEvent) -> Unit) {
+        actions.userTurn()
         history.put(JSONObject().put("role", "user").put("parts", userParts))
         val instructions = assistantInstructions(actions.snapshot())
         // One model per turn: thought signatures from one model are not valid for another.

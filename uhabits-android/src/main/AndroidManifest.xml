@@ -169,6 +169,19 @@
         </receiver>
 
         <service
+            android:name="org.isoron.uhabits.ancla.assistant.DexterKeyboardService"
+            android:exported="true"
+            android:label="@string/keyboard_name"
+            android:permission="android.permission.BIND_INPUT_METHOD">
+            <intent-filter>
+                <action android:name="android.view.InputMethod" />
+            </intent-filter>
+            <meta-data
+                android:name="android.view.im"
+                android:resource="@xml/dexter_ime" />
+        </service>
+
+        <service
             android:name="org.isoron.uhabits.ancla.assistant.DexterService"
             android:exported="false"
             android:foregroundServiceType="microphone" />
