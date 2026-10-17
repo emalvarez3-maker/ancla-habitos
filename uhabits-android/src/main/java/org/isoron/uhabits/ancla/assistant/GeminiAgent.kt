@@ -47,6 +47,7 @@ internal fun dispatchTool(actions: AgentActions, name: String, input: JSONObject
         "start_study" -> actions.startStudy(input.getString("topic")).also { onEvent(AgentEvent.Action(it)) }
         "stop_study" -> actions.stopStudy(opt("summary")).also { onEvent(AgentEvent.Action(it)) }
         "study_summary" -> actions.studySummary()
+        "open_robotics_lesson" -> actions.openRobotics(opt("screen") ?: "course", input.optInt("lesson", 0).takeIf { it > 0 }).also { onEvent(AgentEvent.Action(it)) }
         "find_free_books" -> actions.findFreeBooks(input.getString("query"))
         "download_book" -> actions.downloadBook(input.getInt("id")).also { onEvent(AgentEvent.Action(it)) }
         "add_book" -> actions.addBook(input.getString("title"), opt("author"), opt("status") ?: "want").also { onEvent(AgentEvent.Action(it)) }
@@ -213,6 +214,16 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
                 .put(function("read_note", "Read the full text of one of the user's notes, with the notes that link to it.", JSONObject().put("title", prop("string", "Note title")), listOf("title")))
                 .put(function("start_study", "Start the study timer for a topic (created if new). A session already running is saved first.", JSONObject().put("topic", prop("string", "Topic to study, short")), listOf("topic")))
                 .put(function("stop_study", "Finish the running study session and save it with its note.", JSONObject().put("summary", prop("string", "What was studied or learned, if the user said it, or null", nullable = true)), emptyList()))
+                .put(
+                    function(
+                        "open_robotics_lesson",
+                        "Open the robotics course: a lesson (1 to 13) with its formulas, simulator and exercises, the course index, the mechanism workshop (draw linkages and count degrees of freedom with Grübler) or the 3D robot configurations.",
+                        JSONObject()
+                            .put("screen", JSONObject().put("type", "string").put("enum", JSONArray(listOf("course", "lesson", "workshop", "robots3d"))))
+                            .put("lesson", prop("integer", "Lesson number for screen lesson, or null", nullable = true)),
+                        listOf("screen")
+                    )
+                )
                 .put(function("study_summary", "Get study topics, this week's minutes per topic against goals, the streak and the running session.", JSONObject(), emptyList()))
                 .put(
                     function(

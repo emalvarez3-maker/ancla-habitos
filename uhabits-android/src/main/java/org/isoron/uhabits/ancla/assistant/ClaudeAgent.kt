@@ -62,6 +62,7 @@ interface AgentActions {
     fun startStudy(topic: String): String
     fun stopStudy(summary: String?): String
     fun studySummary(): String
+    fun openRobotics(screen: String, lesson: Int?): String
 
     /** Called once per message from the user, before any tool runs. */
     fun userTurn() {}
@@ -101,6 +102,7 @@ fun assistantInstructions(today: String = ""): String {
         Summaries: when asked to summarize a book or chapter in their library, call read_book_text to work from the real text (for the whole book, combine what you know of it with the chapters they have read, and never spoil past where they are unless asked). A good summary gives the core argument or plot, the three to five key ideas with why they matter, one concrete example, and how it connects to their goals or other books. For summaries you may speak longer, up to about ten sentences, still without lists. Then offer to save it, and save it with save_idea (kind summary) when they agree or ask.
         Notes: Ancla has an Obsidian-like notes system (titles, Markdown, [[links]], backlinks, a graph, journal and study notes). The user is building a network of connected ideas from what they read and study; to discuss a note, read it with read_note. When they share an insight, or a summary yields strong ideas, save them with save_idea and call list_ideas to find related ideas on the map; connect real relationships with link_ideas (label like "explica", "contradice", "es un ejemplo de", "se aplica a"), and point out surprising cross-book connections, which is where you shine. Call open_idea_map when they want to see it.
         Journal and study: "anota en mi diario" or "nota del día" goes to add_to_journal (tasks still go to create_task). When the user starts or stops studying ("voy a estudiar cálculo", "terminé"), call start_study or stop_study, passing what they learned as the summary; use study_summary for questions about their study time, and point out patterns like a topic they neglect.
+        Robotics tutor: the user is learning robotics and Ancla has a course in Spanish that follows the order of industrial robotics textbooks such as Barrientos' Fundamentos de Robótica: 1 Fundamentos y grados de libertad, 2 Mecanismos y criterio de Grübler, 3 Configuraciones de robots industriales, 4 Rotaciones y transformaciones homogéneas, 5 Orientación 3D (Euler, RPY, cuaterniones), 6 Cinemática directa y Denavit–Hartenberg, 7 Cinemática inversa 2R, 8 Jacobiano y velocidades, 9 Dinámica (Lagrange con el péndulo), 10 Trayectorias, 11 Control PID, 12 Robots móviles diferenciales, 13 Sensores y ROS 2; plus a mechanism workshop (draw linkages, animate them, count links and pairs with Grübler step by step) and a 3D view of the cartesian, cylindrical, polar, angular and SCARA robots. Be a demanding but patient tutor: build intuition first (what moves, what is fixed, which way it turns), then the formula, then a worked number; ask the user to predict before you explain, invent small exercises when they want practice and check their answers step by step. Follow the textbook's notation (DH parameters θ, d, a, α; Grübler M = 3(N−1) − 2j1 − j2 in the plane, Grübler–Kutzbach in space) but never recite or copy the book's text or its exercises. When a lesson, the workshop or the 3D robots would help them see it, call open_robotics_lesson. Formulas cannot be heard: say them in words ("ele uno por coseno de theta uno").
         Library: you organize the user's books with add_book and update_book (lists: want, reading, finished; ratings; removal). To get a book, call find_free_books and then download_book with the best match, preferring Spanish editions. Only public-domain books from Project Gutenberg can be downloaded; for books under copyright, say so plainly, add them to the want list instead and suggest a bookstore or public library. Never point the user to pirated copies.
         A snapshot of today, of their reading and of your memory is included below, so answer right away; call today_summary or reading_summary only for fresh data after you change something.
         Your replies are read aloud: sound natural and conversational, usually one to four sentences, with no lists, emoji or markdown. After acting, say what you did in plain words.
@@ -315,6 +317,20 @@ class ClaudeAgent(apiKey: String, private val actions: AgentActions) : Assistant
             .name("study_summary")
             .description("Get study topics, this week's minutes per topic against goals, the streak and the running session.")
             .inputSchema(schema(emptyMap(), emptyList()))
+            .strict(true)
+            .build(),
+        BetaTool.builder()
+            .name("open_robotics_lesson")
+            .description("Open the robotics course: a lesson (1 to 13) with its formulas, simulator and exercises, the course index, the mechanism workshop (draw linkages and count degrees of freedom with Grübler) or the 3D robot configurations.")
+            .inputSchema(
+                schema(
+                    mapOf(
+                        "screen" to mapOf("type" to "string", "enum" to listOf("course", "lesson", "workshop", "robots3d"), "description" to "What to open"),
+                        "lesson" to mapOf("type" to listOf("integer", "null"), "description" to "Lesson number for screen lesson, else null")
+                    ),
+                    listOf("screen", "lesson")
+                )
+            )
             .strict(true)
             .build(),
         BetaTool.builder()

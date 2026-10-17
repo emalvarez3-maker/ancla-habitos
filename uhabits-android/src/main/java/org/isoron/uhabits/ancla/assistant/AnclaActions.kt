@@ -36,6 +36,8 @@ import org.isoron.uhabits.ancla.reading.StudyStore
 import org.isoron.uhabits.ancla.reading.Library
 import org.isoron.uhabits.ancla.reading.OpenLibrary
 import org.isoron.uhabits.ancla.reading.ReaderActivity
+import org.isoron.uhabits.ancla.robotics.RoboticsActivity
+import org.isoron.uhabits.ancla.robotics.RoboticsCourse
 import org.isoron.uhabits.core.commands.CreateRepetitionCommand
 import org.isoron.uhabits.core.database.BookRepository
 import org.isoron.uhabits.core.database.TaskRepository
@@ -328,6 +330,25 @@ class AnclaActions(private val context: Context) : AgentActions {
     }
 
     override fun studySummary(): String = study.describe()
+
+    override fun openRobotics(screen: String, lesson: Int?): String {
+        val lessons = RoboticsCourse.lessons(context)
+        val wanted = lesson?.let { n -> lessons.firstOrNull { it.number == n } }
+        val intent = when {
+            screen == "workshop" -> RoboticsActivity.intent(context, screen = RoboticsActivity.SCREEN_WORKSHOP)
+            screen == "robots3d" -> RoboticsActivity.intent(context, screen = RoboticsActivity.SCREEN_ROBOTS)
+            wanted != null -> RoboticsActivity.intent(context, lesson = wanted.number)
+            else -> RoboticsActivity.intent(context)
+        }
+        context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        return when {
+            screen == "workshop" -> "Abriendo el taller de mecanismos"
+            screen == "robots3d" -> "Abriendo los robots en 3D"
+            wanted != null -> "Abriendo la lección ${wanted.number}: ${wanted.title}"
+            lesson != null -> "No existe la lección $lesson; abriendo el curso (${lessons.size} lecciones)"
+            else -> "Abriendo el curso de robótica"
+        }
+    }
 
     override fun openIdeaMap(): String {
         context.startActivity(NotesActivity.intent(context, tab = "graph").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
