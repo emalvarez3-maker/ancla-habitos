@@ -43,6 +43,10 @@ internal fun dispatchTool(actions: AgentActions, name: String, input: JSONObject
         "list_ideas" -> actions.listIdeas(opt("query"))
         "open_idea_map" -> actions.openIdeaMap().also { onEvent(AgentEvent.Action(it)) }
         "add_to_journal" -> actions.addToJournal(input.getString("text")).also { onEvent(AgentEvent.Action(it)) }
+        "read_note" -> actions.readNote(input.getString("title"))
+        "start_study" -> actions.startStudy(input.getString("topic")).also { onEvent(AgentEvent.Action(it)) }
+        "stop_study" -> actions.stopStudy(opt("summary")).also { onEvent(AgentEvent.Action(it)) }
+        "study_summary" -> actions.studySummary()
         "find_free_books" -> actions.findFreeBooks(input.getString("query"))
         "download_book" -> actions.downloadBook(input.getInt("id")).also { onEvent(AgentEvent.Action(it)) }
         "add_book" -> actions.addBook(input.getString("title"), opt("author"), opt("status") ?: "want").also { onEvent(AgentEvent.Action(it)) }
@@ -206,10 +210,14 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
                     )
                 )
                 .put(function("open_idea_map", "Open the idea map screen so the user can see the network.", JSONObject(), emptyList()))
+                .put(function("read_note", "Read the full text of one of the user's notes, with the notes that link to it.", JSONObject().put("title", prop("string", "Note title")), listOf("title")))
+                .put(function("start_study", "Start the study timer for a topic (created if new). A session already running is saved first.", JSONObject().put("topic", prop("string", "Topic to study, short")), listOf("topic")))
+                .put(function("stop_study", "Finish the running study session and save it with its note.", JSONObject().put("summary", prop("string", "What was studied or learned, if the user said it, or null", nullable = true)), emptyList()))
+                .put(function("study_summary", "Get study topics, this week's minutes per topic against goals, the streak and the running session.", JSONObject(), emptyList()))
                 .put(
                     function(
                         "add_to_journal",
-                        "Add an entry to today's journal note in the user's Obsidian vault (Ancla/Diario/YYYY-MM-DD.md): thoughts, events, reflections they dictate.",
+                        "Add a timestamped entry to today's journal note in the user's notes (Diario YYYY-MM-DD): thoughts, events, reflections they dictate.",
                         JSONObject().put("text", prop("string", "The entry, cleaned of filler words, in the user's words")),
                         listOf("text")
                     )

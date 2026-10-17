@@ -149,6 +149,7 @@ fun TodayScreen(
     onAddHabit: () -> Unit,
     onHabits: () -> Unit,
     onReading: () -> Unit,
+    onNotes: () -> Unit,
     onSettings: () -> Unit,
     voice: VoiceAgentController? = null,
     onAssistant: () -> Unit = {}
@@ -221,7 +222,7 @@ fun TodayScreen(
             DictationPill(voice, Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp))
             AgentResultCard(voice, onAssistant, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = 92.dp))
         }
-        BottomBar(onHabits, onReading, onSettings, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(14.dp))
+        BottomBar(onHabits, onReading, onNotes, onSettings, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(14.dp))
     }
 }
 
@@ -468,7 +469,7 @@ private fun AddButton(onAdd: () -> Unit, modifier: Modifier) {
 }
 
 @Composable
-private fun BottomBar(onHabits: () -> Unit, onReading: () -> Unit, onSettings: () -> Unit, modifier: Modifier) {
+private fun BottomBar(onHabits: () -> Unit, onReading: () -> Unit, onNotes: () -> Unit, onSettings: () -> Unit, modifier: Modifier) {
     val c = Ancla.colors
     Row(
         modifier
@@ -481,12 +482,13 @@ private fun BottomBar(onHabits: () -> Unit, onReading: () -> Unit, onSettings: (
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            Modifier.clip(RoundedCornerShape(16.dp)).background(c.mintSoft).padding(horizontal = 14.dp, vertical = 10.dp)
+            Modifier.clip(RoundedCornerShape(16.dp)).background(c.mintSoft).padding(horizontal = 12.dp, vertical = 10.dp)
         ) {
             Text(stringResource(R.string.nav_today), style = MaterialTheme.typography.labelLarge, color = c.mintInk)
         }
         NavText(stringResource(R.string.nav_habits), onHabits)
         NavText(stringResource(R.string.nav_reading), onReading)
+        NavText(stringResource(R.string.nav_notes), onNotes)
         NavText(stringResource(R.string.nav_settings), onSettings)
     }
 }
@@ -498,7 +500,7 @@ private fun NavText(label: String, onClick: () -> Unit) {
         Modifier
             .clip(RoundedCornerShape(16.dp))
             .combinedClickableCompat(role = Role.Tab, onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 10.dp)
+            .padding(horizontal = 10.dp, vertical = 10.dp)
     ) {
         Text(label, style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight(700)), color = c.muted)
     }

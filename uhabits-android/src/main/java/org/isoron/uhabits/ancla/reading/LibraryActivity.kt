@@ -92,7 +92,7 @@ class LibraryActivity : AppCompatActivity() {
                             runOnUiThread { callback(results) }
                         }.start()
                     },
-                    onIdeas = { startActivity(android.content.Intent(this, IdeasActivity::class.java)) }
+                    onIdeas = { startActivity(NotesActivity.intent(this, tab = "graph")) }
                 )
             }
         }

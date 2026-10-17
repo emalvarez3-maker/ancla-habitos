@@ -31,8 +31,8 @@ import org.isoron.uhabits.ancla.reading.EpubBook
 import org.isoron.uhabits.ancla.reading.FreeBooks
 import org.isoron.uhabits.ancla.reading.IdeaGraph
 import org.isoron.uhabits.ancla.reading.IdeaKind
-import org.isoron.uhabits.ancla.reading.IdeasActivity
-import org.isoron.uhabits.ancla.reading.ObsidianExport
+import org.isoron.uhabits.ancla.reading.NotesActivity
+import org.isoron.uhabits.ancla.reading.StudyStore
 import org.isoron.uhabits.ancla.reading.Library
 import org.isoron.uhabits.ancla.reading.OpenLibrary
 import org.isoron.uhabits.ancla.reading.ReaderActivity
@@ -144,7 +144,7 @@ class AnclaActions(private val context: Context) : AgentActions {
         }
     }
 
-    override fun remember(fact: String) = memory.remember(fact).also { syncObsidian() }
+    override fun remember(fact: String) = memory.remember(fact)
 
     override fun forget(fact: String) = memory.forget(fact)
 
@@ -248,13 +248,6 @@ class AnclaActions(private val context: Context) : AgentActions {
 
     private val ideas by lazy { IdeaGraph(context) }
 
-    /** Mirrors the idea map, books and memory into the Obsidian vault, if the user connected one. */
-    private fun syncObsidian() {
-        if (!ObsidianExport.isConfigured(context)) return
-        val allBooks = onMain { books.findAll() }
-        Thread { runCatching { ObsidianExport.export(context, allBooks, IdeaGraph(context), memory.facts) } }.start()
-    }
-
     override fun readBookText(title: String?, chapter: Int?): String {
         val book = onMain {
             val readable = books.findAll().filter { it.isEbook }
@@ -281,14 +274,12 @@ class AnclaActions(private val context: Context) : AgentActions {
 
     override fun saveIdea(title: String, note: String, source: String?, kind: String): String {
         val idea = ideas.save(title, note, source.orEmpty(), kindOf(kind))
-        syncObsidian()
         return "Idea guardada en tu mapa: «${idea.title}»"
     }
 
     override fun linkIdeas(from: String, to: String, relation: String): String {
         val (a, b) = ideas.link(from, to, relation)
             ?: throw IllegalArgumentException("No encontré una de las dos ideas. Ideas: ${ideas.ideas.joinToString { it.title }}")
-        syncObsidian()
         return "Conectado: «${a.title}» → ${relation.ifBlank { "se relaciona con" }} → «${b.title}»"
     }
 
@@ -306,14 +297,41 @@ class AnclaActions(private val context: Context) : AgentActions {
     }
 
     override fun addToJournal(text: String): String {
-        val path = ObsidianExport.appendJournal(context, text)
-            ?: throw IllegalArgumentException("No hay una bóveda de Obsidian conectada. El usuario debe tocar Obsidian en el Mapa de ideas y elegir su bóveda.")
-        return "Anotado en tu diario ($path)"
+        val note = ideas.appendJournal(text)
+        return "Anotado en tu diario («${note.title}»)"
     }
 
+    override fun readNote(title: String): String {
+        val note = ideas.find(title) ?: throw IllegalArgumentException("No hay una nota «$title». Usa list_ideas para ver las notas.")
+        val backlinks = ideas.backlinks(note).joinToString { it.title }
+        return "«${note.title}» (${note.kind.name.lowercase()}" + (if (note.source.isNotBlank()) ", de ${note.source}" else "") + "):\n" +
+            note.note.take(NOTE_CHARS) + (if (note.note.length > NOTE_CHARS) "\n[…recortada]" else "") +
+            (if (backlinks.isNotEmpty()) "\n\nNotas que la enlazan: $backlinks" else "")
+    }
+
+    // --- Study sessions ---
+
+    private val study by lazy { StudyStore(context) }
+
+    override fun startStudy(topic: String): String {
+        val previous = study.active
+        val t = study.start(topic)
+        return (if (previous != null && previous.first != t.name) "Sesión de «${previous.first}» guardada. " else "") +
+            "Cronómetro de estudio iniciado: «${t.name}»"
+    }
+
+    override fun stopStudy(summary: String?): String {
+        val topic = study.active?.first ?: return "No hay ninguna sesión de estudio en curso."
+        val session = study.stop(summary = summary.orEmpty())
+            ?: return "La sesión de «$topic» duró menos de un minuto y no se guardó."
+        return "Sesión guardada: «${session.topic}», ${session.minutes} min, con su nota en Notas"
+    }
+
+    override fun studySummary(): String = study.describe()
+
     override fun openIdeaMap(): String {
-        context.startActivity(Intent(context, IdeasActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        return "Abriendo tu mapa de ideas"
+        context.startActivity(NotesActivity.intent(context, tab = "graph").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        return "Abriendo tu grafo de notas"
     }
 
     override fun readBookAloud(title: String?): String = onMain {
@@ -337,5 +355,6 @@ class AnclaActions(private val context: Context) : AgentActions {
     private companion object {
         /** About 3,500 words: enough for a faithful chapter summary within free-tier limits. */
         const val BOOK_TEXT_CHARS = 20_000
+        const val NOTE_CHARS = 12_000
     }
 }
