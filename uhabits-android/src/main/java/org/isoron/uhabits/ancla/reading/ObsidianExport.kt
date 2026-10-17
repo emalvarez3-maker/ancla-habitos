@@ -147,6 +147,29 @@ object ObsidianExport {
         return written
     }
 
+    /**
+     * Adds a timestamped line to today's journal note, Ancla/Diario/YYYY-MM-DD.md, creating it
+     * when needed. Blocking. Returns the note's vault path, or null when no vault is connected.
+     */
+    @Synchronized
+    fun appendJournal(context: Context, text: String): String? {
+        val tree = folder(context) ?: return null
+        val vault = DocumentFile.fromTreeUri(context, tree)?.takeIf { it.canWrite() } ?: return null
+        val dir = child(vault, ROOT)?.let { child(it, "Diario") } ?: return null
+        val now = Date()
+        val day = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(now)
+        val time = SimpleDateFormat("HH:mm", Locale.US).format(now)
+        val name = "$day.md"
+        val existing = dir.findFile(name)
+        val old = existing?.let { f ->
+            runCatching { context.contentResolver.openInputStream(f.uri)?.use { it.readBytes().toString(Charsets.UTF_8) } }.getOrNull()
+        } ?: "---\ntags: [ancla, diario]\n---\n\n# $day\n\n"
+        val entry = "- **$time** — ${text.trim().replace(Regex("\\s*\\n\\s*"), " ")}\n"
+        val file = existing ?: dir.createFile(MIME, name) ?: return null
+        context.contentResolver.openOutputStream(file.uri, "wt")?.use { it.write((old.trimEnd('\n') + "\n" + entry).toByteArray()) } ?: return null
+        return "$ROOT/Diario/$name"
+    }
+
     private fun kindLabel(k: IdeaKind) = when (k) {
         IdeaKind.IDEA -> "Idea"
         IdeaKind.SUMMARY -> "Resumen"

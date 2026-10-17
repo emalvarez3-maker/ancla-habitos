@@ -57,6 +57,7 @@ interface AgentActions {
     fun linkIdeas(from: String, to: String, relation: String): String
     fun listIdeas(query: String?): String
     fun openIdeaMap(): String
+    fun addToJournal(text: String): String
 
     /** Called once per message from the user, before any tool runs. */
     fun userTurn() {}
@@ -95,6 +96,7 @@ fun assistantInstructions(today: String = ""): String {
         When the user asks you to read, narrate or play a book aloud, call read_book_aloud.
         Summaries: when asked to summarize a book or chapter in their library, call read_book_text to work from the real text (for the whole book, combine what you know of it with the chapters they have read, and never spoil past where they are unless asked). A good summary gives the core argument or plot, the three to five key ideas with why they matter, one concrete example, and how it connects to their goals or other books. For summaries you may speak longer, up to about ten sentences, still without lists. Then offer to save it, and save it with save_idea (kind summary) when they agree or ask.
         Idea map: the user is building a network of connected ideas from what they read. When they share an insight, or a summary yields strong ideas, save them with save_idea and call list_ideas to find related ideas on the map; connect real relationships with link_ideas (label like "explica", "contradice", "es un ejemplo de", "se aplica a"), and point out surprising cross-book connections, which is where you shine. Call open_idea_map when they want to see it.
+        Journal: when the user says to write something in their journal or daily note ("anota en mi diario", "nota del día"), call add_to_journal; tasks still go to create_task.
         Library: you organize the user's books with add_book and update_book (lists: want, reading, finished; ratings; removal). To get a book, call find_free_books and then download_book with the best match, preferring Spanish editions. Only public-domain books from Project Gutenberg can be downloaded; for books under copyright, say so plainly, add them to the want list instead and suggest a bookstore or public library. Never point the user to pirated copies.
         A snapshot of today, of their reading and of your memory is included below, so answer right away; call today_summary or reading_summary only for fresh data after you change something.
         Your replies are read aloud: sound natural and conversational, usually one to four sentences, with no lists, emoji or markdown. After acting, say what you did in plain words.
@@ -278,6 +280,12 @@ class ClaudeAgent(apiKey: String, private val actions: AgentActions) : Assistant
             .name("list_ideas")
             .description("List the ideas on the user's map with their sources and connections, optionally filtered by words.")
             .inputSchema(schema(mapOf("query" to mapOf("type" to listOf("string", "null"), "description" to "Words to filter by, or null for all")), listOf("query")))
+            .strict(true)
+            .build(),
+        BetaTool.builder()
+            .name("add_to_journal")
+            .description("Add an entry to today's journal note in the user's Obsidian vault (Ancla/Diario/YYYY-MM-DD.md): thoughts, events, reflections they dictate.")
+            .inputSchema(schema(mapOf("text" to mapOf("type" to "string", "description" to "The entry, cleaned of filler words, in the user's words")), listOf("text")))
             .strict(true)
             .build(),
         BetaTool.builder()

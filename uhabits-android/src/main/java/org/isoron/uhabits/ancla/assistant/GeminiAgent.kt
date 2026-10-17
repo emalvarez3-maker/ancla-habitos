@@ -42,6 +42,7 @@ internal fun dispatchTool(actions: AgentActions, name: String, input: JSONObject
         "link_ideas" -> actions.linkIdeas(input.getString("from"), input.getString("to"), input.optString("relation")).also { onEvent(AgentEvent.Action(it)) }
         "list_ideas" -> actions.listIdeas(opt("query"))
         "open_idea_map" -> actions.openIdeaMap().also { onEvent(AgentEvent.Action(it)) }
+        "add_to_journal" -> actions.addToJournal(input.getString("text")).also { onEvent(AgentEvent.Action(it)) }
         "find_free_books" -> actions.findFreeBooks(input.getString("query"))
         "download_book" -> actions.downloadBook(input.getInt("id")).also { onEvent(AgentEvent.Action(it)) }
         "add_book" -> actions.addBook(input.getString("title"), opt("author"), opt("status") ?: "want").also { onEvent(AgentEvent.Action(it)) }
@@ -205,6 +206,14 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
                     )
                 )
                 .put(function("open_idea_map", "Open the idea map screen so the user can see the network.", JSONObject(), emptyList()))
+                .put(
+                    function(
+                        "add_to_journal",
+                        "Add an entry to today's journal note in the user's Obsidian vault (Ancla/Diario/YYYY-MM-DD.md): thoughts, events, reflections they dictate.",
+                        JSONObject().put("text", prop("string", "The entry, cleaned of filler words, in the user's words")),
+                        listOf("text")
+                    )
+                )
                 .put(
                     function(
                         "forget",

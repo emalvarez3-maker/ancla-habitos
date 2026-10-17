@@ -305,6 +305,12 @@ class AnclaActions(private val context: Context) : AgentActions {
         }
     }
 
+    override fun addToJournal(text: String): String {
+        val path = ObsidianExport.appendJournal(context, text)
+            ?: throw IllegalArgumentException("No hay una bóveda de Obsidian conectada. El usuario debe tocar Obsidian en el Mapa de ideas y elegir su bóveda.")
+        return "Anotado en tu diario ($path)"
+    }
+
     override fun openIdeaMap(): String {
         context.startActivity(Intent(context, IdeasActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         return "Abriendo tu mapa de ideas"
