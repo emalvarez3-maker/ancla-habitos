@@ -216,9 +216,9 @@ class ReaderActivity : AppCompatActivity() {
 
     private fun inject(html: String): String {
         val head = """
-            <meta name="viewport" content="width=device-width, initial-scale=1">
-            <style id="ancla-style">${css()}</style>
-            <script>
+            <meta name="viewport" content="width=device-width, initial-scale=1" />
+            <style id="ancla-style">/*<![CDATA[*/${css()}/*]]>*/</style>
+            <script>//<![CDATA[
               (function(){
                 var last = 0, quiet = 0;
                 function frac(){ var h = document.documentElement.scrollHeight - window.innerHeight; return h > 0 ? window.scrollY / h : 1; }
@@ -248,7 +248,7 @@ class ReaderActivity : AppCompatActivity() {
                   setTimeout(function(){ Ancla.onScroll(frac(), false); }, 950);
                 };
               })();
-            </script>
+            //]]></script>
         """.trimIndent()
         val i = html.indexOf("</head>", ignoreCase = true)
         return if (i >= 0) html.substring(0, i) + head + html.substring(i) else head + html
