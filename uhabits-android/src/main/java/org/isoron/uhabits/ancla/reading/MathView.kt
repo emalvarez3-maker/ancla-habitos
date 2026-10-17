@@ -186,14 +186,33 @@ private class MathWebView(context: Context, onHeight: (Int) -> Unit, onLink: (St
                   delimiters: [{ left: '\\[', right: '\\]', display: true }, { left: '\\(', right: '\\)', display: false }],
                   throwOnError: false
                 });
+                ancla.fit();
                 ancla.report();
+              },
+              // A formula wider than the screen (a matrix, a long derivation) shrinks to fit, down to
+              // 65 % of the normal size; past that it scrolls sideways as before.
+              fit: function () {
+                document.querySelectorAll('#c .katex-display').forEach(function (el) {
+                  var k = el.querySelector('.katex');
+                  if (!k) return;
+                  var size = 1.12;
+                  k.style.fontSize = '';
+                  for (var i = 0; i < 6 && el.scrollWidth > el.clientWidth + 1 && size > 0.73; i++) {
+                    size = Math.max(0.73, size * (el.clientWidth - 2) / el.scrollWidth);
+                    k.style.fontSize = size + 'em';
+                  }
+                });
               },
               report: function () {
                 AnclaMath.height(Math.ceil(document.getElementById('c').getBoundingClientRect().height));
               }
             };
             new ResizeObserver(ancla.report).observe(document.getElementById('c'));
-            if (document.fonts) document.fonts.ready.then(ancla.report);
+            // KaTeX's fonts load only when a formula first needs them, after the layout, and change every width.
+            if (document.fonts) {
+              document.fonts.ready.then(ancla.report);
+              document.fonts.addEventListener('loadingdone', function () { ancla.fit(); ancla.report(); });
+            }
             </script></body></html>
         """.trimIndent()
     }
