@@ -85,11 +85,14 @@ import kotlin.math.max
 private val TOPIC_LIGHT = listOf(0xFF2A78D6, 0xFFEB6834, 0xFF1BAF7A, 0xFFEDA100, 0xFFE87BA4, 0xFF6250D6).map { Color(it) }
 private val TOPIC_DARK = listOf(0xFF3987E5, 0xFFD95926, 0xFF199E70, 0xFFC98500, 0xFFD55181, 0xFF9085E9).map { Color(it) }
 
+/** The validated categorical palette for the current theme, shared by every chart in the app (fixed order). */
+@Composable
+fun chartPalette(): List<Color> = if (Ancla.colors.ground.luminance() < 0.5f) TOPIC_DARK else TOPIC_LIGHT
+
 /** Color of a topic: by the order it was created, so it never changes when others come and go. */
 @Composable
 fun topicColors(topics: List<StudyTopic>): (String) -> Color {
-    val dark = Ancla.colors.ground.luminance() < 0.5f
-    val palette = if (dark) TOPIC_DARK else TOPIC_LIGHT
+    val palette = chartPalette()
     val other = Ancla.colors.muted
     val order = topics.sortedBy { it.created }.map { it.name }
     return { name -> order.indexOf(name).let { i -> if (i in palette.indices) palette[i] else other } }
@@ -108,7 +111,8 @@ fun StudyScreen(
     onCancel: () -> Unit,
     onAddTopic: (String, Int) -> Unit,
     onRemoveTopic: (String) -> Unit,
-    onOpenSession: (StudySession) -> Unit
+    onOpenSession: (StudySession) -> Unit,
+    onRobotics: () -> Unit
 ) {
     val c = Ancla.colors
     val color = topicColors(topics)
@@ -147,6 +151,8 @@ fun StudyScreen(
             StartStudy(topics, color, onStart, onAddTopic, onRemoveTopic)
         }
 
+        RoboticsCard(onRobotics)
+
         // Headline numbers
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             StatTile(minutesLabel(stats.weekTotal), stringResource(R.string.study_week), Modifier.weight(1f))
@@ -174,6 +180,23 @@ fun StudyScreen(
             }
         }
         Spacer(Modifier.height(24.dp))
+    }
+}
+
+/** Entry to the robotics course, its mechanism workshop and the 3D robots. */
+@Composable
+private fun RoboticsCard(onClick: () -> Unit) {
+    val c = Ancla.colors
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(c.lilacSoft).combinedClickableCompat(Role.Button, onClick).padding(18.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Text("🦾", style = MaterialTheme.typography.headlineMedium)
+        Column(Modifier.weight(1f)) {
+            Text(stringResource(R.string.robotics_title), style = MaterialTheme.typography.titleMedium, color = c.lilacInk)
+            Text(stringResource(R.string.robotics_card_subtitle), style = MaterialTheme.typography.bodyMedium, color = c.inkSoft)
+        }
+        Text("›", style = MaterialTheme.typography.headlineMedium, color = c.lilacInk)
     }
 }
 

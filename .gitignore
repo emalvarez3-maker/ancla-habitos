@@ -19,4 +19,6 @@ node_modules
 crowdin.yml
 kotlin-js-store
 *.md
+# The robotics lessons are app content, not docs
+!uhabits-android/src/main/assets/robotics/*.md
 .kotlin

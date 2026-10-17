@@ -54,6 +54,7 @@ import org.isoron.uhabits.ancla.assistant.DictationMode
 import org.isoron.uhabits.ancla.assistant.DictationState
 import org.isoron.uhabits.ancla.assistant.GeminiText
 import org.isoron.uhabits.ancla.assistant.SecureKeys
+import org.isoron.uhabits.ancla.robotics.RoboticsActivity
 import org.isoron.uhabits.ancla.ui.Ancla
 import org.isoron.uhabits.ancla.ui.AnclaTheme
 
@@ -172,7 +173,8 @@ class NotesActivity : AppCompatActivity() {
                                     onCancel = { study.cancel(); changed() },
                                     onAddTopic = { name, goal -> study.addTopic(name, goal); changed() },
                                     onRemoveTopic = { study.removeTopic(it); changed() },
-                                    onOpenSession = { s -> graph.byId(s.noteId)?.let(::open) }
+                                    onOpenSession = { s -> graph.byId(s.noteId)?.let(::open) },
+                                    onRobotics = { startActivity(RoboticsActivity.intent(this@NotesActivity)) }
                                 )
                             }
                         }

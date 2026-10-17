@@ -79,6 +79,11 @@
             android:exported="false" />
 
         <activity
+            android:name=".ancla.robotics.RoboticsActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden" />
+
+        <activity
             android:name=".ancla.reading.ReaderActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden" />
