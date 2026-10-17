@@ -100,7 +100,7 @@ class WakeWord(private val context: Context, private val onWake: (String) -> Uni
             val text = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
             if (!heardName && find(text) != null) {
                 heardName = true
-                Log.d(TAG, "wake word heard: $text")
+                Log.d(TAG, "wake word heard")
             }
         }
 
@@ -108,7 +108,7 @@ class WakeWord(private val context: Context, private val onWake: (String) -> Uni
             val options = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION).orEmpty()
             val match = options.firstNotNullOfOrNull { find(it) }
             if (match != null) {
-                Log.d(TAG, "wake: «${options.first()}» → «$match»")
+                Log.d(TAG, "wake word confirmed")
                 stop()
                 onWake(match)
             } else {
