@@ -149,6 +149,7 @@ private fun AssistantScreen(controller: VoiceAgentController, settingsOpen: Bool
             ToggleChip(stringResource(R.string.voice_toggle_speak), controller.speak.value) { controller.setSpeak(it) }
             ToggleChip(stringResource(R.string.voice_toggle_jarvis), controller.conversation.value) { controller.setConversation(it) }
             ToggleChip(stringResource(R.string.voice_toggle_wake), controller.wakeWord.value) { controller.setWakeWord(it) }
+            ToggleChip(stringResource(R.string.voice_toggle_always), controller.alwaysListening.value) { controller.setAlwaysListening(it) }
         }
         LazyColumn(
             Modifier.weight(1f).fillMaxWidth(),

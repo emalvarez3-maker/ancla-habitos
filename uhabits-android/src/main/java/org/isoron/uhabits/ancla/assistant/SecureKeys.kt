@@ -106,6 +106,11 @@ class SecureKeys(context: Context) {
         get() = prefs.getBoolean("wake_word", true)
         set(v) = prefs.edit().putBoolean("wake_word", v).apply()
 
+    /** "Oye Dexter" even with the app closed (the DexterService foreground service). */
+    var alwaysListening: Boolean
+        get() = prefs.getBoolean("always_listening", false)
+        set(v) = prefs.edit().putBoolean("always_listening", v).apply()
+
     /** Jarvis mode: after Dexter speaks, listen again automatically. */
     var conversationMode: Boolean
         get() = prefs.getBoolean("conversation", false)

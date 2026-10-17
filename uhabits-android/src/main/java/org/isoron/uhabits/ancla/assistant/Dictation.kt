@@ -57,7 +57,9 @@ class Dictation(
     /** Gemini mode: the recorded audio goes to the assistant as is (the receiver deletes the file). */
     private val onAudio: (File) -> Unit = {},
     /** A conversation turn ended without speech: the Jarvis loop should stop quietly. */
-    private val onSilence: () -> Unit = {}
+    private val onSilence: () -> Unit = {},
+    /** Send recorded audio to Gemini whenever Gemini is the assistant (the service, where Android's recognizer is unreliable). */
+    private val preferGeminiAudio: Boolean = false
 ) {
     private val main = Handler(Looper.getMainLooper())
     private var state: DictationState = DictationState.Idle
@@ -111,7 +113,7 @@ class Dictation(
 
     fun start(mode: DictationMode) {
         if (isActive) return
-        provider = keys.effectiveTranscription
+        provider = if (preferGeminiAudio && keys.usableAssistant?.first == AssistantProvider.GEMINI) TranscriptionProvider.GEMINI else keys.effectiveTranscription
         heard.clear()
         heardSpeech = false
         lastLoud = System.currentTimeMillis()

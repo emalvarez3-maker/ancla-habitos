@@ -207,6 +207,15 @@
     <string name="voice_toggle_wake">Hey Dexter</string>
     <string name="keys_phone_voice">Backup voice</string>
     <string name="keys_phone_voice_note">Used by the phone when Gemini does not answer or the quota runs out. Tap each one and pick a male voice.</string>
+    <string name="voice_toggle_always">Hey Dexter always</string>
+    <string name="dexter_service_channel">Dexter listening</string>
+    <string name="dexter_service_title">Dexter</string>
+    <string name="dexter_service_starting">Getting Dexter ready…</string>
+    <string name="dexter_service_downloading">Downloading Dexter offline hearing (40 MB): %1$d %%</string>
+    <string name="dexter_service_model_failed">The voice model could not be downloaded. Check your connection and turn it on again.</string>
+    <string name="dexter_service_waiting">Say “Oye Dexter” whenever you want.</string>
+    <string name="dexter_service_listening">Listening…</string>
+    <string name="dexter_service_stop">Stop listening</string>
     <string name="memory_title">What Dexter knows about you</string>
     <string name="memory_empty">Nothing yet. Talk to him and he will learn.</string>
     <string name="memory_clear">Clear memory</string>

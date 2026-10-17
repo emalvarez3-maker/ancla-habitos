@@ -136,6 +136,7 @@ class VoiceAgentController(private val activity: ComponentActivity, private val 
         val mode = pendingMode
         pendingMode = null
         if (granted && mode != null) engine.start(mode) else if (!granted) error.value = activity.getString(R.string.voice_need_mic)
+        if (granted && keys.alwaysListening && DexterService.instance == null) DexterService.start(activity)
     }
 
     // --- "Oye Dexter" ---
@@ -158,6 +159,19 @@ class VoiceAgentController(private val activity: ComponentActivity, private val 
             val idle = dictation.value == DictationState.Idle && !thinking.value && !speaking.value
             if (resumed && wakeWord.value && idle && micGranted && hasAssistantKey) wake.start() else wake.stop()
             if (resumed) handler.postDelayed(this, WAKE_CHECK_MS)
+        }
+    }
+
+    /** "Oye Dexter" with the app closed, through [DexterService]. */
+    val alwaysListening = mutableStateOf(keys.alwaysListening)
+
+    fun setAlwaysListening(on: Boolean) {
+        alwaysListening.value = on
+        keys.alwaysListening = on
+        if (on) {
+            if (micGranted) DexterService.start(activity) else permission.launch(Manifest.permission.RECORD_AUDIO)
+        } else {
+            DexterService.stop(activity)
         }
     }
 
@@ -219,12 +233,18 @@ class VoiceAgentController(private val activity: ComponentActivity, private val 
 
     fun onResume() {
         resumed = true
+        // The app takes the microphone while it is open; the service waits.
+        DexterService.appInForeground = true
+        DexterService.instance?.pause()
+        if (keys.alwaysListening && micGranted && DexterService.instance == null) DexterService.start(activity)
         handler.removeCallbacks(wakeCheck)
         handler.postDelayed(wakeCheck, WAKE_CHECK_MS)
     }
 
     fun onPause() {
         resumed = false
+        DexterService.appInForeground = false
+        DexterService.instance?.resume()
         handler.removeCallbacks(wakeCheck)
         wake.stop()
         cancel()

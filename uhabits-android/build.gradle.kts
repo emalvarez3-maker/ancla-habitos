@@ -140,6 +140,9 @@ dependencies {
     implementation(libs.activity.compose)
     implementation(libs.lifecycle.runtime.compose)
     implementation(libs.anthropic.java)
+    // Offline "Oye Dexter" detection (Apache 2.0)
+    implementation("com.alphacephei:vosk-android:0.3.47")
+    implementation("net.java.dev.jna:jna:5.13.0@aar")
     ksp(libs.kotlin.inject.compiler)
 
     androidTestImplementation(libs.annotation)

@@ -104,21 +104,22 @@ class Speaker(
         tts.language = Locale("es", "US")
         applyPhoneVoice(phoneVoice())
         tts.setSpeechRate(1.0f)
-        tts.setPitch(0.95f)
+        tts.setPitch(0.9f)
     }
 
     /** The phone's Spanish voices, by name, for the fallback voice picker. */
     fun phoneVoices(): List<String> = if (!ready) emptyList() else
         tts.voices.orEmpty()
-            .filter { it.locale.language == "es" && Voice.QUALITY_NORMAL <= it.quality && "legacySetLanguageVoice" !in it.features.orEmpty() }
+            .filter { v -> v.locale.language == "es" && !v.isNetworkConnectionRequired && MALE_VOICES.any { it in v.name } && "notInstalled" !in v.features.orEmpty() }
             .map { it.name }.sorted()
 
-    /** Uses the voice named [name], or the default pick: a male es-US voice ("esd") when there is one. */
+    /** Uses the voice named [name], or the default pick: the deep male es-US voice ("esd"). */
     private fun applyPhoneVoice(name: String) {
         if (!ready) return
         val voices = tts.voices.orEmpty().filter { it.locale.language == "es" && "legacySetLanguageVoice" !in it.features.orEmpty() }
         val pick = voices.firstOrNull { it.name == name }
-            ?: voices.filter { it.locale.country == "US" && "esd" in it.name }.maxByOrNull { if (it.isNetworkConnectionRequired) 1 else 0 }
+            ?: voices.firstOrNull { it.name == "es-us-x-esd-local" }
+            ?: voices.firstOrNull { v -> MALE_VOICES.any { it in v.name } }
             ?: voices.maxByOrNull { (if (it.locale.country == "US") 100 else 0) + it.quality / 100 }
         pick?.let { tts.voice = it }
     }
@@ -238,5 +239,8 @@ class Speaker(
 
     companion object {
         private const val GROUP_CHARS = 280
+
+        /** Male Google voices, measured by pitch (esd ~137 Hz, esf ~148 Hz; esc and sfb are female). */
+        private val MALE_VOICES = listOf("x-esd", "x-esf", "x-eed", "x-eef")
     }
 }
