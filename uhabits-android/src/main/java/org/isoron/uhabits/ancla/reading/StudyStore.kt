@@ -57,10 +57,15 @@ data class StudyStats(
  * keeps counting if the app is closed. Every finished session becomes a note that links to its
  * topic's note, so studying shows up in the notes graph next to books and ideas.
  */
-class StudyStore(private val context: Context) {
-    private val file = File(context.filesDir, "study.json")
+class StudyStore(private val dir: File) {
+    constructor(context: Context) : this(context.filesDir)
+
+    private val file = File(dir, "study.json")
+    private fun notes() = IdeaGraph(File(dir, "ideas.json"))
 
     private var stamp = Long.MIN_VALUE
+    private var version = -1L
+    private val path = file.absolutePath
 
     // The screen and Dexter each hold a StudyStore: reads reload the file when the other changed it,
     // and changes run under one process-wide lock.
@@ -79,7 +84,10 @@ class StudyStore(private val context: Context) {
     private fun fileStamp() = if (file.exists()) file.lastModified() * 31 + file.length() else 0L
 
     private fun fresh() {
-        if (fileStamp() == stamp) return
+        // Same-millisecond writes of the same size keep the file stamp: a shared version catches them.
+        val current = VERSIONS[path] ?: 0L
+        if (fileStamp() == stamp && current == version) return
+        version = current
         load()
     }
 
@@ -112,6 +120,8 @@ class StudyStore(private val context: Context) {
         active?.let { (topic, start) -> json.put("active", JSONObject().put("topic", topic).put("start", start)) }
         EncryptedStore.writeText(file, json.toString())
         stamp = fileStamp()
+        version = (VERSIONS[path] ?: 0L) + 1
+        VERSIONS[path] = version
     }
 
     fun topic(name: String): StudyTopic? {
@@ -127,7 +137,7 @@ class StudyStore(private val context: Context) {
             ?: StudyTopic(name.trim(), weeklyGoalMinutes ?: 0, System.currentTimeMillis())
         topics = topics.filter { it.name != t.name } + t
         persist()
-        IdeaGraph(context).create(t.name)
+        notes().create(t.name)
         return t
     }
 
@@ -170,7 +180,7 @@ class StudyStore(private val context: Context) {
                 appendLine(summary.trim())
             }
         }
-        val note = IdeaGraph(context).create("Estudio · $topic · $label", IdeaKind.STUDY, body)
+        val note = notes().create("Estudio · $topic · $label", IdeaKind.STUDY, body)
         val session = StudySession(UUID.randomUUID().toString(), topic, start, minutes, note.id)
         sessions = sessions + session
         persist()
@@ -216,6 +226,9 @@ class StudyStore(private val context: Context) {
 
     private companion object {
         val LOCK = Any()
+
+        /** Writes per file in this process, guarded by [LOCK]. */
+        val VERSIONS = HashMap<String, Long>()
     }
 
     /** Plain-text summary for Dexter. */

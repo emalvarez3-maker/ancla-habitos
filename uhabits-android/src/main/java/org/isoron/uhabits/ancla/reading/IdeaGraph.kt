@@ -56,11 +56,14 @@ data class IdeaLink(val from: String, val to: String, val relation: String, val 
  * reloads the file when someone else changed it, and every change re-reads and writes it under
  * one process-wide lock: no instance can overwrite another's work.
  */
-class IdeaGraph(context: Context) {
-    private val file = File(context.filesDir, "ideas.json")
+class IdeaGraph(private val file: File) {
+    constructor(context: Context) : this(File(context.filesDir, "ideas.json"))
+
     private var cachedIdeas: List<Idea> = emptyList()
     private var cachedLabeled: List<IdeaLink> = emptyList()
     private var cachedStamp = Long.MIN_VALUE
+    private var cachedVersion = -1L
+    private val path = file.absolutePath
 
     val ideas: List<Idea>
         get() = synchronized(LOCK) {
@@ -84,7 +87,11 @@ class IdeaGraph(context: Context) {
     private fun stamp() = if (file.exists()) file.lastModified() * 31 + file.length() else 0L
 
     private fun fresh() {
-        if (stamp() == cachedStamp) return
+        // The file stamp alone misses two writes in the same millisecond with the same size, so
+        // writers in this process also bump a shared version.
+        val version = VERSIONS[path] ?: 0L
+        if (stamp() == cachedStamp && version == cachedVersion) return
+        cachedVersion = version
         cachedIdeas = emptyList()
         cachedLabeled = emptyList()
         val text = EncryptedStore.readText(file) // also encrypts an old plain-text file
@@ -131,6 +138,8 @@ class IdeaGraph(context: Context) {
         cachedIdeas = ideas
         cachedLabeled = labeled
         cachedStamp = stamp()
+        cachedVersion = (VERSIONS[path] ?: 0L) + 1
+        VERSIONS[path] = cachedVersion
         result
     }
 
@@ -248,6 +257,9 @@ class IdeaGraph(context: Context) {
 
     companion object {
         private val LOCK = Any()
+
+        /** Writes per file in this process, guarded by [LOCK]. */
+        private val VERSIONS = HashMap<String, Long>()
         const val JOURNAL_PREFIX = "Diario"
 
         private val WIKILINK = Regex("\\[\\[([^\\]|#\\n]+)(?:[|#][^\\]\\n]*)?]]")
