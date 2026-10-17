@@ -56,11 +56,31 @@ class AgentException(val kind: Kind, message: String) : Exception(message) {
     enum class Kind { NO_KEY, BAD_KEY, RATE_LIMIT, NETWORK, REFUSED, OTHER }
 }
 
+/** A chat agent that can act inside Ancla through [AgentActions]. */
+interface AssistantAgent {
+    /** Sends [userText] and runs any tool calls. Blocking: call off the main thread. */
+    fun send(userText: String, onEvent: (AgentEvent) -> Unit)
+}
+
+/** Shared instructions for every provider. */
+fun assistantInstructions(): String {
+    val now = ZonedDateTime.now()
+    val date = now.format(DateTimeFormatter.ofPattern("EEEE d 'de' MMMM yyyy, HH:mm", Locale("es")))
+    return """
+        You are Brote, the assistant inside Ancla, a habit, task and reading app. Speak Spanish unless the user writes in another language.
+        The user often dictates by voice: transcripts may contain filler words, repetitions or punctuation errors. Interpret the intent, and when you create tasks, write clean titles.
+        When the user dictates something to do, call create_task right away instead of asking for confirmation; ask a question only if the request is genuinely ambiguous.
+        Use today_summary or reading_summary before giving advice about their day or their reading, so your answer uses real data.
+        Keep replies short and warm: one to three sentences, no lists unless asked. After acting, say what you did in plain words.
+        Current date and time: $date (${now.zone}).
+    """.trimIndent()
+}
+
 /**
  * A small tool-using agent on the Claude API: keeps the conversation, runs tools locally
  * through [AgentActions] and loops until Claude answers.
  */
-class ClaudeAgent(apiKey: String, private val actions: AgentActions) {
+class ClaudeAgent(apiKey: String, private val actions: AgentActions) : AssistantAgent {
     private val client: AnthropicClient = AnthropicOkHttpClient.builder().apiKey(apiKey).build()
     private val history = mutableListOf<BetaMessageParam>()
 
@@ -115,28 +135,15 @@ class ClaudeAgent(apiKey: String, private val actions: AgentActions) {
             .build()
     )
 
-    private fun systemPrompt(): String {
-        val now = ZonedDateTime.now()
-        val date = now.format(DateTimeFormatter.ofPattern("EEEE d 'de' MMMM yyyy, HH:mm", Locale("es")))
-        return """
-            You are Brote, the assistant inside Ancla, a habit, task and reading app. Speak Spanish unless the user writes in another language.
-            The user often dictates by voice: transcripts may contain filler words, repetitions or punctuation errors. Interpret the intent, and when you create tasks, write clean titles.
-            When the user dictates something to do, call create_task right away instead of asking for confirmation; ask a question only if the request is genuinely ambiguous.
-            Use today_summary or reading_summary before giving advice about their day or their reading, so your answer uses real data.
-            Keep replies short and warm: one to three sentences, no lists unless asked. After acting, say what you did in plain words.
-            Current date and time: $date (${now.zone}).
-        """.trimIndent()
-    }
-
     /** Sends [userText] and runs the tool loop. Blocking: call off the main thread. */
-    fun send(userText: String, onEvent: (AgentEvent) -> Unit) {
+    override fun send(userText: String, onEvent: (AgentEvent) -> Unit) {
         history.add(BetaMessageParam.builder().role(BetaMessageParam.Role.USER).content(userText).build())
         try {
             repeat(MAX_STEPS) {
                 val params = MessageCreateParams.builder()
                     .model(MODEL)
                     .maxTokens(4096L)
-                    .system(systemPrompt())
+                    .system(assistantInstructions())
                     .outputConfig(BetaOutputConfig.builder().effort(BetaOutputConfig.Effort.LOW).build())
                     .tools(tools.map { com.anthropic.models.beta.messages.BetaToolUnion.ofBetaTool(it) })
                     .messages(history)
@@ -156,7 +163,7 @@ class ClaudeAgent(apiKey: String, private val actions: AgentActions) {
 
                 val results = response.content().mapNotNull { block -> block.toolUse().orElse(null) }.map { use ->
                     val input = JSONObject(use._input().convert(Map::class.java) as Map<*, *>)
-                    val (output, isError) = runTool(use.name(), input, onEvent)
+                    val (output, isError) = dispatchTool(actions, use.name(), input, onEvent)
                     BetaContentBlockParam.ofToolResult(
                         BetaToolResultBlockParam.builder().toolUseId(use.id()).content(output).isError(isError).build()
                     )
@@ -174,23 +181,6 @@ class ClaudeAgent(apiKey: String, private val actions: AgentActions) {
         }
     }
 
-    private fun runTool(name: String, input: JSONObject, onEvent: (AgentEvent) -> Unit): Pair<String, Boolean> = try {
-        val out = when (name) {
-            "create_task" -> actions.createTask(
-                input.getString("title"),
-                input.optString("date").takeIf { it.isNotBlank() && it != "null" },
-                input.optString("time").takeIf { it.isNotBlank() && it != "null" },
-                input.optBoolean("remind", false)
-            ).also { onEvent(AgentEvent.Action(it)) }
-            "complete_habit" -> actions.completeHabit(input.getString("name")).also { onEvent(AgentEvent.Action(it)) }
-            "today_summary" -> actions.todaySummary()
-            "reading_summary" -> actions.readingSummary()
-            else -> return "Unknown tool $name" to true
-        }
-        out to false
-    } catch (e: Exception) {
-        (e.message ?: "Tool failed") to true
-    }
 
     companion object {
         const val MODEL = "claude-opus-5-5"

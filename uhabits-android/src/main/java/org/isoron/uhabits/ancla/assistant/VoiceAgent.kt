@@ -89,7 +89,7 @@ class VoiceAgentController(private val activity: ComponentActivity, private val 
     val error = mutableStateOf<String?>(null)
     val turns = mutableStateOf<List<AgentTurn>>(emptyList())
 
-    private var agent: ClaudeAgent? = null
+    private var agent: AssistantAgent? = null
     private var agentKey = ""
     private var pendingMode: DictationMode? = null
     private var turnGeneration = 0
@@ -108,7 +108,7 @@ class VoiceAgentController(private val activity: ComponentActivity, private val 
         if (granted && mode != null) engine.start(mode) else if (!granted) error.value = activity.getString(R.string.voice_need_mic)
     }
 
-    val hasClaudeKey get() = keys.claudeKey.isNotBlank()
+    val hasAssistantKey get() = keys.usableAssistant != null
 
     private fun begin(mode: DictationMode) {
         error.value = null
@@ -147,14 +147,16 @@ class VoiceAgentController(private val activity: ComponentActivity, private val 
     /** Sends typed or dictated text to the agent. */
     fun send(text: String) {
         if (text.isBlank()) return
-        val key = keys.claudeKey
-        if (key.isBlank()) {
+        val (provider, key) = keys.usableAssistant ?: run {
             error.value = activity.getString(R.string.voice_need_key)
             return
         }
-        if (agent == null || key != agentKey) {
-            agent = ClaudeAgent(key, AnclaActions(activity))
-            agentKey = key
+        if (agent == null || "$provider:$key" != agentKey) {
+            agent = when (provider) {
+                AssistantProvider.CLAUDE -> ClaudeAgent(key, AnclaActions(activity))
+                AssistantProvider.GEMINI -> GeminiAgent(key, AnclaActions(activity))
+            }
+            agentKey = "$provider:$key"
         }
         val current = agent!!
         val gen = ++turnGeneration

@@ -162,12 +162,12 @@
     <string name="nav_reading">Lectura</string>
     <string name="voice_need_mic">Ancla necesita el micrófono para dictar.</string>
     <string name="voice_hint">Mantén presionado para hablar, o toca dos veces para manos libres.</string>
-    <string name="voice_need_key">Agrega tu clave de la API de Claude en el asistente para hablar con Brote.</string>
-    <string name="voice_bad_key">Claude rechazó tu clave. Revísala en Claves.</string>
+    <string name="voice_need_key">Agrega tu clave de Gemini o de Claude en Claves para hablar con Brote.</string>
+    <string name="voice_bad_key">El proveedor rechazó tu clave. Revísala en Claves.</string>
     <string name="voice_rate_limit">Demasiadas solicitudes ahora. Intenta en un minuto.</string>
     <string name="voice_network">Sin conexión. Revisa tu internet e intenta de nuevo.</string>
-    <string name="voice_refused">Claude no aceptó esa solicitud. Intenta decirlo de otra forma.</string>
-    <string name="voice_failed">Algo falló al hablar con Claude. Intenta de nuevo.</string>
+    <string name="voice_refused">El asistente no aceptó esa solicitud. Intenta decirlo de otra forma.</string>
+    <string name="voice_failed">Algo falló al hablar con el asistente. Intenta de nuevo.</string>
     <string name="voice_mic_desc">Micrófono: mantén para hablar, toca dos veces para manos libres</string>
     <string name="voice_pill_hold">Escuchando… suelta para enviar</string>
     <string name="voice_pill_free">Manos libres %1$d:%2$02d · toca el micrófono para terminar</string>
@@ -176,7 +176,7 @@
     <string name="voice_open_chat">Abrir chat</string>
     <string name="voice_dismiss">Cerrar</string>
     <string name="assistant_title">Brote</string>
-    <string name="assistant_subtitle">Tu asistente · Claude</string>
+    <string name="assistant_subtitle">Tu asistente con IA</string>
     <string name="assistant_keys">Claves</string>
     <string name="assistant_welcome">¡Hola! Dime qué tienes que hacer y lo anoto, o pregúntame cómo va tu día y tu lectura.</string>
     <string name="assistant_input_hint">Escribe o mantén el micrófono…</string>
@@ -191,4 +191,9 @@
     <string name="keys_openai">Clave de la API de OpenAI</string>
     <string name="keys_android_note">Gratis y sin clave: usa el reconocimiento de voz del teléfono.</string>
     <string name="nav_assistant">Brote</string>
+    <string name="keys_assistant">Asistente</string>
+    <string name="keys_gemini_short">Gemini (gratis)</string>
+    <string name="keys_claude_short">Claude</string>
+    <string name="keys_gemini">Clave de la API de Gemini (AIza…)</string>
+    <string name="keys_gemini_note">Consíguela gratis en aistudio.google.com → Get API key. El nivel gratuito tiene límites diarios.</string>
 </resources>

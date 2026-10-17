@@ -31,6 +31,8 @@ import javax.crypto.spec.GCMParameterSpec
 
 enum class TranscriptionProvider { ANDROID, GROQ, OPENAI }
 
+enum class AssistantProvider { GEMINI, CLAUDE }
+
 /**
  * Stores the user's own API keys encrypted with an AES-GCM key that never leaves the
  * Android Keystore. Keys are only sent to the provider they belong to.
@@ -41,6 +43,22 @@ class SecureKeys(context: Context) {
     var claudeKey: String
         get() = read("claude")
         set(v) = write("claude", v)
+
+    var geminiKey: String
+        get() = read("gemini")
+        set(v) = write("gemini", v)
+
+    var assistant: AssistantProvider
+        get() = AssistantProvider.entries.getOrElse(prefs.getInt("assistant", 0)) { AssistantProvider.GEMINI }
+        set(v) = prefs.edit().putInt("assistant", v.ordinal).apply()
+
+    /** The chosen assistant if it has a key, else whichever provider has one, else null. */
+    val usableAssistant: Pair<AssistantProvider, String>?
+        get() {
+            val keys = mapOf(AssistantProvider.GEMINI to geminiKey, AssistantProvider.CLAUDE to claudeKey).filterValues { it.isNotBlank() }
+            val pick = if (assistant in keys) assistant else keys.keys.firstOrNull() ?: return null
+            return pick to keys.getValue(pick)
+        }
 
     var groqKey: String
         get() = read("groq")

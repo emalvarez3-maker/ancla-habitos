@@ -81,7 +81,7 @@ class AssistantActivity : AppCompatActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         controller = VoiceAgentController(this)
-        showSettings.value = !controller.hasClaudeKey
+        showSettings.value = !controller.hasAssistantKey
         setContent {
             AnclaTheme {
                 AssistantScreen(controller, showSettings.value, onSettings = { showSettings.value = it }, onBack = { finish() })
@@ -200,6 +200,8 @@ private fun Bubble(text: String, mine: Boolean) {
 private fun KeysSheet(keys: SecureKeys, onDone: () -> Unit) {
     val c = Ancla.colors
     var claude by remember { mutableStateOf(keys.claudeKey) }
+    var gemini by remember { mutableStateOf(keys.geminiKey) }
+    var assistant by remember { mutableStateOf(keys.assistant) }
     var groq by remember { mutableStateOf(keys.groqKey) }
     var openai by remember { mutableStateOf(keys.openAiKey) }
     var provider by remember { mutableStateOf(keys.transcription) }
@@ -211,8 +213,27 @@ private fun KeysSheet(keys: SecureKeys, onDone: () -> Unit) {
         ) {
             Text(stringResource(R.string.keys_title), style = MaterialTheme.typography.headlineSmall, color = c.ink)
             Text(stringResource(R.string.keys_privacy), style = MaterialTheme.typography.bodyMedium, color = c.inkSoft)
-            OutlinedTextField(claude, { claude = it }, label = { Text(stringResource(R.string.keys_claude)) }, singleLine = true,
-                visualTransformation = PasswordVisualTransformation(), colors = colors, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth())
+            Text(stringResource(R.string.keys_assistant), style = MaterialTheme.typography.titleMedium, color = c.ink)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AssistantProvider.entries.forEach { p ->
+                    val on = assistant == p
+                    Text(
+                        stringResource(if (p == AssistantProvider.GEMINI) R.string.keys_gemini_short else R.string.keys_claude_short),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = if (on) c.onInk else c.inkSoft,
+                        modifier = Modifier.clip(CircleShape).background(if (on) c.ink else c.ground)
+                            .combinedClickableCompat(Role.RadioButton, { assistant = p }).padding(horizontal = 14.dp, vertical = 10.dp)
+                    )
+                }
+            }
+            if (assistant == AssistantProvider.GEMINI) {
+                OutlinedTextField(gemini, { gemini = it }, label = { Text(stringResource(R.string.keys_gemini)) }, singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(), colors = colors, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth())
+                Text(stringResource(R.string.keys_gemini_note), style = MaterialTheme.typography.bodyMedium, color = c.muted)
+            } else {
+                OutlinedTextField(claude, { claude = it }, label = { Text(stringResource(R.string.keys_claude)) }, singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(), colors = colors, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth())
+            }
             Text(stringResource(R.string.keys_transcription), style = MaterialTheme.typography.titleMedium, color = c.ink)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TranscriptionProvider.entries.forEach { p ->
@@ -243,6 +264,8 @@ private fun KeysSheet(keys: SecureKeys, onDone: () -> Unit) {
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.ink)
                     .combinedClickableCompat(Role.Button, {
                         keys.claudeKey = claude
+                        keys.geminiKey = gemini
+                        keys.assistant = assistant
                         keys.groqKey = groq
                         keys.openAiKey = openai
                         keys.transcription = provider
