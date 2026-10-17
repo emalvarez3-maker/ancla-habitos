@@ -350,6 +350,36 @@ class AnclaActions(private val context: Context) : AgentActions {
         }
     }
 
+    override fun whatsappChats(): String = whatsapp { vault ->
+        val chats = vault.chats()
+        if (chats.isEmpty()) return@whatsapp "No hay mensajes de WhatsApp guardados todavía (solo se guardan los que llegan desde que activaste el acceso)."
+        val fmt = java.text.SimpleDateFormat("dd/MM HH:mm", java.util.Locale.getDefault())
+        "Chats de WhatsApp (de más reciente a más antiguo):\n" + chats.take(40).joinToString("\n") { (name, msgs) ->
+            "- $name: ${msgs.size} mensajes, el último ${fmt.format(java.util.Date(msgs.last().time))}" + if (msgs.last().group) " (grupo)" else ""
+        }
+    }
+
+    override fun whatsappMessages(chat: String?, hours: Int?): String = whatsapp { vault ->
+        val all = vault.readAll()
+        val since = System.currentTimeMillis() - (hours ?: 24).coerceIn(1, 24 * 31) * 3_600_000L
+        val chats = if (chat.isNullOrBlank()) null else ChatNotifications.matchChat(all.map { it.chat }.toSet(), chat)
+        if (chats != null && chats.isEmpty()) return@whatsapp "No encuentro un chat llamado «$chat». Chats guardados: " + all.map { it.chat }.distinct().takeLast(15).joinToString()
+        ChatNotifications.describe(all.filter { it.time >= since && (chats == null || it.chat in chats) })
+    }
+
+    /** Runs [block] only when WhatsApp reading is set up and the phone is unlocked. */
+    private fun whatsapp(block: (WhatsAppVault) -> String): String {
+        val vault = WhatsAppVault(context)
+        return when {
+            !vault.enabled || !vault.hasAccess -> "No tengo acceso a tus mensajes de WhatsApp. Actívalo en Dexter › Claves › WhatsApp."
+            else -> try {
+                block(vault)
+            } catch (e: WhatsAppVault.LockedException) {
+                "Tu teléfono está bloqueado: desbloquéalo y vuelve a pedírmelo. Así nadie puede leer tus mensajes con el teléfono bloqueado."
+            }
+        }
+    }
+
     override fun openIdeaMap(): String {
         context.startActivity(NotesActivity.intent(context, tab = "graph").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         return "Abriendo tu grafo de notas"

@@ -78,6 +78,23 @@
             android:name=".ancla.reading.NotesActivity"
             android:exported="false" />
 
+        <!-- Reads only WhatsApp's notifications (the code drops every other app's), once the user
+             grants notification access in Android's settings. -->
+        <service
+            android:name=".ancla.assistant.WhatsAppListener"
+            android:exported="true"
+            android:label="@string/whatsapp_listener_label"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <activity
+            android:name=".ancla.assistant.WhatsAppActivity"
+            android:exported="false"
+            android:excludeFromRecents="true" />
+
         <activity
             android:name=".ancla.robotics.RoboticsActivity"
             android:exported="false"

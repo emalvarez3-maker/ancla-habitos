@@ -377,6 +377,7 @@ private fun KeysSheet(
                         }).padding(horizontal = 14.dp, vertical = 10.dp)
                 )
             }
+            WhatsAppSettings(usingGemini = assistant == AssistantProvider.GEMINI)
             Box(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.ink)
                     .combinedClickableCompat(Role.Button, {

@@ -447,4 +447,31 @@
     <string name="robotics_quiz_new">Another one</string>
     <string name="robotics_quiz_ok">Exactly! N = %1$d, j₁ = %2$d, M = %3$d.</string>
     <string name="robotics_quiz_wrong">Almost. Check %1$s. Open “Teach me to count” to see it step by step.</string>
+
+    <!-- WhatsApp -->
+    <string name="whatsapp_listener_label">Ancla · WhatsApp messages</string>
+    <string name="whatsapp_title">WhatsApp</string>
+    <string name="whatsapp_explain">Dexter can read and summarize your WhatsApp messages. Ancla reads only WhatsApp\'s notifications (other apps are ignored), encrypts each message as it arrives and can decrypt them only with the phone unlocked. They\'re not backed up, they delete themselves, and only the ones you ask Dexter about leave the phone, to your AI provider. Only messages arriving after you turn it on are kept. Dexter can\'t send messages.</string>
+    <string name="whatsapp_lock_ok">✓ Secure screen lock</string>
+    <string name="whatsapp_lock_missing">✕ No secure screen lock</string>
+    <string name="whatsapp_access_ok">✓ Notification access granted</string>
+    <string name="whatsapp_access_missing">✕ Notification access missing</string>
+    <string name="whatsapp_access_grant">Grant notification access</string>
+    <string name="whatsapp_access_manage">Manage access</string>
+    <string name="whatsapp_set_lock">Set a screen lock</string>
+    <string name="whatsapp_restricted_hint">If Android says “Restricted setting”: Settings › Apps › Ancla › ⋮ › Allow restricted settings, then try again.</string>
+    <string name="whatsapp_on">Save messages</string>
+    <string name="whatsapp_off">Off</string>
+    <string name="whatsapp_needs_lock">To turn it on you need a PIN, pattern, password or fingerprint: without a lock the encryption would protect nothing.</string>
+    <string name="whatsapp_retention">Delete automatically after</string>
+    <string name="whatsapp_days">%1$d d</string>
+    <string name="whatsapp_gemini_warning">Note: with a free Gemini key, Google may use what you send to improve its products. For your messages, Claude is more private.</string>
+    <string name="whatsapp_view">View saved messages</string>
+    <string name="whatsapp_wipe">Delete all messages</string>
+    <string name="whatsapp_wipe_confirm">All saved messages and their encryption key are deleted. This can\'t be undone.</string>
+    <string name="whatsapp_search">Search your messages</string>
+    <string name="whatsapp_loading">Decrypting…</string>
+    <string name="whatsapp_locked">Unlock the phone to see your messages.</string>
+    <string name="whatsapp_read_error">The messages couldn\'t be decrypted.</string>
+    <string name="whatsapp_empty">No saved messages yet. They\'ll appear when WhatsApp notifies you of new ones.</string>
 </resources>

@@ -446,4 +446,31 @@
     <string name="robotics_quiz_new">Otro mecanismo</string>
     <string name="robotics_quiz_ok">¡Exacto! N = %1$d, j₁ = %2$d, M = %3$d.</string>
     <string name="robotics_quiz_wrong">Casi. Revisa %1$s. Abre «Enséñame a contar» para ver el recuento paso a paso.</string>
+
+    <!-- WhatsApp -->
+    <string name="whatsapp_listener_label">Ancla · mensajes de WhatsApp</string>
+    <string name="whatsapp_title">WhatsApp</string>
+    <string name="whatsapp_explain">Dexter puede leer y resumir tus mensajes de WhatsApp. Ancla solo lee las notificaciones de WhatsApp (ignora las demás apps), cifra cada mensaje al llegar y solo puede descifrarlos con el teléfono desbloqueado. No van a copias de seguridad, se borran solos y solo salen del teléfono los que pidas a Dexter, hacia tu proveedor de IA. Solo se guardan los mensajes que lleguen desde que lo actives. Dexter no puede enviar mensajes.</string>
+    <string name="whatsapp_lock_ok">✓ Bloqueo de pantalla seguro</string>
+    <string name="whatsapp_lock_missing">✕ Sin bloqueo de pantalla seguro</string>
+    <string name="whatsapp_access_ok">✓ Acceso a notificaciones concedido</string>
+    <string name="whatsapp_access_missing">✕ Falta el acceso a notificaciones</string>
+    <string name="whatsapp_access_grant">Dar acceso a notificaciones</string>
+    <string name="whatsapp_access_manage">Gestionar el acceso</string>
+    <string name="whatsapp_set_lock">Poner bloqueo de pantalla</string>
+    <string name="whatsapp_restricted_hint">Si Android dice «Ajuste restringido»: Ajustes › Apps › Ancla › ⋮ › Permitir ajustes restringidos, y vuelve a intentarlo.</string>
+    <string name="whatsapp_on">Guardar mensajes</string>
+    <string name="whatsapp_off">Desactivado</string>
+    <string name="whatsapp_needs_lock">Para activarlo necesitas un PIN, patrón, contraseña o huella: sin bloqueo, el cifrado no protegería nada.</string>
+    <string name="whatsapp_retention">Borrar automáticamente después de</string>
+    <string name="whatsapp_days">%1$d d</string>
+    <string name="whatsapp_gemini_warning">Ojo: con la clave gratuita de Gemini, Google puede usar lo que le envías para mejorar sus productos. Para tus mensajes es más privado usar Claude.</string>
+    <string name="whatsapp_view">Ver mensajes guardados</string>
+    <string name="whatsapp_wipe">Borrar todos los mensajes</string>
+    <string name="whatsapp_wipe_confirm">Se borran todos los mensajes guardados y su llave de cifrado. No se puede deshacer.</string>
+    <string name="whatsapp_search">Buscar en tus mensajes</string>
+    <string name="whatsapp_loading">Descifrando…</string>
+    <string name="whatsapp_locked">Desbloquea el teléfono para ver tus mensajes.</string>
+    <string name="whatsapp_read_error">No se pudieron descifrar los mensajes.</string>
+    <string name="whatsapp_empty">Aún no hay mensajes guardados. Llegarán aquí cuando WhatsApp te notifique mensajes nuevos.</string>
 </resources>
