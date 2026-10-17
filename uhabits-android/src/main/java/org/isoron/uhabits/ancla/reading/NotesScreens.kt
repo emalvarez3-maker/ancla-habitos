@@ -370,6 +370,8 @@ fun NoteEditor(
                         cursorBrush = SolidColor(c.lilac), modifier = Modifier.fillMaxWidth().heightIn(min = 240.dp)
                     )
                 }
+            } else if (MathMarkdown.hasMath(draft.body.text)) {
+                MathView(draft.body.text, exists = exists, onLink = onLink) // formulas typeset by KaTeX
             } else {
                 MarkdownNote(draft.body.text, exists, onLink)
             }
