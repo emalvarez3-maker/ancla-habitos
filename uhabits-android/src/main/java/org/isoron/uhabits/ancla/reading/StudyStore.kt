@@ -20,6 +20,7 @@
 package org.isoron.uhabits.ancla.reading
 
 import android.content.Context
+import org.isoron.uhabits.ancla.EncryptedStore
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -75,10 +76,10 @@ class StudyStore(private val context: Context) {
         get() = synchronized(LOCK) { fresh(); field }
         private set
 
+    private fun fileStamp() = if (file.exists()) file.lastModified() * 31 + file.length() else 0L
+
     private fun fresh() {
-        val s = if (file.exists()) file.lastModified() * 31 + file.length() else 0L
-        if (s == stamp) return
-        stamp = s
+        if (fileStamp() == stamp) return
         load()
     }
 
@@ -86,9 +87,11 @@ class StudyStore(private val context: Context) {
         topics = emptyList()
         sessions = emptyList()
         active = null
-        if (!file.exists()) return
+        val text = EncryptedStore.readText(file) // also encrypts an old plain-text file
+        stamp = fileStamp()
+        if (text == null) return
         runCatching {
-            val json = JSONObject(file.readText())
+            val json = JSONObject(text)
             topics = json.optJSONArray("topics").objects().map { StudyTopic(it.getString("name"), it.optInt("goal", 0), it.optLong("created")) }
             sessions = json.optJSONArray("sessions").objects().map {
                 StudySession(it.getString("id"), it.getString("topic"), it.getLong("start"), it.getInt("minutes"), it.optString("note"))
@@ -107,10 +110,8 @@ class StudyStore(private val context: Context) {
                 JSONArray(sessions.map { JSONObject().put("id", it.id).put("topic", it.topic).put("start", it.start).put("minutes", it.minutes).put("note", it.noteId) })
             )
         active?.let { (topic, start) -> json.put("active", JSONObject().put("topic", topic).put("start", start)) }
-        val tmp = File(file.parentFile, "study.json.tmp")
-        tmp.writeText(json.toString())
-        tmp.renameTo(file)
-        stamp = file.lastModified() * 31 + file.length()
+        EncryptedStore.writeText(file, json.toString())
+        stamp = fileStamp()
     }
 
     fun topic(name: String): StudyTopic? {

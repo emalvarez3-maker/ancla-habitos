@@ -277,7 +277,7 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
                             android.util.Log.w("AnclaVoice", "chat model busy, switching to $model")
                         }
                         lowThinking && e.kind == AgentException.Kind.OTHER && e.message.orEmpty().startsWith("HTTP 400") -> {
-                            android.util.Log.w("AnclaVoice", "thinkingLevel rejected: ${e.message?.take(200)}")
+                            android.util.Log.w("AnclaVoice", "thinkingLevel rejected")
                             lowThinking = false
                         }
                         else -> throw e

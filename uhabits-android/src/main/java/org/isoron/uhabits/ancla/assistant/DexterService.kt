@@ -229,7 +229,7 @@ class DexterService : Service() {
                 if (gen != turn) return@post
                 lastReply = reply.toString().trim()
                 if (failure != null) {
-                    Log.w(TAG, "service turn failed: ${failure.message}")
+                    Log.w(TAG, "service turn failed: ${failure.javaClass.simpleName}")
                     speaker.stop()
                     endConversation(getString(R.string.voice_failed))
                 } else {

@@ -28,6 +28,9 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
 
+    <!-- Backups go through HabitsBackupAgent, which copies only Loop's preferences and habit
+         database. Notes, study, Dexter's memory and API keys are never backed up, and they are
+         encrypted with a Keystore key that never leaves this phone (see ancla/EncryptedStore). -->
     <application
         android:name=".HabitsApplication"
         android:allowBackup="true"

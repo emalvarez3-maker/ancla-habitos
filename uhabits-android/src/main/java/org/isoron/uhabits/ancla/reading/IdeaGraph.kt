@@ -20,6 +20,7 @@
 package org.isoron.uhabits.ancla.reading
 
 import android.content.Context
+import org.isoron.uhabits.ancla.EncryptedStore
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -48,7 +49,8 @@ data class IdeaLink(val from: String, val to: String, val relation: String, val 
 
 /**
  * The user's notes, Obsidian-style but inside Ancla: Markdown notes with [[wikilinks]], backlinks,
- * labeled connections, a daily journal and a graph, kept as a JSON file in private storage.
+ * labeled connections, a daily journal and a graph, kept as a JSON file in private storage,
+ * encrypted with [EncryptedStore].
  *
  * Several parts of the app (Dexter, studying, the screens) each hold an IdeaGraph, so every read
  * reloads the file when someone else changed it, and every change re-reads and writes it under
@@ -82,14 +84,14 @@ class IdeaGraph(context: Context) {
     private fun stamp() = if (file.exists()) file.lastModified() * 31 + file.length() else 0L
 
     private fun fresh() {
-        val s = stamp()
-        if (s == cachedStamp) return
-        cachedStamp = s
+        if (stamp() == cachedStamp) return
         cachedIdeas = emptyList()
         cachedLabeled = emptyList()
-        if (!file.exists()) return
+        val text = EncryptedStore.readText(file) // also encrypts an old plain-text file
+        cachedStamp = stamp()
+        if (text == null) return
         runCatching {
-            val json = JSONObject(file.readText())
+            val json = JSONObject(text)
             cachedIdeas = json.optJSONArray("ideas").objects().map {
                 val created = it.optLong("created")
                 Idea(
@@ -125,9 +127,7 @@ class IdeaGraph(context: Context) {
                 )
             )
             .put("links", JSONArray(labeled.map { JSONObject().put("from", it.from).put("to", it.to).put("relation", it.relation) }))
-        val tmp = File(file.parentFile, "ideas.json.tmp")
-        tmp.writeText(json.toString())
-        tmp.renameTo(file)
+        EncryptedStore.writeText(file, json.toString())
         cachedIdeas = ideas
         cachedLabeled = labeled
         cachedStamp = stamp()

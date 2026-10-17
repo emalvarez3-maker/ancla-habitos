@@ -143,7 +143,7 @@ internal class GeminiVoice(
                 Log.d(TAG, "segment ${text.length} chars synthesized in ${System.currentTimeMillis() - started} ms")
                 queue.put(Chunk.End(gen))
             } catch (e: Exception) {
-                Log.w(TAG, "Gemini TTS failed: ${e.message}")
+                Log.w(TAG, "Gemini TTS failed: ${e.javaClass.simpleName}")
                 if (gen == generation) onFailed(gen, text)
             }
         }
@@ -200,12 +200,12 @@ internal class GeminiVoice(
                         else -> 60 * 1000L
                     }
                     limitedUntil[model] = System.currentTimeMillis() + wait
-                    Log.w(TAG, "$model HTTP $code, trying another voice model: ${err.replace(Regex("\\s+"), " ").take(500)}")
+                    Log.w(TAG, "$model HTTP $code, trying another voice model") // no body: it can quote the user's text
                     return@repeat
                 }
                 if (code == 400) {
                     val err = conn.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
-                    Log.w(TAG, "TTS 400: ${err.take(300)}")
+                    Log.w(TAG, "TTS HTTP 400")
                     when {
                         useMetadata -> useMetadata = false
                         useNewVoiceShape -> useNewVoiceShape = false
