@@ -134,7 +134,8 @@ fun LibraryScreen(
     onLog: (Book, Int, Int) -> Unit,
     onAddPaper: (BookSearchResult, Boolean) -> Unit,
     onDelete: (Book) -> Unit,
-    onSearch: (String, (List<BookSearchResult>) -> Unit) -> Unit
+    onSearch: (String, (List<BookSearchResult>) -> Unit) -> Unit,
+    onIdeas: () -> Unit
 ) {
     val c = Ancla.colors
     var showAdd by remember { mutableStateOf(false) }
@@ -179,6 +180,10 @@ fun LibraryScreen(
                     Text(stringResource(R.string.library_kicker), style = MaterialTheme.typography.labelSmall, color = c.muted)
                     Text(stringResource(R.string.library_title), style = MaterialTheme.typography.displaySmall.copy(fontSize = 28.sp), color = c.ink)
                 }
+                Box(
+                    Modifier.padding(end = 8.dp).clip(RoundedCornerShape(16.dp)).background(c.lilacSoft).combinedClickableCompat(Role.Button, onIdeas)
+                        .padding(horizontal = 14.dp, vertical = 12.dp)
+                ) { Text(stringResource(R.string.library_ideas), style = MaterialTheme.typography.labelLarge, color = c.lilacInk) }
                 Box(
                     Modifier.clip(RoundedCornerShape(16.dp)).background(c.ink).combinedClickableCompat(Role.Button, { showAdd = true })
                         .padding(horizontal = 16.dp, vertical = 12.dp)

@@ -52,6 +52,11 @@ interface AgentActions {
     fun downloadBook(id: Int): String
     fun addBook(title: String, author: String?, status: String): String
     fun updateBook(title: String, status: String?, rating: Int?, remove: Boolean): String
+    fun readBookText(title: String?, chapter: Int?): String
+    fun saveIdea(title: String, note: String, source: String?, kind: String): String
+    fun linkIdeas(from: String, to: String, relation: String): String
+    fun listIdeas(query: String?): String
+    fun openIdeaMap(): String
 }
 
 /** One visible step of a turn, for the chat UI. */
@@ -84,6 +89,8 @@ fun assistantInstructions(today: String = ""): String {
         The user usually talks by voice: transcripts may contain filler words, repetitions or misheard words. Interpret the intent; if a transcript makes no sense, ask them to repeat (sarcasm allowed) instead of guessing an action.
         Call create_task only when the user clearly asks you to note or add something they have to do, and then do it right away with a clean title. Never turn a question, a chat message or a request for something else into a task.
         When the user asks you to read, narrate or play a book aloud, call read_book_aloud.
+        Summaries: when asked to summarize a book or chapter in their library, call read_book_text to work from the real text (for the whole book, combine what you know of it with the chapters they have read, and never spoil past where they are unless asked). A good summary gives the core argument or plot, the three to five key ideas with why they matter, one concrete example, and how it connects to their goals or other books. For summaries you may speak longer, up to about ten sentences, still without lists. Then offer to save it, and save it with save_idea (kind summary) when they agree or ask.
+        Idea map: the user is building a network of connected ideas from what they read. When they share an insight, or a summary yields strong ideas, save them with save_idea and call list_ideas to find related ideas on the map; connect real relationships with link_ideas (label like "explica", "contradice", "es un ejemplo de", "se aplica a"), and point out surprising cross-book connections, which is where you shine. Call open_idea_map when they want to see it.
         Library: you organize the user's books with add_book and update_book (lists: want, reading, finished; ratings; removal). To get a book, call find_free_books and then download_book with the best match, preferring Spanish editions. Only public-domain books from Project Gutenberg can be downloaded; for books under copyright, say so plainly, add them to the want list instead and suggest a bookstore or public library. Never point the user to pirated copies.
         A snapshot of today, of their reading and of your memory is included below, so answer right away; call today_summary or reading_summary only for fresh data after you change something.
         Your replies are read aloud: sound natural and conversational, usually one to four sentences, with no lists, emoji or markdown. After acting, say what you did in plain words.
@@ -216,6 +223,63 @@ class ClaudeAgent(apiKey: String, private val actions: AgentActions) : Assistant
                     listOf("title", "status", "rating", "remove")
                 )
             )
+            .strict(true)
+            .build(),
+        BetaTool.builder()
+            .name("read_book_text")
+            .description("Get the real text of one chapter of a book in the user's library (EPUB), to summarize or discuss it. Without a chapter, returns the chapter the user is on.")
+            .inputSchema(
+                schema(
+                    mapOf(
+                        "title" to mapOf("type" to listOf("string", "null"), "description" to "Book title, or null for the book being read"),
+                        "chapter" to mapOf("type" to listOf("integer", "null"), "description" to "1-based chapter number, or null for the current one")
+                    ),
+                    listOf("title", "chapter")
+                )
+            )
+            .strict(true)
+            .build(),
+        BetaTool.builder()
+            .name("save_idea")
+            .description("Save an idea, a book summary or a quote to the user's idea map (a network of connected notes).")
+            .inputSchema(
+                schema(
+                    mapOf(
+                        "title" to mapOf("type" to "string", "description" to "Short name of the idea, 2 to 6 words"),
+                        "note" to mapOf("type" to "string", "description" to "The idea explained in a few sentences, or the summary or quote"),
+                        "source" to mapOf("type" to listOf("string", "null"), "description" to "Book or source it comes from, or null"),
+                        "kind" to mapOf("type" to "string", "enum" to listOf("idea", "summary", "quote"))
+                    ),
+                    listOf("title", "note", "source", "kind")
+                )
+            )
+            .strict(true)
+            .build(),
+        BetaTool.builder()
+            .name("link_ideas")
+            .description("Connect two ideas on the map with a short label for how they relate (e.g. \"contradice\", \"es un ejemplo de\", \"explica\").")
+            .inputSchema(
+                schema(
+                    mapOf(
+                        "from" to mapOf("type" to "string", "description" to "Title of the first idea"),
+                        "to" to mapOf("type" to "string", "description" to "Title of the second idea"),
+                        "relation" to mapOf("type" to "string", "description" to "How they relate, 1 to 4 words")
+                    ),
+                    listOf("from", "to", "relation")
+                )
+            )
+            .strict(true)
+            .build(),
+        BetaTool.builder()
+            .name("list_ideas")
+            .description("List the ideas on the user's map with their sources and connections, optionally filtered by words.")
+            .inputSchema(schema(mapOf("query" to mapOf("type" to listOf("string", "null"), "description" to "Words to filter by, or null for all")), listOf("query")))
+            .strict(true)
+            .build(),
+        BetaTool.builder()
+            .name("open_idea_map")
+            .description("Open the idea map screen so the user can see the network.")
+            .inputSchema(schema(emptyMap(), emptyList()))
             .strict(true)
             .build(),
         BetaTool.builder()

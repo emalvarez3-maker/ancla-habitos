@@ -91,7 +91,8 @@ class LibraryActivity : AppCompatActivity() {
                             val results = OpenLibrary.search(query)
                             runOnUiThread { callback(results) }
                         }.start()
-                    }
+                    },
+                    onIdeas = { startActivity(android.content.Intent(this, IdeasActivity::class.java)) }
                 )
             }
         }

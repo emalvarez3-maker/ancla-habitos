@@ -215,6 +215,16 @@
     <string name="dexter_service_waiting">Di «Oye Dexter» cuando quieras.</string>
     <string name="dexter_service_listening">Te escucho…</string>
     <string name="dexter_service_stop">Dejar de escuchar</string>
+    <string name="ideas_title">Mapa de ideas</string>
+    <string name="ideas_count">%1$d ideas · %2$d conexiones</string>
+    <string name="ideas_kind_idea">Idea</string>
+    <string name="ideas_kind_summary">Resumen</string>
+    <string name="ideas_kind_quote">Cita</string>
+    <string name="ideas_empty">Todavía no hay ideas. Pídele a Dexter el resumen de un capítulo o cuéntale algo que aprendiste, y empezará a conectarlo todo.</string>
+    <string name="ideas_ask_dexter">Dexter, encuentra conexiones</string>
+    <string name="ideas_dexter_prompt">Revisa mi mapa de ideas, encuentra las conexiones más interesantes entre lo que he leído, conéctalas y explícame la más sorprendente.</string>
+    <string name="ideas_delete">Eliminar idea</string>
+    <string name="library_ideas">Mapa de ideas</string>
     <string name="memory_title">Lo que Dexter sabe de ti</string>
     <string name="memory_empty">Todavía nada. Habla con él y lo irá aprendiendo.</string>
     <string name="memory_clear">Borrar memoria</string>

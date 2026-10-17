@@ -200,7 +200,7 @@ internal class GeminiVoice(
                         else -> 60 * 1000L
                     }
                     limitedUntil[model] = System.currentTimeMillis() + wait
-                    Log.w(TAG, "$model HTTP $code, trying another voice model")
+                    Log.w(TAG, "$model HTTP $code, trying another voice model: ${err.replace(Regex("\\s+"), " ").take(500)}")
                     return@repeat
                 }
                 if (code == 400) {
@@ -253,7 +253,7 @@ internal class GeminiVoice(
     companion object {
         private const val TAG = "AnclaVoice"
         /** Tried in order; each has its own free quota. */
-        val MODELS = listOf("gemini-3.8-flash-tts", "gemini-3.8-flash-lite-tts", "gemini-3.1-flash-tts-preview")
+        val MODELS = listOf("gemini-3.8-flash-tts", "gemini-3.8-flash-lite-tts")
         private const val SAMPLE_RATE = 24000
         private const val SLICE = 2400 // 50 ms of audio
         /** Dexter's delivery: a brilliant, sardonic doctor rather than a cheerful assistant. */

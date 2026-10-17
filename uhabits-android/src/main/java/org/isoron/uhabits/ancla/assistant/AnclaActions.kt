@@ -27,7 +27,11 @@ import org.isoron.platform.time.LocalDate
 import org.isoron.platform.time.getToday
 import org.isoron.uhabits.HabitsApplication
 import org.isoron.uhabits.ancla.TaskReminders
+import org.isoron.uhabits.ancla.reading.EpubBook
 import org.isoron.uhabits.ancla.reading.FreeBooks
+import org.isoron.uhabits.ancla.reading.IdeaGraph
+import org.isoron.uhabits.ancla.reading.IdeaKind
+import org.isoron.uhabits.ancla.reading.IdeasActivity
 import org.isoron.uhabits.ancla.reading.Library
 import org.isoron.uhabits.ancla.reading.OpenLibrary
 import org.isoron.uhabits.ancla.reading.ReaderActivity
@@ -220,6 +224,63 @@ class AnclaActions(private val context: Context) : AgentActions {
         }
     }
 
+    // --- Summaries and the idea map ---
+
+    private val ideas by lazy { IdeaGraph(context) }
+
+    override fun readBookText(title: String?, chapter: Int?): String {
+        val book = onMain {
+            val readable = books.findAll().filter { it.isEbook }
+            if (title.isNullOrBlank()) {
+                readable.firstOrNull { it.status == BookStatus.READING } ?: readable.firstOrNull()
+            } else {
+                readable.firstOrNull { normalize(it.title).contains(normalize(title)) || normalize(title).contains(normalize(it.title)) }
+            }
+        } ?: throw IllegalArgumentException("No hay un EPUB de «${title ?: "lo que lee"}» en la biblioteca; resume con lo que sabes del libro.")
+        EpubBook(library.fileOf(book)).use { epub ->
+            val current = book.location.substringBefore(':').toIntOrNull() ?: 0
+            val index = ((chapter ?: (current + 1)) - 1).coerceIn(0, epub.chapters.size - 1)
+            val text = epub.chapterText(index)
+            val clipped = if (text.length > BOOK_TEXT_CHARS) text.take(BOOK_TEXT_CHARS) + "\n[…capítulo recortado]" else text
+            return "«${book.title}», capítulo ${index + 1} de ${epub.chapters.size} (el usuario va en el ${current + 1}):\n\n$clipped"
+        }
+    }
+
+    private fun kindOf(s: String) = when (s.lowercase()) {
+        "summary" -> IdeaKind.SUMMARY
+        "quote" -> IdeaKind.QUOTE
+        else -> IdeaKind.IDEA
+    }
+
+    override fun saveIdea(title: String, note: String, source: String?, kind: String): String {
+        val idea = ideas.save(title, note, source.orEmpty(), kindOf(kind))
+        return "Idea guardada en tu mapa: «${idea.title}»"
+    }
+
+    override fun linkIdeas(from: String, to: String, relation: String): String {
+        val (a, b) = ideas.link(from, to, relation)
+            ?: throw IllegalArgumentException("No encontré una de las dos ideas. Ideas: ${ideas.ideas.joinToString { it.title }}")
+        return "Conectado: «${a.title}» → ${relation.ifBlank { "se relaciona con" }} → «${b.title}»"
+    }
+
+    override fun listIdeas(query: String?): String {
+        val words = query?.let { IdeaGraph.key(it).split(" ").filter { w -> w.length > 2 } }.orEmpty()
+        val all = ideas.ideas
+        val shown = if (words.isEmpty()) all else all.filter { i -> words.any { IdeaGraph.key(i.title + " " + i.note + " " + i.source).contains(it) } }
+        if (shown.isEmpty()) return if (all.isEmpty()) "El mapa de ideas está vacío." else "Ninguna idea coincide. Hay ${all.size} en total."
+        val byId = all.associateBy { it.id }
+        return shown.takeLast(80).joinToString("\n") { i ->
+            val linked = ideas.linksOf(i.id).mapNotNull { l -> byId[if (l.from == i.id) l.to else l.from]?.title }
+            "• ${i.title}" + (if (i.source.isNotBlank()) " (${i.source})" else "") + ": ${i.note.take(140)}" +
+                (if (linked.isNotEmpty()) " [conectada con: ${linked.joinToString()}]" else "")
+        }
+    }
+
+    override fun openIdeaMap(): String {
+        context.startActivity(Intent(context, IdeasActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        return "Abriendo tu mapa de ideas"
+    }
+
     override fun readBookAloud(title: String?): String = onMain {
         val readable = books.findAll().filter { it.file.isNotBlank() }
         val wanted = title?.let { normalize(it).removePrefix("el ").removePrefix("la ") }.orEmpty()
@@ -236,5 +297,10 @@ class AnclaActions(private val context: Context) : AgentActions {
             ReaderActivity.intent(context, book.id ?: -1, narrate = true).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         )
         "Narrando «${book.title}» desde donde lo dejaste"
+    }
+
+    private companion object {
+        /** About 3,500 words: enough for a faithful chapter summary within free-tier limits. */
+        const val BOOK_TEXT_CHARS = 20_000
     }
 }

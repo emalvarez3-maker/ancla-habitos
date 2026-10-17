@@ -86,6 +86,8 @@ class AssistantActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         controller = VoiceAgentController(this)
         showSettings.value = !controller.hasAssistantKey
+        // Opened with a request (e.g. from the idea map): send it right away.
+        intent.getStringExtra(EXTRA_PROMPT)?.takeIf { it.isNotBlank() && controller.hasAssistantKey }?.let { controller.send(it) }
         setContent {
             AnclaTheme {
                 AssistantScreen(controller, showSettings.value, onSettings = { showSettings.value = it }, onBack = { finish() })
@@ -109,6 +111,8 @@ class AssistantActivity : AppCompatActivity() {
     }
 
     companion object {
+        const val EXTRA_PROMPT = "prompt"
+
         fun intent(context: Context) = Intent(context, AssistantActivity::class.java)
     }
 }

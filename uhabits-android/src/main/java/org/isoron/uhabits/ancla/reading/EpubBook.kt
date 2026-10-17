@@ -93,6 +93,21 @@ class EpubBook(file: File) : Closeable {
 
     fun text(path: String): String? = read(path)?.toString(Charsets.UTF_8)
 
+    /** Plain text of chapter [index], paragraphs separated by blank lines. */
+    fun chapterText(index: Int): String {
+        val html = text(chapters[index]) ?: return ""
+        val body = html
+            .replace(Regex("<(script|style|head)\\b[^>]*>.*?</\\1>", setOf(RegexOption.DOT_MATCHES_ALL, RegexOption.IGNORE_CASE)), " ")
+            .replace(Regex("<(br|/p|/h[1-6]|/div|/li|/blockquote)\\b[^>]*>", RegexOption.IGNORE_CASE), "\n")
+            .replace(Regex("<[^>]+>"), "")
+        return decodeEntities(body)
+            .replace(Regex("&#(\\d+);")) { it.groupValues[1].toIntOrNull()?.let { c -> String(Character.toChars(c)) } ?: "" }
+            .replace(Regex("&#x([0-9a-fA-F]+);")) { it.groupValues[1].toIntOrNull(16)?.let { c -> String(Character.toChars(c)) } ?: "" }
+            .replace("&nbsp;", " ")
+            .lines().map { it.replace(Regex("\\s+"), " ").trim() }.filter { it.isNotEmpty() }
+            .joinToString("\n\n")
+    }
+
     override fun close() = zip.close()
 
     companion object {

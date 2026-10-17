@@ -72,6 +72,10 @@
             android:exported="false" />
 
         <activity
+            android:name=".ancla.reading.IdeasActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".ancla.reading.ReaderActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden" />

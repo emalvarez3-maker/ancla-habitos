@@ -37,6 +37,11 @@ internal fun dispatchTool(actions: AgentActions, name: String, input: JSONObject
         "read_book_aloud" -> actions.readBookAloud(opt("title")).also { onEvent(AgentEvent.Action(it)) }
         "remember" -> actions.remember(input.getString("fact"))
         "forget" -> actions.forget(input.getString("fact"))
+        "read_book_text" -> actions.readBookText(opt("title"), input.optInt("chapter", 0).takeIf { it > 0 })
+        "save_idea" -> actions.saveIdea(input.getString("title"), input.optString("note"), opt("source"), opt("kind") ?: "idea").also { onEvent(AgentEvent.Action(it)) }
+        "link_ideas" -> actions.linkIdeas(input.getString("from"), input.getString("to"), input.optString("relation")).also { onEvent(AgentEvent.Action(it)) }
+        "list_ideas" -> actions.listIdeas(opt("query"))
+        "open_idea_map" -> actions.openIdeaMap().also { onEvent(AgentEvent.Action(it)) }
         "find_free_books" -> actions.findFreeBooks(input.getString("query"))
         "download_book" -> actions.downloadBook(input.getInt("id")).also { onEvent(AgentEvent.Action(it)) }
         "add_book" -> actions.addBook(input.getString("title"), opt("author"), opt("status") ?: "want").also { onEvent(AgentEvent.Action(it)) }
@@ -158,6 +163,48 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
                         listOf("title", "remove")
                     )
                 )
+                .put(
+                    function(
+                        "read_book_text",
+                        "Get the real text of one chapter of a book in the user's library (EPUB), to summarize or discuss it. Without a chapter, returns the chapter the user is on.",
+                        JSONObject()
+                            .put("title", prop("string", "Book title, or null for the book being read", nullable = true))
+                            .put("chapter", prop("integer", "1-based chapter number, or null for the current one", nullable = true)),
+                        emptyList()
+                    )
+                )
+                .put(
+                    function(
+                        "save_idea",
+                        "Save an idea, a book summary or a quote to the user's idea map (a network of connected notes).",
+                        JSONObject()
+                            .put("title", prop("string", "Short name of the idea, 2 to 6 words"))
+                            .put("note", prop("string", "The idea explained in a few sentences, or the summary or quote"))
+                            .put("source", prop("string", "Book or source it comes from, or null", nullable = true))
+                            .put("kind", JSONObject().put("type", "string").put("enum", JSONArray(listOf("idea", "summary", "quote")))),
+                        listOf("title", "note", "kind")
+                    )
+                )
+                .put(
+                    function(
+                        "link_ideas",
+                        "Connect two ideas on the map with a short label for how they relate (e.g. \"contradice\", \"es un ejemplo de\", \"explica\").",
+                        JSONObject()
+                            .put("from", prop("string", "Title of the first idea"))
+                            .put("to", prop("string", "Title of the second idea"))
+                            .put("relation", prop("string", "How they relate, 1 to 4 words")),
+                        listOf("from", "to", "relation")
+                    )
+                )
+                .put(
+                    function(
+                        "list_ideas",
+                        "List the ideas on the user's map with their sources and connections, optionally filtered by words.",
+                        JSONObject().put("query", prop("string", "Words to filter by, or null for all", nullable = true)),
+                        emptyList()
+                    )
+                )
+                .put(function("open_idea_map", "Open the idea map screen so the user can see the network.", JSONObject(), emptyList()))
                 .put(
                     function(
                         "forget",
