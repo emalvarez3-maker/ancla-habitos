@@ -128,7 +128,8 @@ private class MathWebView(context: Context, onHeight: (Int) -> Unit, onLink: (St
     }
 
     private companion object {
-        val ASSET = Regex("^/katex/[A-Za-z0-9_-]+(/[A-Za-z0-9_-]+)*\\.(js|css|woff2)$")
+        // Path segments may contain dots ("katex.min.js") but never an empty one, so ".." can't appear.
+        val ASSET = Regex("^/katex(/[A-Za-z0-9_-]+(\\.[A-Za-z0-9_-]+)*)+\\.(js|css|woff2)$")
 
         fun empty(code: Int) = WebResourceResponse("text/plain", "utf-8", code, if (code == 404) "Not found" else "OK", null, ByteArrayInputStream(ByteArray(0)))
 
