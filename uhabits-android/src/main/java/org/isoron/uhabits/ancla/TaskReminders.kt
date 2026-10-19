@@ -26,6 +26,8 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.media.AudioAttributes
+import android.media.RingtoneManager
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -41,7 +43,11 @@ import java.time.ZonedDateTime
 
 /** Schedules and shows notifications for Ancla's day tasks. */
 object TaskReminders {
-    const val CHANNEL_ID = "ANCLA_TASKS"
+    /** Reminders ring like an alarm (alarm sound and volume, heard on vibrate too). */
+    const val CHANNEL_ID = "ANCLA_TASK_ALARMS"
+
+    /** The old channel, with a normal notification sound that vibrate mode silenced. */
+    private const val OLD_CHANNEL_ID = "ANCLA_TASKS"
     const val ACTION_SHOW = "ec.ancla.habitos.ACTION_SHOW_TASK"
     const val ACTION_DONE = "ec.ancla.habitos.ACTION_TASK_DONE"
     const val EXTRA_TASK_ID = "taskId"
@@ -63,15 +69,15 @@ object TaskReminders {
         return PendingIntent.getBroadcast(context, code, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
     }
 
-    /** Schedules [task]'s reminder, or cancels it when it no longer needs one. */
-    fun sync(context: Context, task: DayTask) {
-        val id = task.id ?: return
+    /** Schedules [task]'s reminder, or cancels it when it no longer needs one. True when one is scheduled. */
+    fun sync(context: Context, task: DayTask): Boolean {
+        val id = task.id ?: return false
         val alarms = context.getSystemService(AlarmManager::class.java)
         val pi = pending(context, ACTION_SHOW, id)
         val at = triggerMillis(task)
         if (!task.remind || task.isDone || at == null || at <= System.currentTimeMillis()) {
             alarms.cancel(pi)
-            return
+            return false
         }
         val exact = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarms.canScheduleExactAlarms()
         if (exact) {
@@ -80,6 +86,15 @@ object TaskReminders {
             alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
         }
         Log.d(TAG, "scheduled task=$id at=$at exact=$exact")
+        return true
+    }
+
+    /** Whether a reminder will actually be seen and heard: notifications allowed, channel not muted. */
+    fun canNotify(context: Context): Boolean {
+        val manager = NotificationManagerCompat.from(context)
+        if (!manager.areNotificationsEnabled()) return false
+        val channel = context.getSystemService(NotificationManager::class.java).getNotificationChannel(CHANNEL_ID)
+        return channel == null || channel.importance != NotificationManager.IMPORTANCE_NONE
     }
 
     fun cancel(context: Context, taskId: Long) {
@@ -94,8 +109,21 @@ object TaskReminders {
     private fun notificationId(taskId: Long) = 0x7A5C0000 + (taskId % 0xFFFF).toInt()
 
     private fun ensureChannel(context: Context) {
-        val channel = NotificationChannel(CHANNEL_ID, context.getString(R.string.task_channel_name), NotificationManager.IMPORTANCE_HIGH)
-        context.getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+        val manager = context.getSystemService(NotificationManager::class.java)
+        if (manager.getNotificationChannel(CHANNEL_ID) != null) return
+        val channel = NotificationChannel(CHANNEL_ID, context.getString(R.string.task_channel_name), NotificationManager.IMPORTANCE_HIGH).apply {
+            setSound(
+                RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM) ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION),
+                AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ALARM).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
+            )
+            enableVibration(true)
+            vibrationPattern = longArrayOf(0, 600, 300, 600, 300, 600)
+            // Do Not Disturb lets alarms through by default; this asks for the same.
+            setBypassDnd(true)
+            lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+        }
+        manager.createNotificationChannel(channel)
+        manager.deleteNotificationChannel(OLD_CHANNEL_ID)
     }
 
     fun show(context: Context, task: DayTask) {
@@ -113,7 +141,7 @@ object TaskReminders {
             .setContentTitle(task.title)
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
-            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setContentIntent(open)
             .setAutoCancel(true)

@@ -76,22 +76,42 @@ class AnclaActions(private val context: Context) : AgentActions {
         .replace(Regex("\\p{M}"), "").replace(Regex("[^a-z0-9 ]"), " ").trim()
 
     override fun createTask(title: String, date: String?, time: String?, remind: Boolean): String = onMain {
-        val day = date?.let { d ->
+        val given = date?.let { d ->
             val p = d.split("-").mapNotNull { it.toIntOrNull() }
             if (p.size == 3) LocalDate(p[0], p[1], p[2]) else null
-        } ?: getToday()
+        }
         val minute = time?.let { t ->
             val p = t.split(":").mapNotNull { it.toIntOrNull() }
             if (p.size == 2 && p[0] in 0..23 && p[1] in 0..59) p[0] * 60 + p[1] else null
         }
+        val today = getToday()
+        var day = given ?: today
+        // "A las 9:30" said after 9:30 means tomorrow: without this the alarm was dropped silently.
+        var movedToTomorrow = false
+        if (given == null && minute != null && remind) {
+            val draft = DayTask(title = title, day = day, minuteOfDay = minute, remind = true)
+            if ((TaskReminders.triggerMillis(draft) ?: 0) <= System.currentTimeMillis()) {
+                day = day.plus(1)
+                movedToTomorrow = true
+            }
+        }
         val task = DayTask(title = title.trim(), day = day, minuteOfDay = minute, remind = remind && minute != null)
         val saved = task.copy(id = tasks.insert(task))
-        TaskReminders.sync(context, saved)
+        val scheduled = TaskReminders.sync(context, saved)
         buildString {
             append("Tarea creada: «${saved.title}»")
-            if (day != getToday()) append(" para el $date")
+            if (day != today) append(" para el ${"%04d-%02d-%02d".format(day.year, day.month, day.day)}")
+            if (movedToTomorrow) append(" (mañana: hoy esa hora ya pasó)")
             if (minute != null) append(" a las ${"%02d:%02d".format(minute / 60, minute % 60)}")
-            if (saved.remind) append(", con recordatorio")
+            when {
+                !saved.remind -> Unit
+                !scheduled -> append(". SIN recordatorio: esa fecha y hora ya pasaron; díselo al usuario y pregúntale para cuándo lo quiere")
+                !TaskReminders.canNotify(context) -> append(
+                    ". Recordatorio programado, PERO las notificaciones de Dexter están desactivadas: no se verá ni sonará. " +
+                        "Díselo al usuario y pídele que las active en Dexter → Ajustes → Control del teléfono → Notificaciones"
+                )
+                else -> append(", con recordatorio que suena como alarma")
+            }
         }
     }
 
