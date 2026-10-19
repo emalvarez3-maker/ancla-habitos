@@ -81,6 +81,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
 import org.isoron.uhabits.R
 import org.isoron.uhabits.ancla.ui.Ancla
+import org.isoron.uhabits.ancla.ui.DexterOwl
+import org.isoron.uhabits.ancla.ui.OwlState
 import org.isoron.uhabits.ancla.ui.combinedClickableCompat
 
 data class AgentTurn(val heard: String, val reply: String, val actions: List<String>)
@@ -466,6 +468,20 @@ fun MicButton(controller: VoiceAgentController, modifier: Modifier = Modifier, s
 private const val HOLD_MS = 250L
 private const val DOUBLE_TAP_MS = 300L
 
+/** Dexter's face for what the controller is doing right now. */
+val VoiceAgentController.owlState: OwlState
+    get() = when {
+        dictation.value is DictationState.Listening -> OwlState.LISTENING
+        thinking.value || dictation.value is DictationState.Transcribing -> OwlState.THINKING
+        speaking.value -> OwlState.SPEAKING
+        quiet.value -> OwlState.SLEEPING
+        else -> OwlState.IDLE
+    }
+
+/** Mic loudness while listening (0..1), for the owl's ring. */
+val VoiceAgentController.owlLevel: Float
+    get() = (dictation.value as? DictationState.Listening)?.level ?: 0f
+
 /** Floating pill shown while recording, transcribing or thinking. */
 @Composable
 fun DictationPill(controller: VoiceAgentController, modifier: Modifier = Modifier) {
@@ -492,7 +508,7 @@ fun DictationPill(controller: VoiceAgentController, modifier: Modifier = Modifie
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Box(Modifier.size(10.dp).clip(CircleShape).background(if (state is DictationState.Listening) Color(0xFFFF6B5E) else c.lilac))
+                DexterOwl(controller.owlState, Modifier.size(30.dp), controller.owlLevel)
                 val label = when {
                     state is DictationState.Listening && state.mode == DictationMode.HOLD -> stringResource(R.string.voice_pill_hold)
                     state is DictationState.Listening && state.mode == DictationMode.CONVERSATION -> stringResource(R.string.voice_pill_conversation)

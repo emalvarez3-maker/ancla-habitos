@@ -71,12 +71,10 @@ import androidx.compose.ui.unit.sp
 import org.isoron.uhabits.R
 import org.isoron.uhabits.ancla.ui.Ancla
 import org.isoron.uhabits.ancla.ui.AnclaTheme
-import org.isoron.uhabits.ancla.ui.Brote
-import org.isoron.uhabits.ancla.ui.BroteMood
-import org.isoron.uhabits.ancla.ui.BroteStage
+import org.isoron.uhabits.ancla.ui.DexterOwl
 import org.isoron.uhabits.ancla.ui.combinedClickableCompat
 
-/** Chat with Brote, the Claude-powered assistant, by voice or text. */
+/** Chat with Dexter, the grumpy owl assistant, by voice or text. */
 class AssistantActivity : AppCompatActivity() {
     private lateinit var controller: VoiceAgentController
     private val showSettings = mutableStateOf(false)
@@ -144,12 +142,7 @@ private fun AssistantScreen(controller: VoiceAgentController, settingsOpen: Bool
             Box(Modifier.size(44.dp).clip(CircleShape).combinedClickableCompat(Role.Button, onBack), contentAlignment = Alignment.Center) {
                 Text("‹", style = MaterialTheme.typography.titleLarge.copy(fontSize = 26.sp), color = c.ink)
             }
-            Brote(
-                mood = if (controller.thinking.value) BroteMood.CALM else BroteMood.HAPPY,
-                stage = BroteStage.SPROUT,
-                hopKey = turns.size,
-                modifier = Modifier.size(44.dp)
-            )
+            DexterOwl(controller.owlState, Modifier.size(44.dp), controller.owlLevel)
             Column(Modifier.weight(1f).padding(start = 8.dp)) {
                 Text(stringResource(R.string.assistant_title), style = MaterialTheme.typography.titleLarge, color = c.ink)
                 Text(stringResource(R.string.assistant_subtitle), style = MaterialTheme.typography.labelMedium, color = c.muted)
@@ -175,6 +168,14 @@ private fun AssistantScreen(controller: VoiceAgentController, settingsOpen: Bool
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+            // Before the first message, Dexter himself greets the user, large and animated.
+            if (turns.isEmpty()) {
+                item {
+                    Box(Modifier.fillMaxWidth().padding(top = 8.dp), contentAlignment = Alignment.Center) {
+                        DexterOwl(controller.owlState, Modifier.size(140.dp), controller.owlLevel)
+                    }
+                }
+            }
             item {
                 Bubble(stringResource(R.string.assistant_welcome), mine = false)
             }
