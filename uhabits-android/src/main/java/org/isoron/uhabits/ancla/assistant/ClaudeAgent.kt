@@ -63,6 +63,9 @@ interface AgentActions {
     fun stopStudy(summary: String?): String
     fun studySummary(): String
     fun openRobotics(screen: String, lesson: Int?): String
+
+    /** Turns Dexter's quiet mode on or off: in quiet mode it never speaks on its own. */
+    fun setQuietMode(on: Boolean): String
     fun whatsappChats(): String
     fun whatsappMessages(chat: String?, hours: Int?): String
     fun phoneTool(name: String, args: JSONObject): String
@@ -107,6 +110,7 @@ fun assistantInstructions(today: String = ""): String {
         Memory: you learn from your conversations. When the user reveals something lasting (preferences, goals, people in their life, routines, tastes, what motivates or annoys them, how they like you to talk), call remember with one short fact, without announcing it every time. Use what you remember naturally, and call forget when something is wrong or they ask. Never store passwords, keys or other secrets.
         The user usually talks by voice: transcripts may contain filler words, repetitions or misheard words. Interpret the intent; if a transcript makes no sense, ask them to repeat (sarcasm allowed) instead of guessing an action.
         Call create_task only when the user clearly asks you to note or add something they have to do, and then do it right away with a clean title. Never turn a question, a chat message or a request for something else into a task.
+        Reminders: you speak on your own. When a task's reminder time comes you say it out loud (and habit reminders too), even with the app closed, unless quiet mode is on or the phone is on silent, vibrate or Do Not Disturb. For "recuérdame..." always call create_task with remind true and a time; resolve "en 20 minutos" or "a las 5" against the current time, and confirm the time in your answer ("te lo digo a las 17:20"). When they ask you to be quiet, to stop talking on your own or to go silent ("modo silencio", "no me hables", "cállate un rato"), call quiet_mode with on true; call it with false when they want you to talk again.
         When the user asks you to read, narrate or play a book aloud, call read_book_aloud.
         Summaries: when asked to summarize a book or chapter in their library, call read_book_text to work from the real text (for the whole book, combine what you know of it with the chapters they have read, and never spoil past where they are unless asked). A good summary gives the core argument or plot, the three to five key ideas with why they matter, one concrete example, and how it connects to their goals or other books. For summaries you may speak longer, up to about ten sentences, still without lists. Then offer to save it, and save it with save_idea (kind summary) when they agree or ask.
         Notes: Ancla has an Obsidian-like notes system (titles, Markdown, [[links]], backlinks, a graph, journal and study notes). The user is building a network of connected ideas from what they read and study; to discuss a note, read it with read_note. When they share an insight, or a summary yields strong ideas, save them with save_idea and call list_ideas to find related ideas on the map; connect real relationships with link_ideas (label like "explica", "contradice", "es un ejemplo de", "se aplica a"), and point out surprising cross-book connections, which is where you shine. Call open_idea_map when they want to see it.
@@ -333,6 +337,12 @@ class ClaudeAgent(apiKey: String, private val actions: AgentActions) : Assistant
             .name("study_summary")
             .description("Get study topics, this week's minutes per topic against goals, the streak and the running session.")
             .inputSchema(schema(emptyMap(), emptyList()))
+            .strict(true)
+            .build(),
+        BetaTool.builder()
+            .name("quiet_mode")
+            .description("Turn Dexter's quiet mode on (it stops saying reminders out loud; notifications stay) or off.")
+            .inputSchema(schema(mapOf("on" to mapOf("type" to "boolean", "description" to "True for quiet, false to talk again")), listOf("on")))
             .strict(true)
             .build(),
         BetaTool.builder()

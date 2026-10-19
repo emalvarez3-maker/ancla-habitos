@@ -116,6 +116,11 @@ class SecureKeys(context: Context) {
         get() = prefs.getBoolean("conversation", false)
         set(v) = prefs.edit().putBoolean("conversation", v).apply()
 
+    /** Quiet mode: Dexter never speaks on its own (reminders stay as silent notifications). */
+    var quietMode: Boolean
+        get() = prefs.getBoolean("quiet_mode", false)
+        set(v) = prefs.edit().putBoolean("quiet_mode", v).apply()
+
     /** In a conversation, talking over Dexter interrupts it (Claude-style barge-in). */
     var bargeIn: Boolean
         get() = prefs.getBoolean("barge_in", true)

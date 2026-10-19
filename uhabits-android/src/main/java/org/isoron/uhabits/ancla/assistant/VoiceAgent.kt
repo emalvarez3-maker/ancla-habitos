@@ -234,6 +234,14 @@ class VoiceAgentController(private val activity: ComponentActivity, private val 
         updateBargeIn()
     }
 
+    /** Quiet mode: Dexter never speaks on its own (reminders stay silent notifications). */
+    val quiet = mutableStateOf(keys.quietMode)
+
+    fun setQuiet(on: Boolean) {
+        quiet.value = on
+        keys.quietMode = on
+    }
+
     fun setBargeIn(on: Boolean) {
         bargeIn.value = on
         keys.bargeIn = on
@@ -262,6 +270,7 @@ class VoiceAgentController(private val activity: ComponentActivity, private val 
 
     fun onResume() {
         resumed = true
+        quiet.value = keys.quietMode
         // The app takes the microphone while it is open; the service waits.
         DexterService.appInForeground = true
         DexterService.instance?.pause()
@@ -369,6 +378,7 @@ class VoiceAgentController(private val activity: ComponentActivity, private val 
                     turns.value = turns.value + turn
                 }
                 if (failure != null) speaker.stop()
+                quiet.value = keys.quietMode // Dexter may have changed it
                 onChanged()
             }
         }.start()

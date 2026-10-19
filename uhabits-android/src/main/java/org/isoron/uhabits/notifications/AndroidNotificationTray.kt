@@ -35,6 +35,7 @@ import androidx.core.app.NotificationManagerCompat
 import me.tatarka.inject.annotations.Inject
 import org.isoron.platform.time.LocalDate
 import org.isoron.uhabits.R
+import org.isoron.uhabits.ancla.assistant.DexterAnnouncer
 import org.isoron.uhabits.core.AppScope
 import org.isoron.uhabits.core.models.Habit
 import org.isoron.uhabits.core.preferences.Preferences
@@ -51,6 +52,9 @@ class AndroidNotificationTray(
     private val ringtoneManager: RingtoneManager
 ) : NotificationTray.SystemTray {
     private var active = HashSet<Int>()
+
+    /** The reminder time Dexter last spoke per notification, so a reminder shown again isn't repeated. */
+    private val spoken = HashMap<Int, Long>()
 
     override fun log(msg: String) {
         Log.d("AndroidNotificationTray", msg)
@@ -69,6 +73,8 @@ class AndroidNotificationTray(
         reminderTime: Long
     ) {
         val notificationManager = NotificationManagerCompat.from(context)
+        // Only a new reminder is spoken, not one shown again (after a theme change, for instance).
+        val isNew = spoken.put(notificationId, reminderTime) != reminderTime
         val notification = buildNotification(habit, reminderTime, date)
         createAndroidNotificationChannel(context)
         try {
@@ -88,6 +94,7 @@ class AndroidNotificationTray(
             notificationManager.notify(notificationId, n)
         }
         active.add(notificationId)
+        if (isNew) DexterAnnouncer.announce(context, DexterAnnouncer.habitText(habit.name))
     }
 
     fun buildNotification(

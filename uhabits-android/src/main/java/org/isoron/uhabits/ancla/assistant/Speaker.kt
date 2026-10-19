@@ -75,10 +75,15 @@ class Speaker(
         }
     )
 
+    /** Sentences that arrived before the phone's voice finished starting (a cold service). */
+    private val waiting = mutableListOf<String>()
+
     private val tts: TextToSpeech = TextToSpeech(context.applicationContext) { status ->
         if (status == TextToSpeech.SUCCESS) {
             ready = true
             configure()
+            waiting.forEach { tts.speak(it, TextToSpeech.QUEUE_ADD, null, "brote-${counter++}") }
+            waiting.clear()
         }
     }
 
@@ -165,6 +170,7 @@ class Speaker(
     fun stop() {
         buffer.clear()
         cloudText.clear()
+        waiting.clear()
         cloudStarted = false
         pending.set(0)
         onDone = null
@@ -225,7 +231,11 @@ class Speaker(
     }
 
     private fun speakLocal(text: String) {
-        if (!ready) return
+        if (!ready) {
+            pending.incrementAndGet()
+            waiting.add(text)
+            return
+        }
         pending.incrementAndGet()
         tts.speak(text, TextToSpeech.QUEUE_ADD, null, "brote-${counter++}")
     }

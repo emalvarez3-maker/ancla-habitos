@@ -341,6 +341,12 @@ class AnclaActions(private val context: Context) : AgentActions {
 
     override fun studySummary(): String = study.describe()
 
+    override fun setQuietMode(on: Boolean): String {
+        SecureKeys(context).quietMode = on
+        return if (on) "Modo silencio activado: no diré nada por mi cuenta, los recordatorios llegan solo como notificación"
+        else "Modo silencio desactivado: te diré los recordatorios en voz alta"
+    }
+
     override fun openRobotics(screen: String, lesson: Int?): String {
         val lessons = RoboticsCourse.lessons(context)
         val wanted = lesson?.let { n -> lessons.firstOrNull { it.number == n } }

@@ -205,6 +205,9 @@
     <string name="voice_toggle_speak">Voice</string>
     <string name="voice_toggle_jarvis">Conversation</string>
     <string name="voice_toggle_barge_in">Interrupt by talking</string>
+    <string name="voice_toggle_quiet">Quiet mode</string>
+    <string name="dexter_announce_channel">Dexter speaking</string>
+    <string name="dexter_announce_speaking">Dexter is saying a reminder</string>
     <string name="voice_toggle_wake">Hey Dexter</string>
     <string name="keys_phone_voice">Backup voice</string>
     <string name="keys_phone_voice_note">Used by the phone when Gemini does not answer or the quota runs out. Tap each one and pick a male voice.</string>

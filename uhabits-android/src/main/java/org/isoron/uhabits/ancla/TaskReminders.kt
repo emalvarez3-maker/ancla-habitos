@@ -33,6 +33,7 @@ import androidx.core.app.NotificationManagerCompat
 import org.isoron.platform.time.getToday
 import org.isoron.uhabits.HabitsApplication
 import org.isoron.uhabits.R
+import org.isoron.uhabits.ancla.assistant.DexterAnnouncer
 import org.isoron.uhabits.core.database.TaskRepository
 import org.isoron.uhabits.core.models.DayTask
 import java.time.ZoneId
@@ -123,6 +124,8 @@ object TaskReminders {
         } catch (e: SecurityException) {
             Log.w(TAG, "notification permission missing", e)
         }
+        // And Dexter says it out loud, unless it is in quiet mode or the phone is silenced.
+        DexterAnnouncer.announce(context, DexterAnnouncer.taskText(task.title))
     }
 }
 

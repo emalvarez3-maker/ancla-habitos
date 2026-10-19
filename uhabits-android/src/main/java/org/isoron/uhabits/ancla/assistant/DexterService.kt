@@ -258,6 +258,16 @@ class DexterService : Service() {
         }.start()
     }
 
+    /** A reminder said out loud with the service's voice; skipped while the user is talking to Dexter. */
+    fun announce(text: String) {
+        if (inConversation) return
+        stopWake() // the wake word would hear Dexter's own voice
+        val gen = ++turn
+        speaker.begin { if (gen == turn && !inConversation) startWake() }
+        speaker.append(text)
+        speaker.finish()
+    }
+
     private fun endConversation(message: String? = null) {
         inConversation = false
         interrupter.stop()

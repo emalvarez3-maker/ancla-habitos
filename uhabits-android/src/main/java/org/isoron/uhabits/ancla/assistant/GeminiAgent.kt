@@ -27,7 +27,8 @@ import java.net.URL
 
 /** Runs one of Ancla's tools for any provider; returns the result text and whether it failed. */
 internal fun dispatchTool(actions: AgentActions, name: String, input: JSONObject, onEvent: (AgentEvent) -> Unit): Pair<String, Boolean> = try {
-    if (name !in PhoneSafety.WHILE_LOCKED && actions.deviceLocked()) {
+    // Quiet mode only silences or un-silences Dexter: harmless with the phone locked.
+    if (name !in PhoneSafety.WHILE_LOCKED && name != "quiet_mode" && actions.deviceLocked()) {
         throw IllegalStateException("El teléfono está bloqueado: para eso hay que desbloquearlo. No reveles nada personal.")
     }
     fun opt(key: String) = input.optString(key).takeIf { it.isNotBlank() && it != "null" }
@@ -53,6 +54,7 @@ internal fun dispatchTool(actions: AgentActions, name: String, input: JSONObject
         in PhoneTools.NAMES -> actions.phoneTool(name, input).also { if (PhoneTools.changesSomething(name)) onEvent(AgentEvent.Action(it)) }
         "whatsapp_chats" -> actions.whatsappChats()
         "whatsapp_messages" -> actions.whatsappMessages(opt("chat"), input.optInt("hours", 0).takeIf { it > 0 })
+        "quiet_mode" -> actions.setQuietMode(input.optBoolean("on", true)).also { onEvent(AgentEvent.Action(it)) }
         "open_robotics_lesson" -> actions.openRobotics(opt("screen") ?: "course", input.optInt("lesson", 0).takeIf { it > 0 }).also { onEvent(AgentEvent.Action(it)) }
         "find_free_books" -> actions.findFreeBooks(input.getString("query"))
         "download_book" -> actions.downloadBook(input.getInt("id")).also { onEvent(AgentEvent.Action(it)) }
@@ -220,6 +222,14 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
                 .put(function("read_note", "Read the full text of one of the user's notes, with the notes that link to it.", JSONObject().put("title", prop("string", "Note title")), listOf("title")))
                 .put(function("start_study", "Start the study timer for a topic (created if new). A session already running is saved first.", JSONObject().put("topic", prop("string", "Topic to study, short")), listOf("topic")))
                 .put(function("stop_study", "Finish the running study session and save it with its note.", JSONObject().put("summary", prop("string", "What was studied or learned, if the user said it, or null", nullable = true)), emptyList()))
+                .put(
+                    function(
+                        "quiet_mode",
+                        "Turn Dexter's quiet mode on (it stops saying reminders out loud; notifications stay) or off.",
+                        JSONObject().put("on", prop("boolean", "True for quiet, false to talk again")),
+                        listOf("on")
+                    )
+                )
                 .put(
                     function(
                         "open_robotics_lesson",
