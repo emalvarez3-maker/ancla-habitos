@@ -45,6 +45,10 @@ object DatabaseCipher {
 
     @Volatile private var loaded = false
 
+    /** Why the last conversion failed (exception and SQLite message, never the key), for logs and tests. */
+    @Volatile var lastMigrationError: String? = null
+        private set
+
     /** The passphrase of the open database, or null while it is still plain text. */
     @Volatile var current: String? = null
         private set
@@ -127,6 +131,7 @@ object DatabaseCipher {
     fun migrate(file: File, key: String): Boolean {
         val tmp = File(file.path + ".encrypting")
         tmp.delete()
+        lastMigrationError = null
         return try {
             val (counts, version) = SQLiteDatabase.openDatabase(file.path, "", null, SQLiteDatabase.OPEN_READWRITE, null, null).use { plain ->
                 val counts = tableCounts(plain)
@@ -148,7 +153,9 @@ object DatabaseCipher {
             Log.i(TAG, "database encrypted (${counts.size} tables)")
             true
         } catch (e: Exception) {
-            Log.w(TAG, "could not encrypt the database yet: ${e.javaClass.simpleName}")
+            // SQLite messages name tables and statements, never rows; the key is cut out anyway.
+            lastMigrationError = "${e.javaClass.simpleName}: ${e.message.orEmpty().replace(key, "<key>")}".take(300)
+            Log.w(TAG, "could not encrypt the database yet: $lastMigrationError")
             tmp.delete()
             false
         }

@@ -91,8 +91,9 @@ class DatabaseEncryptionTest {
     fun aPlainDatabaseIsConvertedWithEveryRowAndItsVersion() {
         val file = plainDatabase("migrate-test.db", 500)
         val key = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-        assertTrue(DatabaseCipher.isPlaintext(file))
-        assertTrue(DatabaseCipher.migrate(file, key))
+        assertTrue("the test database must start plain", DatabaseCipher.isPlaintext(file))
+        val migrated = DatabaseCipher.migrate(file, key)
+        assertTrue("conversion failed: ${DatabaseCipher.lastMigrationError}", migrated)
         assertFalse(DatabaseCipher.isPlaintext(file))
         assertFalse(String(file.readBytes(), Charsets.ISO_8859_1).contains("Hábito secreto"))
         SQLiteDatabase.openDatabase(file.path, key, null, SQLiteDatabase.OPEN_READWRITE, null, null).use { db ->
