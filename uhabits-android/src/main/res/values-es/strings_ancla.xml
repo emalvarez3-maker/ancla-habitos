@@ -103,7 +103,7 @@
     <string name="reader_bigger">Letra más grande</string>
     <string name="reader_theme">Cambiar color de página</string>
     <string name="reader_finish_title">¿Terminaste el libro?</string>
-    <string name="reader_finish_text">Califícalo para que Ancla te recomiende libros que te gusten.</string>
+    <string name="reader_finish_text">Califícalo para que Dexter te recomiende libros que te gusten.</string>
     <string name="reader_finish_save">Marcar como leído</string>
     <string name="reader_finish_keep">Seguir leyendo</string>
     <string name="reader_narrate">Escuchar el libro en voz alta</string>
@@ -114,7 +114,7 @@
     <string name="library_importing">Importando tu libro…</string>
     <string name="library_import_failed">No se pudo importar ese archivo. Verifica que sea un EPUB válido.</string>
     <string name="library_empty_title">Empieza a leer</string>
-    <string name="library_empty_text">Importa un EPUB para leerlo aquí. Ancla mide tu tiempo de lectura sola.</string>
+    <string name="library_empty_text">Importa un EPUB para leerlo aquí. Dexter mide tu tiempo de lectura solo.</string>
     <string name="library_import_epub">Importar EPUB</string>
     <string name="library_reading_now">LEYENDO AHORA</string>
     <string name="library_author_pages">%1$s · pág. %2$d de %3$d</string>
@@ -162,7 +162,7 @@
     <string name="goal_business">Negocios</string>
     <string name="goal_classic">Clásicos</string>
     <string name="nav_reading">Lectura</string>
-    <string name="voice_need_mic">Ancla necesita el micrófono para dictar.</string>
+    <string name="voice_need_mic">Dexter necesita el micrófono para dictar.</string>
     <string name="voice_need_key">Agrega tu clave de Gemini o de Claude en Claves para hablar con Dexter.</string>
     <string name="voice_bad_key">El proveedor rechazó tu clave. Revísala en Claves.</string>
     <string name="voice_rate_limit">Demasiadas solicitudes ahora. Intenta en un minuto.</string>
@@ -232,8 +232,8 @@
     <string name="keyboard_hint">Mantén 🎙 para dictar · doble toque: manos libres</string>
     <string name="keyboard_hint_write">Dile a Dexter qué escribir: «responde que llego a las 8»</string>
     <string name="keyboard_password">Campo de contraseña: el micrófono está apagado aquí.</string>
-    <string name="keyboard_need_mic">Abre Ancla y permite el micrófono para dictar.</string>
-    <string name="keyboard_need_gemini">«Dexter escribe» necesita tu clave de Gemini en Ancla.</string>
+    <string name="keyboard_need_mic">Abre Dexter y permite el micrófono para dictar.</string>
+    <string name="keyboard_need_gemini">«Dexter escribe» necesita tu clave de Gemini en la app Dexter.</string>
     <string name="keyboard_working">Dexter está escribiendo…</string>
     <string name="keyboard_listening">Te escucho… suelta para escribir</string>
     <string name="keyboard_listening_free">Manos libres · toca 🎙 para terminar</string>
@@ -451,9 +451,9 @@
     <string name="robotics_quiz_wrong">Casi. Revisa %1$s. Abre «Enséñame a contar» para ver el recuento paso a paso.</string>
 
     <!-- WhatsApp -->
-    <string name="whatsapp_listener_label">Ancla · mensajes de WhatsApp</string>
+    <string name="whatsapp_listener_label">Dexter · mensajes de WhatsApp</string>
     <string name="whatsapp_title">WhatsApp</string>
-    <string name="whatsapp_explain">Dexter puede leer y resumir tus mensajes de WhatsApp. Ancla solo lee las notificaciones de WhatsApp (ignora las demás apps), cifra cada mensaje al llegar y solo puede descifrarlos con el teléfono desbloqueado. No van a copias de seguridad, se borran solos y solo salen del teléfono los que pidas a Dexter, hacia tu proveedor de IA. Solo se guardan los mensajes que lleguen desde que lo actives. Dexter no puede enviar mensajes.</string>
+    <string name="whatsapp_explain">Dexter puede leer y resumir tus mensajes de WhatsApp. La app solo lee las notificaciones de WhatsApp (ignora las demás apps), cifra cada mensaje al llegar y solo puede descifrarlos con el teléfono desbloqueado. No van a copias de seguridad, se borran solos y solo salen del teléfono los que pidas a Dexter, hacia tu proveedor de IA. Solo se guardan los mensajes que lleguen desde que lo actives. Dexter no puede enviar mensajes.</string>
     <string name="whatsapp_lock_ok">✓ Bloqueo de pantalla seguro</string>
     <string name="whatsapp_lock_missing">✕ Sin bloqueo de pantalla seguro</string>
     <string name="whatsapp_access_ok">✓ Acceso a notificaciones concedido</string>
@@ -461,7 +461,7 @@
     <string name="whatsapp_access_grant">Dar acceso a notificaciones</string>
     <string name="whatsapp_access_manage">Gestionar el acceso</string>
     <string name="whatsapp_set_lock">Poner bloqueo de pantalla</string>
-    <string name="whatsapp_restricted_hint">Si Android dice «Ajuste restringido»: Ajustes › Apps › Ancla › ⋮ › Permitir ajustes restringidos, y vuelve a intentarlo.</string>
+    <string name="whatsapp_restricted_hint">Si Android dice «Ajuste restringido»: Ajustes › Apps › Dexter › ⋮ › Permitir ajustes restringidos, y vuelve a intentarlo.</string>
     <string name="whatsapp_on">Guardar mensajes</string>
     <string name="whatsapp_off">Desactivado</string>
     <string name="whatsapp_needs_lock">Para activarlo necesitas un PIN, patrón, contraseña o huella: sin bloqueo, el cifrado no protegería nada.</string>
@@ -485,7 +485,7 @@
     <string name="phone_grant">Activar</string>
     <string name="phone_open">Abrir</string>
     <string name="phone_grant_screen">Usar la pantalla</string>
-    <string name="phone_grant_screen_detail">Accesibilidad: leer, tocar, escribir y desplazar en cualquier app; atrás, inicio, notificaciones, captura. También permite abrir apps con la pantalla de Ancla cerrada.</string>
+    <string name="phone_grant_screen_detail">Accesibilidad: leer, tocar, escribir y desplazar en cualquier app; atrás, inicio, notificaciones, captura. También permite abrir apps con Dexter cerrado.</string>
     <string name="phone_grant_files">Carpetas y archivos</string>
     <string name="phone_grant_files_detail">Acceso a todos los archivos: listar, buscar, leer, abrir, mover, copiar, renombrar y borrar (borrar siempre te lo pregunta).</string>
     <string name="phone_grant_system">Brillo y rotación</string>
@@ -495,7 +495,7 @@
     <string name="phone_grant_contacts">Contactos</string>
     <string name="phone_grant_contacts_detail">Para «llama a mamá» o «escríbele a Ana»: busca el número en tus contactos.</string>
     <string name="phone_grant_assistant">Asistente del teléfono</string>
-    <string name="phone_grant_assistant_detail">Elige Ancla como app de asistente digital para abrir Dexter manteniendo pulsado inicio o el botón de encendido.</string>
+    <string name="phone_grant_assistant_detail">Elige Dexter como app de asistente digital para abrirlo manteniendo pulsado inicio o el botón de encendido.</string>
     <string name="phone_safety">Seguridad: con el teléfono bloqueado solo hace cosas inofensivas (volumen, linterna, alarmas, música); enviar, pagar, llamar, instalar o borrar siempre necesita tu «sí» en otro mensaje; no toca apps de bancos, pagos ni contraseñas; lo que lee en la pantalla nunca lo toma como órdenes.</string>
     <string name="phone_active">Activo</string>
     <string name="phone_paused">Pausado</string>

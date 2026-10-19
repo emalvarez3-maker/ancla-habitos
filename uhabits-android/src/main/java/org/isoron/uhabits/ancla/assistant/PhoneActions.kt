@@ -64,7 +64,7 @@ class PhoneActions(private val context: Context) {
     /** Opening another app from the background needs the accessibility service (Android's rule). */
     private fun launch(intent: Intent): Boolean {
         if (!DexterService.appInForeground && !DexterAccessibility.enabled(context) && Build.VERSION.SDK_INT >= 29) {
-            throw IllegalStateException("Para abrir cosas fuera de Ancla activa «Control del teléfono» en Dexter › Claves.")
+            throw IllegalStateException("Para abrir cosas fuera de la app, activa «Control del teléfono» en Dexter › Claves.")
         }
         return try {
             context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
@@ -159,7 +159,7 @@ class PhoneActions(private val context: Context) {
         val nm = context.getSystemService(NotificationManager::class.java) ?: return "No puedo."
         if (!nm.isNotificationPolicyAccessGranted) {
             launch(Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS))
-            return "Necesito acceso a «No molestar». Te abrí la pantalla: activa Ancla y vuelve a pedírmelo."
+            return "Necesito acceso a «No molestar». Te abrí la pantalla: activa Dexter y vuelve a pedírmelo."
         }
         nm.setInterruptionFilter(if (on) NotificationManager.INTERRUPTION_FILTER_PRIORITY else NotificationManager.INTERRUPTION_FILTER_ALL)
         return if (on) "«No molestar» activado" else "«No molestar» desactivado"

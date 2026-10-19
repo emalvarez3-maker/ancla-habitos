@@ -82,7 +82,7 @@ class DexterAccessibility : AccessibilityService() {
         val pkg = root.packageName?.toString().orEmpty()
         if (PhoneSafety.isSensitiveApp(pkg)) throw Refused("Por seguridad no toco nada en apps de bancos, pagos, contraseñas, instalación de apps o permisos. Hazlo tú.")
         // Not even Ancla itself: screen text could otherwise steer Dexter into its own settings.
-        if (pkg == packageName) throw Refused("Dentro de Ancla uso mis propias herramientas, no la pantalla.")
+        if (pkg == packageName) throw Refused("Dentro de la app uso mis propias herramientas, no la pantalla.")
         return root
     }
 

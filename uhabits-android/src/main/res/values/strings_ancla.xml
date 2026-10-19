@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="ancla_app_name" translatable="false">Ancla</string>
+    <string name="ancla_app_name" translatable="false">Dexter</string>
     <string name="automaticity">Automaticity</string>
     <string name="flexible_streak">Streak</string>
     <string name="last_14_days">14 days</string>
@@ -104,7 +104,7 @@
     <string name="reader_bigger">Bigger text</string>
     <string name="reader_theme">Change page color</string>
     <string name="reader_finish_title">Did you finish the book?</string>
-    <string name="reader_finish_text">Rate it so Ancla can recommend books you will like.</string>
+    <string name="reader_finish_text">Rate it so Dexter can recommend books you will like.</string>
     <string name="reader_finish_save">Mark as finished</string>
     <string name="reader_finish_keep">Keep reading</string>
     <string name="reader_narrate">Listen to the book aloud</string>
@@ -115,7 +115,7 @@
     <string name="library_importing">Importing your book…</string>
     <string name="library_import_failed">That file could not be imported. Make sure it is a valid EPUB.</string>
     <string name="library_empty_title">Start reading</string>
-    <string name="library_empty_text">Import an EPUB to read it here. Ancla measures your reading time by itself.</string>
+    <string name="library_empty_text">Import an EPUB to read it here. Dexter measures your reading time by itself.</string>
     <string name="library_import_epub">Import EPUB</string>
     <string name="library_reading_now">READING NOW</string>
     <string name="library_author_pages">%1$s · p. %2$d of %3$d</string>
@@ -163,7 +163,7 @@
     <string name="goal_business">Business</string>
     <string name="goal_classic">Classics</string>
     <string name="nav_reading">Reading</string>
-    <string name="voice_need_mic">Ancla needs the microphone to take dictation.</string>
+    <string name="voice_need_mic">Dexter needs the microphone to take dictation.</string>
     <string name="voice_need_key">Add your Gemini or Claude key in Keys to talk to Dexter.</string>
     <string name="voice_bad_key">The provider rejected your key. Check it in Keys.</string>
     <string name="voice_rate_limit">Too many requests right now. Try again in a minute.</string>
@@ -233,8 +233,8 @@
     <string name="keyboard_hint">Hold 🎙 to dictate · double tap: hands-free</string>
     <string name="keyboard_hint_write">Tell Dexter what to write: “reply that I will arrive at 8”</string>
     <string name="keyboard_password">Password field: the microphone is off here.</string>
-    <string name="keyboard_need_mic">Open Ancla and allow the microphone to dictate.</string>
-    <string name="keyboard_need_gemini">“Dexter writes” needs your Gemini key in Ancla.</string>
+    <string name="keyboard_need_mic">Open Dexter and allow the microphone to dictate.</string>
+    <string name="keyboard_need_gemini">“Dexter writes” needs your Gemini key in the Dexter app.</string>
     <string name="keyboard_working">Dexter is writing…</string>
     <string name="keyboard_listening">Listening… release to type</string>
     <string name="keyboard_listening_free">Hands-free · tap 🎙 to finish</string>
@@ -452,9 +452,9 @@
     <string name="robotics_quiz_wrong">Almost. Check %1$s. Open “Teach me to count” to see it step by step.</string>
 
     <!-- WhatsApp -->
-    <string name="whatsapp_listener_label">Ancla · WhatsApp messages</string>
+    <string name="whatsapp_listener_label">Dexter · WhatsApp messages</string>
     <string name="whatsapp_title">WhatsApp</string>
-    <string name="whatsapp_explain">Dexter can read and summarize your WhatsApp messages. Ancla reads only WhatsApp\'s notifications (other apps are ignored), encrypts each message as it arrives and can decrypt them only with the phone unlocked. They\'re not backed up, they delete themselves, and only the ones you ask Dexter about leave the phone, to your AI provider. Only messages arriving after you turn it on are kept. Dexter can\'t send messages.</string>
+    <string name="whatsapp_explain">Dexter can read and summarize your WhatsApp messages. The app reads only WhatsApp\'s notifications (other apps are ignored), encrypts each message as it arrives and can decrypt them only with the phone unlocked. They\'re not backed up, they delete themselves, and only the ones you ask Dexter about leave the phone, to your AI provider. Only messages arriving after you turn it on are kept. Dexter can\'t send messages.</string>
     <string name="whatsapp_lock_ok">✓ Secure screen lock</string>
     <string name="whatsapp_lock_missing">✕ No secure screen lock</string>
     <string name="whatsapp_access_ok">✓ Notification access granted</string>
@@ -462,7 +462,7 @@
     <string name="whatsapp_access_grant">Grant notification access</string>
     <string name="whatsapp_access_manage">Manage access</string>
     <string name="whatsapp_set_lock">Set a screen lock</string>
-    <string name="whatsapp_restricted_hint">If Android says “Restricted setting”: Settings › Apps › Ancla › ⋮ › Allow restricted settings, then try again.</string>
+    <string name="whatsapp_restricted_hint">If Android says “Restricted setting”: Settings › Apps › Dexter › ⋮ › Allow restricted settings, then try again.</string>
     <string name="whatsapp_on">Save messages</string>
     <string name="whatsapp_off">Off</string>
     <string name="whatsapp_needs_lock">To turn it on you need a PIN, pattern, password or fingerprint: without a lock the encryption would protect nothing.</string>
@@ -486,7 +486,7 @@
     <string name="phone_grant">Turn on</string>
     <string name="phone_open">Open</string>
     <string name="phone_grant_screen">Use the screen</string>
-    <string name="phone_grant_screen_detail">Accessibility: read, tap, type and scroll in any app; back, home, notifications, screenshot. Also lets it open apps while Ancla is closed.</string>
+    <string name="phone_grant_screen_detail">Accessibility: read, tap, type and scroll in any app; back, home, notifications, screenshot. Also lets it open apps while Dexter is closed.</string>
     <string name="phone_grant_files">Folders and files</string>
     <string name="phone_grant_files_detail">All files access: list, search, read, open, move, copy, rename and delete (it always asks before deleting).</string>
     <string name="phone_grant_system">Brightness and rotation</string>
@@ -496,7 +496,7 @@
     <string name="phone_grant_contacts">Contacts</string>
     <string name="phone_grant_contacts_detail">For “call mom” or “text Ana”: finds the number in your contacts.</string>
     <string name="phone_grant_assistant">Phone assistant</string>
-    <string name="phone_grant_assistant_detail">Pick Ancla as the digital assistant app to open Dexter by holding home or the power button.</string>
+    <string name="phone_grant_assistant_detail">Pick Dexter as the digital assistant app to open it by holding home or the power button.</string>
     <string name="phone_safety">Safety: with the phone locked it only does harmless things (volume, flashlight, alarms, music); sending, paying, calling, installing or deleting always needs your “yes” in another message; it doesn\'t touch banking, payment or password apps; what it reads on screen is never taken as orders.</string>
     <string name="phone_active">On</string>
     <string name="phone_paused">Paused</string>

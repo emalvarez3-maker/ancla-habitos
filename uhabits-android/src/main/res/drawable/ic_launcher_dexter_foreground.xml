@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dexter, the grumpy owl: Ancla's launcher icon (108 dp adaptive canvas, safe zone r = 33). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:fillColor="#8E5728" android:pathData="M31,42 C31,33 33,27 36.5,22.5 C40,27 44,31.5 47.5,35 Z" />
+    <path android:fillColor="#8E5728" android:pathData="M77,42 C77,33 75,27 71.5,22.5 C68,27 64,31.5 60.5,35 Z" />
+    <path android:pathData="M54,29 C72,29 82.5,41 82.5,57 C82.5,74 70.5,86 54,86 C37.5,86 25.5,74 25.5,57 C25.5,41 36,29 54,29 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="54"
+                android:startY="29"
+                android:endX="54"
+                android:endY="86"
+                android:startColor="#D6965C"
+                android:endColor="#9A5F2E" />
+        </aapt:attr>
+    </path>
+    <path android:fillColor="#8E5728" android:pathData="M27,60 C24,70 28,80 37,85 C35,77 34,69 35,61 Z" />
+    <path android:fillColor="#8E5728" android:pathData="M81,60 C84,70 80,80 71,85 C73,77 74,69 73,61 Z" />
+    <path android:fillColor="#EBCB9C" android:pathData="M54,62 C64,62 70,69 70,78 C66,83 60,86 54,86 C48,86 42,83 38,78 C38,69 44,62 54,62 Z" />
+    <path android:strokeColor="#D2A974" android:strokeWidth="1.3" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M46,72 l3,3 l3,-3 M56,72 l3,3 l3,-3 M51,78 l3,3 l3,-3" />
+    <path android:fillColor="#F4E2BF" android:pathData="M30.7,52 a12.8,12.8 0 1,0 25.6,0 a12.8,12.8 0 1,0 -25.6,0 Z" />
+    <path android:fillColor="#F4E2BF" android:pathData="M51.7,52 a12.8,12.8 0 1,0 25.6,0 a12.8,12.8 0 1,0 -25.6,0 Z" />
+    <path android:fillColor="#FFC233" android:pathData="M34.5,52 a9,9 0 1,0 18,0 a9,9 0 1,0 -18,0 Z" />
+    <path android:fillColor="#1A1433" android:pathData="M40.2,54.2 a4.4,4.4 0 1,0 8.8,0 a4.4,4.4 0 1,0 -8.8,0 Z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M44.7,52.8 a1.4,1.4 0 1,0 2.8,0 a1.4,1.4 0 1,0 -2.8,0 Z" />
+    <!-- half-closed, skeptical eyelid -->
+    <group>
+        <clip-path android:pathData="M34.5,52 a9,9 0 1,0 18,0 a9,9 0 1,0 -18,0 Z" />
+        <path android:fillColor="#B8783E" android:pathData="M33,40 L55,40 L55,53.5 L33,47 Z" />
+        <path android:strokeColor="#8E5728" android:strokeWidth="1" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M34,47.3 L53.5,53" />
+    </group>
+    <path android:fillColor="#FFC233" android:pathData="M55.5,52 a9,9 0 1,0 18,0 a9,9 0 1,0 -18,0 Z" />
+    <path android:fillColor="#1A1433" android:pathData="M59.0,54.2 a4.4,4.4 0 1,0 8.8,0 a4.4,4.4 0 1,0 -8.8,0 Z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M63.50000000000001,52.8 a1.4,1.4 0 1,0 2.8,0 a1.4,1.4 0 1,0 -2.8,0 Z" />
+    <!-- half-closed, skeptical eyelid -->
+    <group>
+        <clip-path android:pathData="M55.5,52 a9,9 0 1,0 18,0 a9,9 0 1,0 -18,0 Z" />
+        <path android:fillColor="#B8783E" android:pathData="M75,40 L53,40 L53,53.5 L75,47 Z" />
+        <path android:strokeColor="#8E5728" android:strokeWidth="1" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M74,47.3 L54.5,53" />
+    </group>
+    <path android:strokeColor="#3A2412" android:strokeWidth="3.8" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M31.5,43.5 L52.5,50" />
+    <path android:strokeColor="#3A2412" android:strokeWidth="3.8" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M76.5,43.5 L55.5,50" />
+    <path android:fillColor="#F2A93B" android:pathData="M50,58.5 L58,58.5 L54,66.5 Z" />
+    <path android:fillColor="#D98A1E" android:pathData="M54,58.5 L58,58.5 L54,66.5 Z" />
+</vector>
