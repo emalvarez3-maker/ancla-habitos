@@ -48,13 +48,13 @@
     <string name="filter_all">Todo</string>
     <string name="filter_pending">Pendientes</string>
     <string name="filter_done">Hechos</string>
-    <string name="mascot_name">Brote</string>
+    <string name="mascot_name">Dexter</string>
     <string name="mascot_sleepy">Hoy es día clave para %1$s. Con la versión mínima me despierto.</string>
     <string name="mascot_calm">¡Buen comienzo! Cada check me hace crecer.</string>
     <string name="mascot_calm_key">Vamos bien. No olvides %1$s, aunque sea la versión mínima.</string>
     <string name="mascot_happy">¡Me siento con energía! Ya vamos por más de la mitad.</string>
     <string name="mascot_joy">¡Día completo! Crecí un poquito gracias a ti.</string>
-    <string name="mascot_empty">Hola, soy Brote. Crea tu primer hábito y creceremos juntos.</string>
+    <string name="mascot_empty">Hola, soy Dexter. Crea tu primer hábito y mi brote empezará a crecer.</string>
     <string name="today_empty_action">Crear mi primer hábito</string>
     <string name="nav_today">Hoy</string>
     <string name="nav_habits">Hábitos</string>
@@ -69,7 +69,7 @@
     <string name="task_reminder_at">Recordatorio a las %1$s</string>
     <string name="add_what">¿Qué quieres agregar?</string>
     <string name="add_habit_title">Hábito</string>
-    <string name="add_habit_sub">Algo que repites y que hace crecer a Brote</string>
+    <string name="add_habit_sub">Algo que repites y que hace crecer el brote de Dexter</string>
     <string name="add_task_title">Tarea de hoy</string>
     <string name="add_task_sub">Un pendiente puntual, con recordatorio si quieres</string>
     <string name="task_new">Nueva tarea</string>
@@ -93,7 +93,7 @@
     <string name="task_action_done">Hecho</string>
     <string name="reader_missing">Este libro ya no está en el teléfono.</string>
     <string name="reader_broken">No se pudo abrir este archivo EPUB.</string>
-    <string name="reader_finished_toast">¡Libro terminado! Brote está orgulloso de ti.</string>
+    <string name="reader_finished_toast">¡Libro terminado! Dexter está orgulloso de ti (aunque no lo admita).</string>
     <string name="reader_back">‹</string>
     <string name="reader_back_desc">Volver a la biblioteca</string>
     <string name="reader_chapter">Capítulo %1$d de %2$d</string>

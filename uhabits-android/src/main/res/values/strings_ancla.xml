@@ -49,13 +49,13 @@
     <string name="filter_all">All</string>
     <string name="filter_pending">To do</string>
     <string name="filter_done">Done</string>
-    <string name="mascot_name">Brote</string>
+    <string name="mascot_name">Dexter</string>
     <string name="mascot_sleepy">Today is a key day for %1$s. The two-minute version is enough to wake me up.</string>
     <string name="mascot_calm">Good start! Every check helps me grow.</string>
     <string name="mascot_calm_key">Going well. Don\'t forget %1$s, even the smallest version.</string>
     <string name="mascot_happy">I feel full of energy! We are past halfway.</string>
     <string name="mascot_joy">Day complete! I grew a little thanks to you.</string>
-    <string name="mascot_empty">Hi, I\'m Brote. Create your first habit and we\'ll grow together.</string>
+    <string name="mascot_empty">Hi, I\'m Dexter. Create your first habit and my sprout will start growing.</string>
     <string name="today_empty_action">Create my first habit</string>
     <string name="nav_today">Today</string>
     <string name="nav_habits">Habits</string>
@@ -70,7 +70,7 @@
     <string name="task_reminder_at">Reminder at %1$s</string>
     <string name="add_what">What do you want to add?</string>
     <string name="add_habit_title">Habit</string>
-    <string name="add_habit_sub">Something you repeat, that grows Brote</string>
+    <string name="add_habit_sub">Something you repeat, that grows Dexter\'s sprout</string>
     <string name="add_task_title">Task for today</string>
     <string name="add_task_sub">A one-off to-do, with an optional reminder</string>
     <string name="task_new">New task</string>
@@ -94,7 +94,7 @@
     <string name="task_action_done">Done</string>
     <string name="reader_missing">This book is no longer on the device.</string>
     <string name="reader_broken">This EPUB file could not be opened.</string>
-    <string name="reader_finished_toast">Book finished! Brote is proud of you.</string>
+    <string name="reader_finished_toast">Book finished! Dexter is proud of you (even if it won\'t admit it).</string>
     <string name="reader_back">‹</string>
     <string name="reader_back_desc">Back to library</string>
     <string name="reader_chapter">Chapter %1$d of %2$d</string>

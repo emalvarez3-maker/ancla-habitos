@@ -288,7 +288,8 @@ private fun MascotCard(summary: TodaySummary?, hopKey: Int, onClick: () -> Unit)
             .padding(start = 6.dp, end = 18.dp, top = 14.dp, bottom = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Brote(
+        DexterOwl(
+            state = OwlState.IDLE,
             mood = mood,
             stage = stage,
             hopKey = hopKey,

@@ -19,7 +19,10 @@
 
 package org.isoron.uhabits.ancla.ui
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
@@ -47,9 +50,11 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
+import kotlin.math.sqrt
 import kotlin.random.Random
 
 /** What Dexter is doing, for its face. SLEEPING is quiet mode. */
@@ -97,19 +102,52 @@ private val POSES = mapOf(
     OwlState.SLEEPING to Pose(lid = 1f, anger = 0f, droop = 1f, tilt = 8f)
 )
 
+/** The idle face for each mood of the Today screen; CALM is Dexter's usual grumpy look. */
+private val MOOD_POSES = mapOf(
+    BroteMood.SLEEPY to Pose(lid = 0.74f, anger = 0.2f, droop = 0.45f, tilt = 5f),
+    BroteMood.CALM to Pose(),
+    BroteMood.HAPPY to Pose(lid = 0.2f, perk = 0.4f, browL = 0.35f, browR = 0.35f, anger = 0.25f),
+    BroteMood.JOY to Pose(lid = 0.08f, perk = 1f, dilate = 0.6f, wide = 1f, browL = 0.7f, browR = 0.7f, anger = 0f)
+)
+
 /**
  * Dexter, a grumpy owl: skeptical half-lidded eyes and a permanent frown, but on the user's side.
  * It breathes, blinks and tilts its head now and then; it perks up while listening (with a ring
  * that follows the mic [level]), looks away while thinking, talks with its beak and dozes in
  * quiet mode. Drawn on a Canvas in a 100×100 box scaled to the smaller side, background left clear.
+ *
+ * On the Today screen it also does what Brote did: its idle face follows the day's [mood] (drowsy,
+ * calm, pleased with blushing cheeks and sparks, overjoyed and flapping), a sprout on its head grows
+ * with the habits' automaticity [stage] until it perches on a blooming branch, and it hops whenever
+ * [hopKey] changes. With [stage] null (Dexter's own screens) none of that is drawn.
  */
 @Composable
-fun DexterOwl(state: OwlState, modifier: Modifier = Modifier, level: Float = 0f) {
+fun DexterOwl(
+    state: OwlState,
+    modifier: Modifier = Modifier,
+    level: Float = 0f,
+    mood: BroteMood = BroteMood.CALM,
+    stage: BroteStage? = null,
+    hopKey: Int = 0,
+    description: String = "Dexter"
+) {
     val weights = OwlState.entries.associateWith { s ->
         animateFloatAsState(if (s == state) 1f else 0f, tween(380), label = "owl-$s")
     }
     val ring by animateFloatAsState(if (state == OwlState.LISTENING) 0.35f + 0.65f * level.coerceIn(0f, 1f) else 0f, tween(140), label = "owl-ring")
     val speech by rememberUpdatedState(level)
+    val moods = BroteMood.entries.associateWith { m ->
+        animateFloatAsState(if (m == mood) 1f else 0f, tween(600), label = "owl-mood-$m")
+    }
+    val hop = remember { Animatable(0f) }
+    LaunchedEffect(hopKey) {
+        if (hopKey > 0) {
+            hop.animateTo(-13f, tween(180, easing = FastOutSlowInEasing))
+            hop.animateTo(0f, spring(dampingRatio = 0.45f, stiffness = 500f))
+        }
+    }
+    val c = Ancla.colors
+    val garden = remember(c) { Garden(c.track, c.blush, c.amber, c.lilac, c.mint) }
 
     // One clock for every motion; only the Canvas reads it, so frames redraw without recomposing.
     val time = remember { mutableFloatStateOf(0f) }
@@ -119,12 +157,19 @@ fun DexterOwl(state: OwlState, modifier: Modifier = Modifier, level: Float = 0f)
     }
     val events = remember { OwlEvents() }
 
-    Canvas(modifier.semantics { contentDescription = "Dexter" }) {
+    Canvas(modifier.semantics { contentDescription = description }) {
         val t = time.floatValue
         events.update(t)
         val w = OwlState.entries.associateWith { weights.getValue(it).value }
-        fun blend(f: (Pose) -> Float) = w.entries.sumOf { (s, k) -> (f(POSES.getValue(s)) * k).toDouble() }.toFloat()
+        val m = BroteMood.entries.associateWith { moods.getValue(it).value }
+        // The idle pose is the mood's pose, so moods blend into each other and into the other states.
+        fun pose(s: OwlState, f: (Pose) -> Float) =
+            if (s == OwlState.IDLE) m.entries.sumOf { (k, v) -> (f(MOOD_POSES.getValue(k)) * v).toDouble() }.toFloat()
+            else f(POSES.getValue(s))
+        fun blend(f: (Pose) -> Float) = w.entries.sumOf { (s, k) -> (pose(s, f) * k).toDouble() }.toFloat()
         val idle = w.getValue(OwlState.IDLE)
+        val pleased = idle * (m.getValue(BroteMood.HAPPY) + m.getValue(BroteMood.JOY))
+        val joy = idle * m.getValue(BroteMood.JOY)
         val listen = w.getValue(OwlState.LISTENING)
         val think = w.getValue(OwlState.THINKING)
         val speak = w.getValue(OwlState.SPEAKING)
@@ -150,11 +195,29 @@ fun DexterOwl(state: OwlState, modifier: Modifier = Modifier, level: Float = 0f)
             lean = blend { it.lean },
             sleep = sleep,
             z = (t % 2.4f) / 2.4f,
-            ring = ring
+            ring = ring,
+            drowsy = idle * m.getValue(BroteMood.SLEEPY),
+            pleased = pleased,
+            twinkle = 0.25f + 0.75f * (0.5f + 0.5f * sin(t * PI.toFloat() / 0.8f)),
+            // Joy flaps both wings in short bursts.
+            flap = joy * abs(sin(t * 9f)) * max(0f, sin(t * 1.4f)),
+            sway = sin(t * PI.toFloat() / 1.4f),
+            stage = stage,
+            hop = hop.value,
+            garden = garden
         )
         val side = min(size.width, size.height)
         translate((size.width - side) / 2f, (size.height - side) / 2f) {
-            scale(side / 100f, side / 100f, pivot = Offset.Zero) { drawOwl(p) }
+            scale(side / 100f, side / 100f, pivot = Offset.Zero) {
+                if (p.stage != null) drawGround(p)
+                translate(0f, p.hop) { drawOwl(p) }
+                if (p.stage != null && p.pleased > 0.05f) {
+                    val a = p.pleased.coerceIn(0f, 1f)
+                    drawSpark(Offset(87f, 24f), 5.5f, garden.amber.copy(alpha = a * p.twinkle))
+                    drawSpark(Offset(13f, 38f), 4f, garden.lilac.copy(alpha = a * (1.25f - p.twinkle).coerceIn(0f, 1f)))
+                    drawSpark(Offset(91f, 48f), 3.2f, garden.mint.copy(alpha = a * p.twinkle))
+                }
+            }
         }
     }
 }
@@ -204,10 +267,15 @@ private class OwlEvents {
     }
 }
 
+/** The theme colors the Today screen's extras are drawn with. */
+private class Garden(val track: Color, val blush: Color, val amber: Color, val lilac: Color, val mint: Color)
+
 private class Face(
     val breath: Float, val blink: Float, val lid: Float, val perk: Float, val px: Float, val py: Float,
     val dilate: Float, val wide: Float, val browL: Float, val browR: Float, val anger: Float, val beak: Float,
-    val wingR: Float, val tilt: Float, val droop: Float, val lean: Float, val sleep: Float, val z: Float, val ring: Float
+    val wingR: Float, val tilt: Float, val droop: Float, val lean: Float, val sleep: Float, val z: Float, val ring: Float,
+    val drowsy: Float, val pleased: Float, val twinkle: Float, val flap: Float, val sway: Float,
+    val stage: BroteStage?, val hop: Float, val garden: Garden
 )
 
 private fun DrawScope.oval(color: Color, cx: Float, cy: Float, rx: Float, ry: Float) =
@@ -225,7 +293,7 @@ private fun DrawScope.drawOwl(p: Face) {
     val breath = 1f + p.breath * 0.02f
     scale(breath, breath, pivot = Offset(50f, 94f)) {
         for (s in listOf(-1f, 1f)) {
-            val lift = if (s > 0) p.wingR else 0f
+            val lift = (if (s > 0) p.wingR else 0f) - p.flap * 0.9f
             rotate((s * (0.25f + lift)) * 180f / PI.toFloat(), pivot = Offset(50f + s * 23f, 62f)) {
                 oval(Owl.shade, 50f + s * 23f, 71f, 7f, 16f)
             }
@@ -246,8 +314,9 @@ private fun DrawScope.drawOwl(p: Face) {
         translate(0f, p.droop * 4f - p.lean * 1.5f) { drawHead(p) }
     }
 
-    if (p.sleep > 0.05f) {
-        val a = p.sleep
+    val dozing = max(p.sleep, p.drowsy)
+    if (dozing > 0.05f) {
+        val a = dozing
         drawZ(78f, 22f - p.z * 6f, 7f, Owl.sleep.copy(alpha = a * (1f - p.z * 0.6f)))
         drawZ(87f, 13f - p.z * 4f, 4.5f, Owl.sleep.copy(alpha = a * (1f - p.z * 0.6f)))
     }
@@ -264,10 +333,16 @@ private fun DrawScope.drawHead(p: Face) {
         }
         drawPath(tuft, Owl.tuft)
     }
+    p.stage?.let { drawSprout(it, p.sway) }
     drawOval(Brush.verticalGradient(listOf(Owl.light, Owl.body), 15f, 70f), Offset(22f, 16f), Size(56f, 52f))
     // Facial disc around both eyes.
     drawCircle(Owl.disc, 13f, Offset(38.5f, 44f))
     drawCircle(Owl.disc, 13f, Offset(61.5f, 44f))
+    if (p.pleased > 0.05f) {
+        val blush = p.garden.blush.copy(alpha = 0.8f * p.pleased.coerceIn(0f, 1f))
+        oval(blush, 33f, 55f, 4.6f, 2.8f)
+        oval(blush, 67f, 55f, 4.6f, 2.8f)
+    }
 
     for (s in listOf(-1f, 1f)) {
         val ex = 50f + s * 11.5f
@@ -335,6 +410,88 @@ private fun DrawScope.drawHead(p: Face) {
         close()
     }
     drawPath(upper, Owl.beak)
+}
+
+private object Leaf {
+    val dark = Color(0xFF2FB57E)
+    val light = Color(0xFF46C793)
+    val stem = Color(0xFF239467)
+    val wood = Color(0xFF7A4A24)
+    val petal = Color(0xFFFFB4A2)
+    val bud = Color(0xFFF2A93B)
+}
+
+/** A pointed leaf from its base to its tip, swelling to one side by [bulge]. */
+private fun leaf(baseX: Float, baseY: Float, tipX: Float, tipY: Float, bulge: Float) = Path().apply {
+    val mx = (baseX + tipX) / 2f
+    val my = (baseY + tipY) / 2f
+    val len = max(0.001f, sqrt((tipX - baseX) * (tipX - baseX) + (tipY - baseY) * (tipY - baseY)))
+    val nx = -(tipY - baseY) / len
+    val ny = (tipX - baseX) / len
+    moveTo(baseX, baseY)
+    quadraticTo(mx + nx * bulge, my + ny * bulge, tipX, tipY)
+    quadraticTo(mx - nx * bulge * 0.35f, my - ny * bulge * 0.35f, baseX, baseY)
+    close()
+}
+
+/** Brote's sprout, now growing from the top of Dexter's head; it sways like Brote's leaves did. */
+private fun DrawScope.drawSprout(stage: BroteStage, sway: Float) {
+    val base = Offset(50f, 19f)
+    rotate(sway * 7f, pivot = base) {
+        when (stage) {
+            BroteStage.SEED -> {
+                drawLine(Leaf.stem, base, Offset(50f, 12f), 2.2f, StrokeCap.Round)
+                drawPath(leaf(50f, 13f, 42f, 9f, 3f), Leaf.light)
+            }
+            BroteStage.SPROUT, BroteStage.PLANT -> {
+                val big = if (stage == BroteStage.PLANT) 1.25f else 1f
+                drawLine(Leaf.stem, base, Offset(50f, 10f), 2.4f, StrokeCap.Round)
+                drawPath(leaf(50f, 11f, 50f - 11f * big, 4f - 2f * big, 3.6f * big), Leaf.dark)
+                drawPath(leaf(50f, 11f, 50f + 11f * big, 4f - 2f * big, -3.6f * big), Leaf.light)
+            }
+            BroteStage.TREE -> {
+                drawLine(Leaf.stem, base, Offset(50f, 9f), 2.4f, StrokeCap.Round)
+                drawPath(leaf(50f, 10f, 37f, 1f, 4.4f), Leaf.dark)
+                drawPath(leaf(50f, 10f, 63f, 1f, -4.4f), Leaf.light)
+                // A little flower on top.
+                for (k in 0 until 5) {
+                    val a = k * 2f * PI.toFloat() / 5f
+                    drawCircle(Leaf.petal, 2.2f, Offset(50f + 2.6f * cos(a), 6f + 2.6f * sin(a)))
+                }
+                drawCircle(Leaf.bud, 1.8f, Offset(50f, 6f))
+            }
+        }
+    }
+}
+
+/**
+ * What Dexter stands on, which stays put while it hops: a shadow on the ground while the sprout is
+ * young, then a leafy branch to perch on, blooming once the habits are automatic.
+ */
+private fun DrawScope.drawGround(p: Face) {
+    val stage = p.stage ?: return
+    if (stage == BroteStage.SEED || stage == BroteStage.SPROUT) {
+        // The shadow shrinks while Dexter is in the air.
+        val k = 1f + p.hop / 40f
+        oval(p.garden.track, 50f, 96f, 21f * k, 3.4f * k)
+        return
+    }
+    val branch = Path().apply {
+        moveTo(3f, 97f)
+        quadraticTo(50f, 92f, 97f, 95f)
+    }
+    drawPath(branch, Leaf.wood, style = Stroke(4.2f, cap = StrokeCap.Round))
+    drawLine(Leaf.wood, Offset(80f, 94.5f), Offset(90f, 88f), 2.2f, StrokeCap.Round)
+    val lean = p.sway * 2f
+    drawPath(leaf(8f, 96.5f, 1f + lean, 88f, 3f), Leaf.dark)
+    drawPath(leaf(90f, 88f, 97f + lean, 81f, -3f), Leaf.light)
+    drawPath(leaf(18f, 95.5f, 14f + lean, 87f, -2.6f), Leaf.light)
+    if (stage == BroteStage.TREE) {
+        drawPath(leaf(84f, 92f, 78f + lean, 85f, 2.6f), Leaf.dark)
+        drawCircle(Leaf.petal, 2.4f, Offset(12f, 91f))
+        drawCircle(Leaf.bud, 2f, Offset(93f, 84f))
+        drawCircle(Leaf.petal, 2f, Offset(72f, 92f))
+    }
 }
 
 /** A small "z" drawn as strokes (no text measuring every frame). */
