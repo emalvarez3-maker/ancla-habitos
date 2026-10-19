@@ -271,7 +271,7 @@ private fun KeysSheet(
             Text(stringResource(R.string.keys_security), style = MaterialTheme.typography.titleMedium, color = c.ink)
             var appLock by remember { mutableStateOf(keys.appLock) }
             var secureScreens by remember { mutableStateOf(keys.secureScreens) }
-            val context = androidx.compose.ui.platform.LocalContext.current
+            val context = LocalContext.current
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ToggleChip(stringResource(R.string.keys_app_lock), appLock) { appLock = it; keys.appLock = it }
                 // Takes effect on screens opened from now on.
@@ -373,7 +373,6 @@ private fun KeysSheet(
                 }
                 Text(stringResource(R.string.keys_phone_voice_note), style = MaterialTheme.typography.bodyMedium, color = c.muted)
             }
-            val context = LocalContext.current
             Text(
                 stringResource(R.string.keyboard_enable),
                 style = MaterialTheme.typography.labelLarge,
