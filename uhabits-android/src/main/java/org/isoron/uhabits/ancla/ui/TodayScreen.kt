@@ -294,7 +294,8 @@ private fun MascotCard(summary: TodaySummary?, hopKey: Int, onClick: () -> Unit)
             stage = stage,
             hopKey = hopKey,
             modifier = Modifier.size(width = 124.dp, height = 120.dp),
-            description = stringResource(R.string.mascot_name)
+            description = stringResource(R.string.mascot_name),
+            interactive = true
         )
         Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.weight(1f)) {
             Text(stringResource(R.string.mascot_name), style = MaterialTheme.typography.titleLarge, color = c.ink)

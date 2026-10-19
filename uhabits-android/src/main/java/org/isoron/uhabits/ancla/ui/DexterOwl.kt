@@ -25,6 +25,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -46,6 +47,7 @@ import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import kotlin.math.PI
@@ -60,26 +62,28 @@ import kotlin.random.Random
 /** What Dexter is doing, for its face. SLEEPING is quiet mode. */
 enum class OwlState { IDLE, LISTENING, THINKING, SPEAKING, SLEEPING }
 
-/** Dexter's colors, the same as the launcher icon. */
+/** Dexter's colors, the same as the launcher icon: a friendly purple owl with amber eyes. */
 private object Owl {
-    val body = Color(0xFFB9773F)
-    val light = Color(0xFFCF8E52)
-    val shade = Color(0xFF8E5728)
-    val tuft = Color(0xFF9C612F)
-    val disc = Color(0xFFF4E2BF)
-    val belly = Color(0xFFEBD3A6)
-    val lid = Color(0xFFA86A34)
+    val body = Color(0xFF6E52D6)
+    val light = Color(0xFF9F82F5)
+    val shade = Color(0xFF5B3FC4)
+    val tuft = Color(0xFF5B3FC4)
+    val disc = Color(0xFFF6F2FF)
+    val belly = Color(0xFFE6DDFF)
+    val lid = Color(0xFF8468E4)
     val iris = Color(0xFFFFC233)
-    val pupil = Color(0xFF1A1433)
-    val brow = Color(0xFF3A2412)
-    val beak = Color(0xFFF2A93B)
-    val beakShade = Color(0xFFD98A1E)
+    val pupil = Color(0xFF1F1640)
+    val brow = Color(0xFF3E2A8C)
+    val beak = Color(0xFFFFB347)
+    val beakShade = Color(0xFFF2962E)
+    val chevron = Color(0xFFC3B2F5)
+    val cheek = Color(0xFFFF8FBF)
     val sleep = Color(0xFF8A84B8)
 }
 
 /** One pose of the face; poses are blended by how much each state is showing. */
 private class Pose(
-    val lid: Float = 0.38f, // eyelid coverage: skeptical, half-lidded
+    val lid: Float = 0.08f, // eyelid coverage: wide open and friendly
     val perk: Float = 0f,
     val px: Float = 0f,
     val py: Float = 0f,
@@ -87,7 +91,7 @@ private class Pose(
     val wide: Float = 0f,
     val browL: Float = 0f,
     val browR: Float = 0f,
-    val anger: Float = 1f,
+    val anger: Float = 0f, // 1 frowns; Dexter only does it a little, while thinking hard
     val wingR: Float = 0f,
     val tilt: Float = 0f,
     val droop: Float = 0f,
@@ -96,25 +100,27 @@ private class Pose(
 
 private val POSES = mapOf(
     OwlState.IDLE to Pose(),
-    OwlState.LISTENING to Pose(lid = 0.12f, perk = 1f, dilate = 1f, wide = 1f, anger = 0.3f, lean = 1f),
-    OwlState.THINKING to Pose(lid = 0.3f, px = 0.6f, py = -0.6f, browR = 1f, anger = 0.5f, wingR = -0.5f, tilt = -6f),
-    OwlState.SPEAKING to Pose(lid = 0.28f, browL = 0.2f, browR = 0.2f, anger = 0.8f),
-    OwlState.SLEEPING to Pose(lid = 1f, anger = 0f, droop = 1f, tilt = 8f)
+    OwlState.LISTENING to Pose(lid = 0.02f, perk = 1f, dilate = 1f, wide = 1f, browL = 0.4f, browR = 0.4f, lean = 1f),
+    OwlState.THINKING to Pose(lid = 0.2f, px = 0.6f, py = -0.6f, browR = 1f, anger = 0.25f, wingR = -0.5f, tilt = -6f),
+    OwlState.SPEAKING to Pose(lid = 0.1f, browL = 0.25f, browR = 0.25f),
+    OwlState.SLEEPING to Pose(lid = 1f, droop = 1f, tilt = 8f)
 )
 
-/** The idle face for each mood of the Today screen; CALM is Dexter's usual grumpy look. */
+/** The idle face for each mood of the Today screen; CALM is Dexter's usual warm look. */
 private val MOOD_POSES = mapOf(
-    BroteMood.SLEEPY to Pose(lid = 0.74f, anger = 0.2f, droop = 0.45f, tilt = 5f),
+    BroteMood.SLEEPY to Pose(lid = 0.62f, droop = 0.45f, tilt = 5f),
     BroteMood.CALM to Pose(),
-    BroteMood.HAPPY to Pose(lid = 0.2f, perk = 0.4f, browL = 0.35f, browR = 0.35f, anger = 0.25f),
-    BroteMood.JOY to Pose(lid = 0.08f, perk = 1f, dilate = 0.6f, wide = 1f, browL = 0.7f, browR = 0.7f, anger = 0f)
+    BroteMood.HAPPY to Pose(lid = 0.04f, perk = 0.4f, browL = 0.35f, browR = 0.35f),
+    BroteMood.JOY to Pose(lid = 0f, perk = 1f, dilate = 0.6f, wide = 1f, browL = 0.7f, browR = 0.7f)
 )
 
 /**
- * Dexter, a grumpy owl: skeptical half-lidded eyes and a permanent frown, but on the user's side.
- * It breathes, blinks and tilts its head now and then; it perks up while listening (with a ring
- * that follows the mic [level]), looks away while thinking, talks with its beak and dozes in
- * quiet mode. Drawn on a Canvas in a 100×100 box scaled to the smaller side, background left clear.
+ * Dexter, a friendly purple owl: big open amber eyes, soft brows and rosy cheeks, on the user's
+ * side. It breathes, blinks and tilts its head now and then; it perks up while listening (with a
+ * ring that follows the mic [level]), looks away while thinking, talks with its beak and dozes in
+ * quiet mode. With [interactive], a tap makes it look where you touched, close its eyes in a happy
+ * squint, hop and wave. Drawn on a Canvas in a 100×100 box scaled to the smaller side, background
+ * left clear.
  *
  * On the Today screen it also does what Brote did: its idle face follows the day's [mood] (drowsy,
  * calm, pleased with blushing cheeks and sparks, overjoyed and flapping), a sprout on its head grows
@@ -129,7 +135,8 @@ fun DexterOwl(
     mood: BroteMood = BroteMood.CALM,
     stage: BroteStage? = null,
     hopKey: Int = 0,
-    description: String = "Dexter"
+    description: String = "Dexter",
+    interactive: Boolean = false
 ) {
     val weights = OwlState.entries.associateWith { s ->
         animateFloatAsState(if (s == state) 1f else 0f, tween(380), label = "owl-$s")
@@ -157,9 +164,24 @@ fun DexterOwl(
     }
     val events = remember { OwlEvents() }
 
-    Canvas(modifier.semantics { contentDescription = description }) {
+    val touch = if (interactive) {
+        Modifier.pointerInput(Unit) {
+            detectTapGestures { at ->
+                // Where the finger landed, from the owl's middle, in -1..1.
+                val x = (at.x / size.width * 2f - 1f).coerceIn(-1f, 1f)
+                val y = (at.y / size.height * 2f - 1f).coerceIn(-1f, 1f)
+                events.poke(time.floatValue, x, y)
+            }
+        }
+    } else {
+        Modifier
+    }
+
+    Canvas(modifier.then(touch).semantics { contentDescription = description }) {
         val t = time.floatValue
         events.update(t)
+        val poke = events.poke(t)
+        val look = events.look(t)
         val w = OwlState.entries.associateWith { weights.getValue(it).value }
         val m = BroteMood.entries.associateWith { moods.getValue(it).value }
         // The idle pose is the mood's pose, so moods blend into each other and into the other states.
@@ -181,8 +203,8 @@ fun DexterOwl(
             blink = events.blink(t) * awake,
             lid = blend { it.lid },
             perk = blend { it.perk },
-            px = blend { it.px } + think * 0.22f * sin(t * 1.3f),
-            py = blend { it.py } + think * 0.15f * sin(t * 1.1f + 1f),
+            px = blend { it.px } + think * 0.22f * sin(t * 1.3f) + look.first,
+            py = blend { it.py } + think * 0.15f * sin(t * 1.1f + 1f) + look.second,
             dilate = blend { it.dilate },
             wide = blend { it.wide },
             browL = blend { it.browL } + speak * 0.35f * max(0f, sin(t * 3.1f)) + idle * events.twitch(t),
@@ -199,11 +221,12 @@ fun DexterOwl(
             drowsy = idle * m.getValue(BroteMood.SLEEPY),
             pleased = pleased,
             twinkle = 0.25f + 0.75f * (0.5f + 0.5f * sin(t * PI.toFloat() / 0.8f)),
-            // Joy flaps both wings in short bursts.
-            flap = joy * abs(sin(t * 9f)) * max(0f, sin(t * 1.4f)),
+            // Joy flaps both wings in short bursts; a poke waves them once.
+            flap = joy * abs(sin(t * 9f)) * max(0f, sin(t * 1.4f)) + poke * abs(sin(t * 12f)),
             sway = sin(t * PI.toFloat() / 1.4f),
             stage = stage,
-            hop = hop.value,
+            hop = hop.value - 9f * events.pokeHop(t),
+            squint = poke,
             garden = garden
         )
         val side = min(size.width, size.height)
@@ -265,6 +288,45 @@ private class OwlEvents {
         val x = (t - twitchStart) / 0.7f
         return if (x in 0f..1f) 0.8f * sin(PI.toFloat() * x) else 0f
     }
+
+    // --- Being tapped ---
+
+    private var pokeStart = -10f
+    private var lookX = 0f
+    private var lookY = 0f
+
+    /** A tap at ([x], [y]) in -1..1 from the owl's middle. */
+    fun poke(t: Float, x: Float, y: Float) {
+        pokeStart = t
+        lookX = x
+        lookY = y
+        blinkAt = t + 1.2f // no blink in the middle of the squint
+    }
+
+    /** The happy squint after a tap: 0 → 1 quickly, held, then back over 0.9 s. */
+    fun poke(t: Float): Float {
+        val x = (t - pokeStart) / 0.9f
+        return when {
+            x < 0f || x > 1f -> 0f
+            x < 0.15f -> x / 0.15f
+            x < 0.6f -> 1f
+            else -> 1f - (x - 0.6f) / 0.4f
+        }
+    }
+
+    /** The little hop after a tap: up and down once, over 0.45 s. */
+    fun pokeHop(t: Float): Float {
+        val x = (t - pokeStart) / 0.45f
+        return if (x in 0f..1f) sin(PI.toFloat() * x) else 0f
+    }
+
+    /** Where the eyes look after a tap, fading back to the middle over 1.6 s. */
+    fun look(t: Float): Pair<Float, Float> {
+        val x = (t - pokeStart) / 1.6f
+        if (x !in 0f..1f) return 0f to 0f
+        val k = 1f - x * x
+        return lookX * 0.8f * k to lookY * 0.8f * k
+    }
 }
 
 /** The theme colors the Today screen's extras are drawn with. */
@@ -275,7 +337,7 @@ private class Face(
     val dilate: Float, val wide: Float, val browL: Float, val browR: Float, val anger: Float, val beak: Float,
     val wingR: Float, val tilt: Float, val droop: Float, val lean: Float, val sleep: Float, val z: Float, val ring: Float,
     val drowsy: Float, val pleased: Float, val twinkle: Float, val flap: Float, val sway: Float,
-    val stage: BroteStage?, val hop: Float, val garden: Garden
+    val stage: BroteStage?, val hop: Float, val garden: Garden, val squint: Float
 )
 
 private fun DrawScope.oval(color: Color, cx: Float, cy: Float, rx: Float, ry: Float) =
@@ -305,7 +367,7 @@ private fun DrawScope.drawOwl(p: Face) {
                 moveTo(x - 2.5f, y)
                 quadraticTo(x, y + 2.5f, x + 2.5f, y)
             }
-            drawPath(chevron, Owl.lid, style = Stroke(1.4f, cap = StrokeCap.Round))
+            drawPath(chevron, Owl.chevron, style = Stroke(1.4f, cap = StrokeCap.Round))
         }
     }
 
@@ -338,11 +400,10 @@ private fun DrawScope.drawHead(p: Face) {
     // Facial disc around both eyes.
     drawCircle(Owl.disc, 13f, Offset(38.5f, 44f))
     drawCircle(Owl.disc, 13f, Offset(61.5f, 44f))
-    if (p.pleased > 0.05f) {
-        val blush = p.garden.blush.copy(alpha = 0.8f * p.pleased.coerceIn(0f, 1f))
-        oval(blush, 33f, 55f, 4.6f, 2.8f)
-        oval(blush, 67f, 55f, 4.6f, 2.8f)
-    }
+    // Rosy cheeks always, warmer when pleased or tapped.
+    val warmth = (0.45f + 0.4f * max(p.pleased, p.squint)).coerceIn(0f, 0.85f) * (1f - p.sleep * 0.5f)
+    oval(Owl.cheek.copy(alpha = warmth), 33f, 55.5f, 4.6f, 2.8f)
+    oval(Owl.cheek.copy(alpha = warmth), 67f, 55.5f, 4.6f, 2.8f)
 
     for (s in listOf(-1f, 1f)) {
         val ex = 50f + s * 11.5f
@@ -354,22 +415,16 @@ private fun DrawScope.drawHead(p: Face) {
             val pr = 4.6f * (1f + p.dilate * 0.3f)
             val pc = Offset(ex + p.px * 3.2f, ey + p.py * 3.2f)
             drawCircle(Owl.pupil, pr, pc)
-            drawCircle(Color.White, 1.4f, Offset(pc.x + 1.6f, pc.y - 1.8f))
-            // The eyelid slants down toward the beak: the grumpy look.
-            val cover = min(1f, p.lid + p.blink * (1f - p.lid))
-            val slant = 2.2f * (1f - cover)
-            val yInner = ey - r + 2 * r * cover + slant
-            val yOuter = ey - r + 2 * r * cover - slant
+            // Two highlights: the big eyes read as warm, not staring.
+            drawCircle(Color.White, 1.9f, Offset(pc.x + 1.8f, pc.y - 2f))
+            drawCircle(Color.White, 0.9f, Offset(pc.x - 2f, pc.y + 2f))
+            // The eyelid comes down level: friendly, never the old skeptical slant.
+            val cover = min(1f, max(p.lid + p.blink * (1f - p.lid), p.squint))
             val lid = Path().apply {
                 moveTo(ex - r - 1f, ey - r - 1f)
                 lineTo(ex + r + 1f, ey - r - 1f)
-                if (s < 0) {
-                    lineTo(ex + r + 1f, yInner)
-                    lineTo(ex - r - 1f, yOuter)
-                } else {
-                    lineTo(ex + r + 1f, yOuter)
-                    lineTo(ex - r - 1f, yInner)
-                }
+                lineTo(ex + r + 1f, ey - r + 2 * r * cover)
+                quadraticTo(ex, ey - r + 2 * r * cover + 1.6f * (1f - cover), ex - r - 1f, ey - r + 2 * r * cover)
                 close()
             }
             drawPath(lid, Owl.lid)
@@ -381,17 +436,25 @@ private fun DrawScope.drawHead(p: Face) {
                 drawPath(closed, Owl.brow.copy(alpha = p.sleep), style = Stroke(1.6f, cap = StrokeCap.Round))
             }
         }
-        drawCircle(Owl.shade, r, Offset(ex, ey), style = Stroke(1.2f))
+        drawCircle(Owl.shade.copy(alpha = 0.6f), r, Offset(ex, ey), style = Stroke(1f))
+        // The happy squint: closed eyes curved up, "^ ^".
+        if (p.squint > 0.3f) {
+            val happy = Path().apply {
+                moveTo(ex - 6f, ey + 2f)
+                quadraticTo(ex, ey - 4.5f, ex + 6f, ey + 2f)
+            }
+            drawPath(happy, Owl.brow.copy(alpha = ((p.squint - 0.3f) / 0.7f).coerceIn(0f, 1f)), style = Stroke(2f, cap = StrokeCap.Round))
+        }
     }
 
-    // Brows: the inner ends sit low, a V-shaped frown that relaxes when asleep or listening.
+    // Brows: short soft arches that lift with interest; they only dip a little when Dexter thinks hard.
     for (s in listOf(-1f, 1f)) {
-        val raise = if (s < 0) p.browL else p.browR
+        val raise = (if (s < 0) p.browL else p.browR) + p.squint * 0.5f
         val brow = Path().apply {
-            moveTo(50f + s * 22f, 30f - raise * 3f - p.anger * 1.5f)
-            quadraticTo(50f + s * 13f, 30f - raise * 3.5f, 50f + s * 3.5f, 36.5f - raise * 4f + p.anger * 1.5f)
+            moveTo(50f + s * 19.5f, 31f - raise * 3f)
+            quadraticTo(50f + s * 13f, 27f - raise * 3.5f, 50f + s * 6.5f, 30f - raise * 3.5f + p.anger * 2.5f)
         }
-        drawPath(brow, Owl.brow, style = Stroke(4.2f, cap = StrokeCap.Round))
+        drawPath(brow, Owl.brow, style = Stroke(2.4f, cap = StrokeCap.Round))
     }
 
     // Beak: the lower half drops when Dexter talks.

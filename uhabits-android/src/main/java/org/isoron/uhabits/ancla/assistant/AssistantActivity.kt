@@ -172,7 +172,7 @@ private fun AssistantScreen(controller: VoiceAgentController, settingsOpen: Bool
             if (turns.isEmpty()) {
                 item {
                     Box(Modifier.fillMaxWidth().padding(top = 8.dp), contentAlignment = Alignment.Center) {
-                        DexterOwl(controller.owlState, Modifier.size(140.dp), controller.owlLevel)
+                        DexterOwl(controller.owlState, Modifier.size(140.dp), controller.owlLevel, interactive = true)
                     }
                 }
             }

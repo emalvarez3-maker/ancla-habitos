@@ -503,6 +503,7 @@
     <string name="phone_grant_notifications_detail">So you can see Dexter outside the app: when it\'s listening, what it answers, and your reminders.</string>
     <string name="phone_grant_overlay">See Dexter over other apps</string>
     <string name="phone_grant_overlay_detail">Display over other apps: when you say “Hey Dexter”, a card shows him listening and what he answers, like Siri. Tap it to stop.</string>
+    <string name="setup_title">Set up Dexter</string>
     <string name="overlay_quiet">Silence</string>
     <string name="overlay_voice_on">Voice on</string>
     <string name="overlay_pause">Pause 30 min</string>

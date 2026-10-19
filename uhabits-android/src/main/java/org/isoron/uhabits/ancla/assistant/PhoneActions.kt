@@ -63,8 +63,8 @@ class PhoneActions(private val context: Context) {
 
     /** Opening another app from the background needs the accessibility service (Android's rule). */
     private fun launch(intent: Intent): Boolean {
-        if (!DexterService.appInForeground && !DexterAccessibility.enabled(context) && Build.VERSION.SDK_INT >= 29) {
-            throw IllegalStateException("Para abrir cosas fuera de la app, activa «Control del teléfono» en Dexter › Claves.")
+        if (!DexterService.appInForeground && !DexterAccessibility.enabled(context) && !Settings.canDrawOverlays(context) && Build.VERSION.SDK_INT >= 29) {
+            throw IllegalStateException(DexterSetupActivity.ask(context, DexterSetupActivity.PHONE, "Ver a Dexter sobre otras apps"))
         }
         return try {
             context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
@@ -117,7 +117,7 @@ class PhoneActions(private val context: Context) {
             }
         } catch (e: SecurityException) {
             // Changing the ringer while "do not disturb" is on needs that permission too.
-            return "Android no me deja cambiar ese volumen con «No molestar» activo. Dame acceso a «No molestar» en Dexter › Claves."
+            return "Android no me deja cambiar ese volumen con «No molestar» activo. " + DexterSetupActivity.ask(context, DexterSetupActivity.PHONE, "No molestar")
         }
         return "Volumen de ${streamNames.getValue(key)} al ${PhoneSafety.percent(am.getStreamVolume(id), maxLevel)} %"
     }
@@ -267,7 +267,7 @@ class PhoneActions(private val context: Context) {
         val digits = contact.filter { it.isDigit() || it == '+' }
         if (digits.count { it.isDigit() } >= 7) return contact to digits
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
-            throw IllegalStateException("Para buscar «$contact» necesito permiso de contactos: actívalo en Dexter › Claves.")
+            throw IllegalStateException("Para buscar «$contact» necesito tus contactos. " + DexterSetupActivity.ask(context, DexterSetupActivity.PHONE, "Contactos"))
         }
         val uri = Uri.withAppendedPath(ContactsContract.CommonDataKinds.Phone.CONTENT_FILTER_URI, Uri.encode(contact))
         context.contentResolver.query(
@@ -322,7 +322,7 @@ class PhoneActions(private val context: Context) {
 
     private fun needFiles() {
         if (Build.VERSION.SDK_INT >= 30 && !Environment.isExternalStorageManager()) {
-            throw IllegalStateException("Para ver tus carpetas necesito «Acceso a todos los archivos»: actívalo en Dexter › Claves › Control del teléfono.")
+            throw IllegalStateException(DexterSetupActivity.ask(context, DexterSetupActivity.PHONE, "Carpetas y archivos"))
         }
         needUnlocked()
     }

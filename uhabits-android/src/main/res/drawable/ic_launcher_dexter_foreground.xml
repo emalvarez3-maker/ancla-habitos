@@ -1,13 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Dexter, the grumpy owl: Ancla's launcher icon (108 dp adaptive canvas, safe zone r = 33). -->
+<!-- Dexter, the friendly purple owl, with Brote's sprout on its head (108 dp adaptive canvas, safe zone r = 33). -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path android:fillColor="#8E5728" android:pathData="M31,42 C31,33 33,27 36.5,22.5 C40,27 44,31.5 47.5,35 Z" />
-    <path android:fillColor="#8E5728" android:pathData="M77,42 C77,33 75,27 71.5,22.5 C68,27 64,31.5 60.5,35 Z" />
+    <!-- ear tufts, rounded -->
+    <path android:fillColor="#5B3FC4" android:pathData="M32,42 C30,33 33,26 38,22.5 C41,28 45,32 48.5,35 Z" />
+    <path android:fillColor="#5B3FC4" android:pathData="M76,42 C78,33 75,26 70,22.5 C67,28 63,32 59.5,35 Z" />
+    <!-- the sprout -->
+    <path android:strokeColor="#239467" android:strokeWidth="2" android:strokeLineCap="round" android:pathData="M54,31 L54,24" />
+    <path android:fillColor="#46C793" android:pathData="M54,25.5 C50.5,20.5 45.5,19.5 42.5,21.5 C44.5,25.5 49.5,26.5 54,25.5 Z" />
+    <path android:fillColor="#2FB57E" android:pathData="M54,24.5 C57.5,19.5 62.5,18.5 65.5,20.5 C63.5,24.5 58.5,25.5 54,24.5 Z" />
+    <!-- head and body -->
     <path android:pathData="M54,29 C72,29 82.5,41 82.5,57 C82.5,74 70.5,86 54,86 C37.5,86 25.5,74 25.5,57 C25.5,41 36,29 54,29 Z">
         <aapt:attr name="android:fillColor">
             <gradient
@@ -16,36 +22,35 @@
                 android:startY="29"
                 android:endX="54"
                 android:endY="86"
-                android:startColor="#D6965C"
-                android:endColor="#9A5F2E" />
+                android:startColor="#9F82F5"
+                android:endColor="#6244D0" />
         </aapt:attr>
     </path>
-    <path android:fillColor="#8E5728" android:pathData="M27,60 C24,70 28,80 37,85 C35,77 34,69 35,61 Z" />
-    <path android:fillColor="#8E5728" android:pathData="M81,60 C84,70 80,80 71,85 C73,77 74,69 73,61 Z" />
-    <path android:fillColor="#EBCB9C" android:pathData="M54,62 C64,62 70,69 70,78 C66,83 60,86 54,86 C48,86 42,83 38,78 C38,69 44,62 54,62 Z" />
-    <path android:strokeColor="#D2A974" android:strokeWidth="1.3" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M46,72 l3,3 l3,-3 M56,72 l3,3 l3,-3 M51,78 l3,3 l3,-3" />
-    <path android:fillColor="#F4E2BF" android:pathData="M30.7,52 a12.8,12.8 0 1,0 25.6,0 a12.8,12.8 0 1,0 -25.6,0 Z" />
-    <path android:fillColor="#F4E2BF" android:pathData="M51.7,52 a12.8,12.8 0 1,0 25.6,0 a12.8,12.8 0 1,0 -25.6,0 Z" />
+    <!-- wings -->
+    <path android:fillColor="#5B3FC4" android:pathData="M27,60 C24,70 28,80 37,85 C35,77 34,69 35,61 Z" />
+    <path android:fillColor="#5B3FC4" android:pathData="M81,60 C84,70 80,80 71,85 C73,77 74,69 73,61 Z" />
+    <!-- belly with soft feathers -->
+    <path android:fillColor="#E6DDFF" android:pathData="M54,63 C64,63 70,70 70,78.5 C66,83 60,86 54,86 C48,86 42,83 38,78.5 C38,70 44,63 54,63 Z" />
+    <path android:strokeColor="#C3B2F5" android:strokeWidth="1.3" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M46,73 q3,3 6,0 M56,73 q3,3 6,0 M51,79 q3,3 6,0" />
+    <!-- facial discs -->
+    <path android:fillColor="#F6F2FF" android:pathData="M30.7,52 a12.8,12.8 0 1,0 25.6,0 a12.8,12.8 0 1,0 -25.6,0 Z" />
+    <path android:fillColor="#F6F2FF" android:pathData="M51.7,52 a12.8,12.8 0 1,0 25.6,0 a12.8,12.8 0 1,0 -25.6,0 Z" />
+    <!-- big, open, friendly eyes -->
     <path android:fillColor="#FFC233" android:pathData="M34.5,52 a9,9 0 1,0 18,0 a9,9 0 1,0 -18,0 Z" />
-    <path android:fillColor="#1A1433" android:pathData="M40.2,54.2 a4.4,4.4 0 1,0 8.8,0 a4.4,4.4 0 1,0 -8.8,0 Z" />
-    <path android:fillColor="#FFFFFF" android:pathData="M44.7,52.8 a1.4,1.4 0 1,0 2.8,0 a1.4,1.4 0 1,0 -2.8,0 Z" />
-    <!-- half-closed, skeptical eyelid -->
-    <group>
-        <clip-path android:pathData="M34.5,52 a9,9 0 1,0 18,0 a9,9 0 1,0 -18,0 Z" />
-        <path android:fillColor="#B8783E" android:pathData="M33,40 L55,40 L55,53.5 L33,47 Z" />
-        <path android:strokeColor="#8E5728" android:strokeWidth="1" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M34,47.3 L53.5,53" />
-    </group>
     <path android:fillColor="#FFC233" android:pathData="M55.5,52 a9,9 0 1,0 18,0 a9,9 0 1,0 -18,0 Z" />
-    <path android:fillColor="#1A1433" android:pathData="M59.0,54.2 a4.4,4.4 0 1,0 8.8,0 a4.4,4.4 0 1,0 -8.8,0 Z" />
-    <path android:fillColor="#FFFFFF" android:pathData="M63.50000000000001,52.8 a1.4,1.4 0 1,0 2.8,0 a1.4,1.4 0 1,0 -2.8,0 Z" />
-    <!-- half-closed, skeptical eyelid -->
-    <group>
-        <clip-path android:pathData="M55.5,52 a9,9 0 1,0 18,0 a9,9 0 1,0 -18,0 Z" />
-        <path android:fillColor="#B8783E" android:pathData="M75,40 L53,40 L53,53.5 L75,47 Z" />
-        <path android:strokeColor="#8E5728" android:strokeWidth="1" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M74,47.3 L54.5,53" />
-    </group>
-    <path android:strokeColor="#3A2412" android:strokeWidth="3.8" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M31.5,43.5 L52.5,50" />
-    <path android:strokeColor="#3A2412" android:strokeWidth="3.8" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M76.5,43.5 L55.5,50" />
-    <path android:fillColor="#F2A93B" android:pathData="M50,58.5 L58,58.5 L54,66.5 Z" />
-    <path android:fillColor="#D98A1E" android:pathData="M54,58.5 L58,58.5 L54,66.5 Z" />
+    <path android:fillColor="#1F1640" android:pathData="M38.3,52.6 a5.2,5.2 0 1,0 10.4,0 a5.2,5.2 0 1,0 -10.4,0 Z" />
+    <path android:fillColor="#1F1640" android:pathData="M59.3,52.6 a5.2,5.2 0 1,0 10.4,0 a5.2,5.2 0 1,0 -10.4,0 Z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M44.2,50.2 a1.9,1.9 0 1,0 3.8,0 a1.9,1.9 0 1,0 -3.8,0 Z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M65.2,50.2 a1.9,1.9 0 1,0 3.8,0 a1.9,1.9 0 1,0 -3.8,0 Z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M40.4,55.4 a0.9,0.9 0 1,0 1.8,0 a0.9,0.9 0 1,0 -1.8,0 Z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M61.4,55.4 a0.9,0.9 0 1,0 1.8,0 a0.9,0.9 0 1,0 -1.8,0 Z" />
+    <!-- soft, raised brows -->
+    <path android:strokeColor="#3E2A8C" android:strokeWidth="2.2" android:strokeLineCap="round" android:pathData="M36.5,38.5 Q42,35.6 47.5,37.6" />
+    <path android:strokeColor="#3E2A8C" android:strokeWidth="2.2" android:strokeLineCap="round" android:pathData="M71.5,38.5 Q66,35.6 60.5,37.6" />
+    <!-- blushing cheeks -->
+    <path android:fillColor="#B3FF8FBF" android:pathData="M30.8,63 a3.8,2.3 0 1,0 7.6,0 a3.8,2.3 0 1,0 -7.6,0 Z" />
+    <path android:fillColor="#B3FF8FBF" android:pathData="M69.6,63 a3.8,2.3 0 1,0 7.6,0 a3.8,2.3 0 1,0 -7.6,0 Z" />
+    <!-- beak -->
+    <path android:fillColor="#FFB347" android:pathData="M50.5,58.2 Q54,56.8 57.5,58.2 L54,64.5 Z" />
+    <path android:fillColor="#F2962E" android:pathData="M54,57.5 Q55.8,57.6 57.5,58.2 L54,64.5 Z" />
 </vector>

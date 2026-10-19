@@ -108,7 +108,7 @@ class AnclaActions(private val context: Context) : AgentActions {
                 !scheduled -> append(". SIN recordatorio: esa fecha y hora ya pasaron; díselo al usuario y pregúntale para cuándo lo quiere")
                 !TaskReminders.canNotify(context) -> append(
                     ". Recordatorio programado, PERO las notificaciones de Dexter están desactivadas: no se verá ni sonará. " +
-                        "Díselo al usuario y pídele que las active en Dexter → Ajustes → Control del teléfono → Notificaciones"
+                        "Díselo al usuario: " + DexterSetupActivity.ask(context, DexterSetupActivity.PHONE, "Notificaciones")
                 )
                 else -> append(", con recordatorio que suena como alarma")
             }
@@ -416,7 +416,7 @@ class AnclaActions(private val context: Context) : AgentActions {
     private fun confirmedLater(key: String) = gate.confirmed(key)
 
     override fun phoneTool(name: String, args: JSONObject): String {
-        if (log.paused && name != "phone_status") return "El control del teléfono está en pausa. Puedes reactivarlo en Dexter › Claves › Control del teléfono."
+        if (log.paused && name != "phone_status") return "El control del teléfono está en pausa. " + DexterSetupActivity.ask(context, DexterSetupActivity.PHONE, "Activo", "toca «Activo» abajo")
         val result = phoneToolRun(name, args)
         // Every action, and every refusal, goes to the user's encrypted history (not reads of the screen or status).
         val quiet = name == "phone_status" || (name == "phone_screen" && args.optString("action") == "read") || (name == "files" && args.optString("action") in setOf("list", "search"))
@@ -484,7 +484,7 @@ class AnclaActions(private val context: Context) : AgentActions {
 
     private fun screen(action: String, element: Int?, text: String?): String {
         val hands = DexterAccessibility.instance
-            ?: return "Para usar la pantalla activa «Control del teléfono» en Dexter › Claves (es un permiso de accesibilidad)."
+            ?: return DexterSetupActivity.ask(context, DexterSetupActivity.PHONE, "Usar la pantalla")
         return when (action) {
             "read" -> hands.readScreen()
             "tap", "long_press" -> {
@@ -532,7 +532,7 @@ class AnclaActions(private val context: Context) : AgentActions {
     private fun whatsapp(block: (WhatsAppVault) -> String): String {
         val vault = WhatsAppVault(context)
         return when {
-            !vault.enabled || !vault.hasAccess -> "No tengo acceso a tus mensajes de WhatsApp. Actívalo en Dexter › Claves › WhatsApp."
+            !vault.enabled || !vault.hasAccess -> "Todavía no puedo leer tu WhatsApp. " + DexterSetupActivity.ask(context, DexterSetupActivity.WHATSAPP, "WhatsApp", if (!vault.hasAccess) "toca «Dar acceso a notificaciones», activa Dexter y luego «Guardar mensajes»" else "toca «Guardar mensajes»")
             else -> try {
                 block(vault).also { runCatching { log.add("whatsapp: Dexter leyó tus mensajes") } }
             } catch (e: WhatsAppVault.LockedException) {

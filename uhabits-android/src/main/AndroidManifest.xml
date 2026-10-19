@@ -149,6 +149,11 @@
             android:excludeFromRecents="true" />
 
         <activity
+            android:name=".ancla.assistant.DexterSetupActivity"
+            android:exported="false"
+            android:excludeFromRecents="true" />
+
+        <activity
             android:name=".ancla.LockActivity"
             android:exported="false"
             android:excludeFromRecents="true"

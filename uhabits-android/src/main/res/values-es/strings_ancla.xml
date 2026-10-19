@@ -502,6 +502,7 @@
     <string name="phone_grant_notifications_detail">Para ver a Dexter fuera de la app: cuándo te escucha, qué te responde y tus recordatorios.</string>
     <string name="phone_grant_overlay">Ver a Dexter sobre otras apps</string>
     <string name="phone_grant_overlay_detail">Mostrar sobre otras apps: cuando dices «Oye Dexter», una tarjeta lo muestra escuchando y lo que te responde, como Siri. Tócala para pararlo.</string>
+    <string name="setup_title">Configurar Dexter</string>
     <string name="overlay_quiet">Silencio</string>
     <string name="overlay_voice_on">Con voz</string>
     <string name="overlay_pause">Pausar 30 min</string>
