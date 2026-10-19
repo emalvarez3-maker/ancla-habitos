@@ -104,6 +104,7 @@ class DexterService : Service() {
         super.onCreate()
         instance = this
         LibVosk.setLogLevel(LogLevel.WARNINGS)
+        DexterTile.update(this)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -126,6 +127,7 @@ class DexterService : Service() {
         speaker.shutdown()
         model?.close()
         super.onDestroy()
+        DexterTile.update(this)
     }
 
     // --- Wake word (Vosk) ---

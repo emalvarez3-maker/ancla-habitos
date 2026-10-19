@@ -268,6 +268,21 @@
             android:exported="false"
             android:foregroundServiceType="microphone" />
 
+        <!-- "Oye Dexter" on/off in the Quick Settings panel. Only the system can bind to it. -->
+        <service
+            android:name="org.isoron.uhabits.ancla.assistant.DexterTile"
+            android:exported="true"
+            android:icon="@drawable/ic_notification"
+            android:label="@string/dexter_tile_label"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.quicksettings.TOGGLEABLE_TILE"
+                android:value="true" />
+        </service>
+
         <!-- Dexter saying a reminder out loud for a few seconds (started by the reminder alarm). -->
         <service
             android:name="org.isoron.uhabits.ancla.assistant.AnnouncerService"

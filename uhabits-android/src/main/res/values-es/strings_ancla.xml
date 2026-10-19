@@ -310,6 +310,9 @@
     <string name="conversation_empty">Conversación: todavía nada. Lo que hablen aquí o con «Oye Dexter» se le queda, cifrado en el teléfono (nunca con el teléfono bloqueado).</string>
     <string name="conversation_kept">Conversación: recuerda tus últimos %1$d mensajes, aquí y con «Oye Dexter», cifrados en el teléfono.</string>
     <string name="conversation_clear">Borrar conversación</string>
+    <string name="dexter_tile_label">Oye Dexter</string>
+    <string name="dexter_tile_on">Escuchando</string>
+    <string name="dexter_tile_off">Apagado</string>
     <string name="keys_gemini_transcription">Gemini</string>
     <string name="keys_gemini_transcription_note">Gemini escucha tu audio directamente y actúa en un solo paso: la opción más rápida, gratis con tu clave de Gemini.</string>
     <string name="keys_voice">Voz de Dexter</string>
