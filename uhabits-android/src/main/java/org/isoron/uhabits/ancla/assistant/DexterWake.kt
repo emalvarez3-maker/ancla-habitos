@@ -40,13 +40,17 @@ import kotlin.math.sqrt
  * [onRequest] gets the recording (16 kHz mono WAV, name included) when the user kept talking;
  * [onWakeOnly] runs when they said only the name and paused, so the caller asks what they need.
  * Both run on the listening thread, which has already stopped and released the microphone.
+ *
+ * With [listenOnly] there is no name to wait for: it records the next request right away (after
+ * Dexter's tone, or after it answered) and [onWakeOnly] means nobody spoke.
  */
 class DexterWake(
     private val model: Model,
     private val onRequest: (wav: ByteArray) -> Unit,
     private val onWakeOnly: () -> Unit,
     private val onLevel: (Float) -> Unit = {},
-    private val onSilenced: () -> Unit = {}
+    private val onSilenced: () -> Unit = {},
+    private val listenOnly: Boolean = false
 ) {
     @Volatile private var running = false
     private var thread: Thread? = null
@@ -79,6 +83,22 @@ class DexterWake(
                 throw IllegalStateException("microphone busy")
             }
             record.startRecording()
+            if (listenOnly) {
+                // The room's noise from the first 200 ms, then straight to the request.
+                val first = listOfNotNull(read(record), read(record))
+                val noise = max(150.0, first.map { rms(it) }.average().takeIf { !it.isNaN() } ?: 300.0)
+                if (first.isNotEmpty() && first.all { rms(it) == 0.0 }) onSilenced()
+                val request = capture(record, first, noise, graceMs = 0, waitMs = LISTEN_WAIT_MS)
+                val stopped = !running
+                running = false
+                record.stop()
+                record.release()
+                recognizer.close()
+                if (stopped) return
+                Log.d(TAG, if (request != null) "request heard: ${request.size * 100} ms" else "nobody spoke")
+                if (request != null) onRequest(wav(request)) else onWakeOnly()
+                return
+            }
             val ring = ArrayDeque<ShortArray>()
             var noise = 300.0
             var zeros = 0
@@ -127,7 +147,13 @@ class DexterWake(
      * Keeps recording after the name. Returns the audio from the buffered seconds to the end of the
      * request, or null when the user said only the name: no speech within [WAIT_MS].
      */
-    private fun capture(record: AudioRecord, buffered: List<ShortArray>, noise: Double): List<ShortArray>? {
+    private fun capture(
+        record: AudioRecord,
+        buffered: List<ShortArray>,
+        noise: Double,
+        graceMs: Long = GRACE_MS,
+        waitMs: Long = WAIT_MS
+    ): List<ShortArray>? {
         val frames = buffered.toMutableList()
         val threshold = max(noise * 3.0, MIN_SPEECH_RMS)
         val start = System.currentTimeMillis()
@@ -135,6 +161,7 @@ class DexterWake(
         var spoke = false
         var speechFrames = 0
         var lastLoud = start
+        var firstLoud = -1
         while (running) {
             val frame = read(record) ?: return if (spoke) frames else null
             frames += frame
@@ -143,16 +170,25 @@ class DexterWake(
             onLevel((rms(frame) / 4000.0).coerceIn(0.0, 1.0).toFloat())
             if (loud) {
                 lastLoud = now
-                if (now - start > GRACE_MS && ++speechFrames >= MIN_SPEECH_FRAMES) spoke = true
+                if (firstLoud < 0) firstLoud = frames.size - 1
+                if (now - start > graceMs && ++speechFrames >= MIN_SPEECH_FRAMES) spoke = true
             }
             when {
-                !spoke && now - start > WAIT_MS -> return null
-                spoke && now - lastLoud > END_SILENCE_MS -> return frames
-                now - start > MAX_MS -> return if (spoke) frames else null
+                !spoke && now - start > waitMs -> return null
+                spoke && now - lastLoud > END_SILENCE_MS -> return trimmed(frames, firstLoud)
+                now - start > MAX_MS -> return if (spoke) trimmed(frames, firstLoud) else null
             }
         }
         return null
     }
+
+    /**
+     * After the tone, the wait before the user spoke is dropped (keeping 300 ms of lead-in). With the
+     * name, nothing is dropped: the recording must still hold "Oye Dexter" for the check that someone
+     * really called it.
+     */
+    private fun trimmed(frames: List<ShortArray>, firstLoud: Int) =
+        if (!listenOnly || firstLoud < 0) frames else frames.drop(max(0, firstLoud - LEAD_FRAMES))
 
     private fun read(record: AudioRecord): ShortArray? {
         val frame = ShortArray(FRAME)
@@ -192,6 +228,30 @@ class DexterWake(
         private const val WAIT_MS = 1400L
         private const val END_SILENCE_MS = 900L
         private const val MAX_MS = 12_000L
+
+        /** After the tone, how long to wait for the user to start talking. */
+        private const val LISTEN_WAIT_MS = 6000L
+        private const val LEAD_FRAMES = 3
+
+        /**
+         * What was said in [wav], transcribed offline by Vosk with its whole vocabulary: good enough
+         * for short commands ("prende la linterna"), so they run without the AI. Blocking.
+         */
+        fun transcribe(model: Model, wav: ByteArray): String {
+            val recognizer = Recognizer(model, RATE.toFloat())
+            try {
+                val pcm = wav.copyOfRange(minOf(44, wav.size), wav.size)
+                var offset = 0
+                while (offset < pcm.size) {
+                    val n = minOf(FRAME * 2, pcm.size - offset)
+                    recognizer.acceptWaveForm(pcm.copyOfRange(offset, offset + n), n)
+                    offset += n
+                }
+                return JSONObject(recognizer.finalResult).optString("text")
+            } finally {
+                recognizer.close()
+            }
+        }
 
         /** 16-bit mono PCM as a WAV file, which Gemini and Whisper both take. */
         fun wav(frames: List<ShortArray>): ByteArray {

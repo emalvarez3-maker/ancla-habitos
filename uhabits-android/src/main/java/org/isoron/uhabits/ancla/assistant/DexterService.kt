@@ -39,6 +39,7 @@ import org.isoron.uhabits.R
 import org.vosk.LibVosk
 import org.vosk.LogLevel
 import org.isoron.uhabits.ancla.ui.OwlState
+import org.json.JSONObject
 import org.vosk.Model
 import java.io.File
 import java.net.HttpURLConnection
@@ -183,6 +184,7 @@ class DexterService : Service() {
         interrupter.stop()
         stopWake()
         unregisterUnlock()
+        stopRequestListener()
         overlay.hide()
         dictation.release()
         speaker.shutdown()
@@ -348,9 +350,36 @@ class DexterService : Service() {
         inConversation = true
         overlay.clear()
         overlay.quiet(keys.quietMode)
-        runTurn(verifyFirst = true) { a, onEvent ->
+        handleRequest(wav, afterWake = true)
+    }
+
+    /**
+     * A recorded request: an everyday command ("prende la linterna") runs at once, understood on the
+     * phone by Vosk; anything else goes to the AI. [afterWake]: recorded with the name, so the AI
+     * first checks that someone really called Dexter.
+     */
+    private fun handleRequest(wav: ByteArray, afterWake: Boolean) {
+        if (!inConversation) return
+        val m = model
+        val token = turn
+        if (!afterWake) overlay.show(OwlState.THINKING)
+        Thread {
+            val started = System.currentTimeMillis()
+            val heard = m?.let { runCatching { DexterWake.transcribe(it, wav) }.getOrNull() }.orEmpty()
+            val quick = QuickCommands.match(heard)
+            Log.d(TAG, "offline: ${if (quick != null) quick.tool else "no quick command"} in ${System.currentTimeMillis() - started} ms")
+            main.post {
+                if (token != turn || !inConversation) return@post
+                if (quick != null) runQuick(heard, quick) else sendRecording(wav, afterWake)
+            }
+        }.start()
+    }
+
+    private fun sendRecording(wav: ByteArray, afterWake: Boolean) {
+        val gemini = keys.geminiKey
+        runTurn(verifyFirst = afterWake) { a, onEvent ->
             if (a is GeminiAgent) {
-                a.sendAudio(wav, "audio/wav", onEvent, afterWake = true)
+                a.sendAudio(wav, "audio/wav", onEvent, afterWake = afterWake)
             } else {
                 val text = GeminiText.transcribe(gemini, wav, "audio/wav")
                 overlay.show(OwlState.THINKING, youSaid = text)
@@ -359,7 +388,41 @@ class DexterService : Service() {
         }
     }
 
+    /** Runs an everyday command without the AI, says what it did and keeps listening. */
+    private fun runQuick(heard: String, command: QuickCommand) {
+        val gen = ++turn
+        overlay.show(OwlState.THINKING, youSaid = heard, answer = "")
+        Thread {
+            val actions = AnclaActions(this)
+            val result = runCatching { actions.phoneTool(command.tool, JSONObject(command.args)) }
+                .getOrElse { it.message ?: getString(R.string.voice_failed) }
+            // The AI sees it next time, like everything else said to Dexter.
+            actions.conversation()?.let { log -> runCatching { log.add(true, heard); log.add(false, result) } }
+            main.post {
+                if (gen != turn) return@post
+                lastReply = result
+                update(result)
+                overlay.show(OwlState.SPEAKING, answer = result)
+                if (textOnly) {
+                    listenForRequest()
+                    return@post
+                }
+                speaker.begin { if (gen == turn) listenForRequest() }
+                speaker.append(result)
+                speaker.finish()
+            }
+        }.start()
+    }
+
     // --- Conversation without the app ---
+
+    /** Records the next request with the fast listener when Gemini can understand it, else with dictation. */
+    private var requestListener: DexterWake? = null
+
+    private fun stopRequestListener() {
+        requestListener?.stop()
+        requestListener = null
+    }
 
     private fun listenForRequest() {
         if (!inConversation) return
@@ -369,7 +432,24 @@ class DexterService : Service() {
         }
         interrupter.stop() // frees the microphone
         overlay.show(OwlState.LISTENING, youSaid = "")
-        dictation.start(DictationMode.CONVERSATION)
+        val m = model
+        val geminiHears = keys.usableAssistant?.first == AssistantProvider.GEMINI || keys.geminiKey.isNotBlank()
+        if (m == null || !geminiHears) {
+            dictation.start(DictationMode.CONVERSATION)
+            return
+        }
+        stopRequestListener()
+        update(getString(R.string.dexter_service_listening))
+        val listener = DexterWake(
+            m,
+            onRequest = { wav -> main.post { requestListener = null; handleRequest(wav, afterWake = false) } },
+            onWakeOnly = { main.post { requestListener = null; if (inConversation) endConversation() } },
+            onLevel = { overlay.level(it) },
+            onSilenced = { main.post { regainMicrophone() } },
+            listenOnly = true
+        )
+        requestListener = listener
+        listener.start()
     }
 
     private fun currentAgent(): AssistantAgent? {
@@ -478,6 +558,7 @@ class DexterService : Service() {
         interrupter.stop()
         turn++
         dictation.cancel()
+        stopRequestListener()
         overlay.hideSoon()
         update(message ?: lastReply.ifBlank { getString(R.string.dexter_service_waiting) })
         main.postDelayed({ startWake() }, 400)
@@ -501,6 +582,7 @@ class DexterService : Service() {
             speaker.stop()
             endConversation()
         }
+        stopRequestListener()
         stopWake()
         if (byUser) {
             update(getString(R.string.dexter_service_paused))
