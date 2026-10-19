@@ -116,6 +116,11 @@ class SecureKeys(context: Context) {
         get() = prefs.getBoolean("conversation", false)
         set(v) = prefs.edit().putBoolean("conversation", v).apply()
 
+    /** In a conversation, talking over Dexter interrupts it (Claude-style barge-in). */
+    var bargeIn: Boolean
+        get() = prefs.getBoolean("barge_in", true)
+        set(v) = prefs.edit().putBoolean("barge_in", v).apply()
+
     private fun key(): SecretKey {
         val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         (ks.getEntry(ALIAS, null) as? KeyStore.SecretKeyEntry)?.let { return it.secretKey }

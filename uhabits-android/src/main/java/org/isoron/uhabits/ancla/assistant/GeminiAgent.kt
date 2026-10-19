@@ -362,6 +362,7 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
             setRequestProperty("Content-Type", "application/json")
             setRequestProperty("x-goog-api-key", apiKey)
         }
+        var reusable = false
         try {
             conn.outputStream.use { it.write(body.toString().toByteArray()) }
             val sent = System.currentTimeMillis()
@@ -391,11 +392,13 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
                     }
                 }
             }
+            reusable = true
             return parts to finish
         } catch (e: IOException) {
             throw AgentException(AgentException.Kind.NETWORK, e.message ?: "network")
         } finally {
-            conn.disconnect()
+            // A stream read to the end keeps its socket for the next request (no new TLS handshake).
+            if (!reusable) conn.disconnect()
         }
     }
 

@@ -54,6 +54,9 @@ class Speaker(
     private val cloudText = StringBuilder()
     private var cloudPausedUntil = 0L
 
+    /** Whether this reply already sent its first part to the Gemini voice. */
+    private var cloudStarted = false
+
     /** How the Gemini voice should deliver the text. */
     var style = GeminiVoice.ASSISTANT_STYLE
 
@@ -162,6 +165,7 @@ class Speaker(
     fun stop() {
         buffer.clear()
         cloudText.clear()
+        cloudStarted = false
         pending.set(0)
         onDone = null
         finished = false
@@ -203,10 +207,11 @@ class Speaker(
             speakLocal(clean)
             return
         }
-        // Short replies go out as one request when the text is complete: the whole reply gets one
-        // natural intonation and the free quota lasts longer. Long replies are sent in parts.
+        // The first sentence goes out at once, so Dexter starts talking while the model is still
+        // writing (like Claude's voice mode); the rest is grouped into fewer, longer requests, which
+        // keeps a natural intonation and makes the free quota last.
         cloudText.append(clean).append(' ')
-        if (cloudText.length >= GROUP_CHARS) flushCloud()
+        if (cloudText.length >= (if (cloudStarted) GROUP_CHARS else FIRST_CHARS)) flushCloud()
     }
 
     private fun flushCloud() {
@@ -214,6 +219,7 @@ class Speaker(
         val text = cloudText.toString().trim()
         cloudText.clear()
         if (text.isEmpty()) return
+        cloudStarted = true
         pending.incrementAndGet()
         voice.speak(cloudGen, key, name, text, style)
     }
@@ -239,6 +245,9 @@ class Speaker(
 
     companion object {
         private const val GROUP_CHARS = 280
+
+        /** The first part only needs to be a real phrase ("Claro." alone would sound clipped). */
+        private const val FIRST_CHARS = 24
 
         /** Male Google voices, measured by pitch (esd ~137 Hz, esf ~148 Hz; esc and sfb are female). */
         private val MALE_VOICES = listOf("x-esd", "x-esf", "x-eed", "x-eef")

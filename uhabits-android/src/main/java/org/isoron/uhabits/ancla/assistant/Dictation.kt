@@ -120,6 +120,8 @@ class Dictation(
         generation++
         state = DictationState.Listening(mode, System.currentTimeMillis(), "", 0f)
         main.postDelayed(autoStop, MAX_MILLIS)
+        // While the user talks, open the connection the reply will need (Gemini chat or voice).
+        if (keys.usableAssistant?.first == AssistantProvider.GEMINI || keys.cloudVoice != null || provider == TranscriptionProvider.GEMINI) Warmup.google()
         try {
             if (provider == TranscriptionProvider.ANDROID) startRecognizer() else startRecorder()
         } catch (e: Exception) {
@@ -322,14 +324,19 @@ class Dictation(
         recognizer?.startListening(recognizerIntent())
     }
 
-    private fun recognizerIntent() = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-        // Always Spanish, even when the phone itself is set to English.
-        putExtra(RecognizerIntent.EXTRA_LANGUAGE, SPEECH_LANGUAGE)
-        putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, SPEECH_LANGUAGE)
-        putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-        putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 4000L)
-        putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 4000L)
+    private fun recognizerIntent(): Intent {
+        // A conversation turn ends after a short pause, as in Claude's voice mode; dictation
+        // (hands-free notes) tolerates long pauses to think.
+        val silence = if ((state as? DictationState.Listening)?.mode == DictationMode.CONVERSATION) CONVERSATION_SILENCE_MS else DICTATION_SILENCE_MS
+        return Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            // Always Spanish, even when the phone itself is set to English.
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, SPEECH_LANGUAGE)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, SPEECH_LANGUAGE)
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, silence)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, silence)
+        }
     }
 
     companion object {
@@ -341,6 +348,10 @@ class Dictation(
 
         /** Microphone amplitude above which we consider the user is talking. */
         private const val SPEECH_AMPLITUDE = 2500
+
+        /** Pauses Android's recognizer waits for before ending a turn. */
+        private const val CONVERSATION_SILENCE_MS = 1000L
+        private const val DICTATION_SILENCE_MS = 4000L
 
         /** Silence after speech that ends a conversation turn. */
         private const val END_SILENCE_MS = 850L

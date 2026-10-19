@@ -79,6 +79,7 @@ object GeminiText {
                 setRequestProperty("Content-Type", "application/json")
                 setRequestProperty("x-goog-api-key", apiKey)
             }
+            var reusable = false
             try {
                 conn.outputStream.use { it.write(body.toString().toByteArray()) }
                 val code = conn.responseCode
@@ -89,6 +90,7 @@ object GeminiText {
                 if (code == 401 || code == 403) throw AgentException(AgentException.Kind.BAD_KEY, "HTTP $code")
                 if (code !in 200..299) throw AgentException(AgentException.Kind.OTHER, "HTTP $code")
                 val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
+                reusable = true
                 val out = json.optJSONArray("candidates")?.optJSONObject(0)?.optJSONObject("content")?.optJSONArray("parts")
                 return (0 until (out?.length() ?: 0)).joinToString("") { i ->
                     val p = out!!.getJSONObject(i)
@@ -97,7 +99,7 @@ object GeminiText {
             } catch (e: IOException) {
                 throw AgentException(AgentException.Kind.NETWORK, e.message ?: "network")
             } finally {
-                conn.disconnect()
+                if (!reusable) conn.disconnect() // a fully read response keeps its socket for reuse
             }
         }
         throw last ?: AgentException(AgentException.Kind.OTHER, "no model")

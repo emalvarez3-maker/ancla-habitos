@@ -67,8 +67,19 @@ class DexterService : Service() {
     private var lastReply = ""
     private var turn = 0
 
+    /** Talking over Dexter cuts it off and starts the next request, as in the app. */
+    private val interrupter = BargeIn {
+        if (!inConversation) return@BargeIn
+        turn++
+        speaker.stop()
+        listenForRequest()
+    }
+
     private val speaker by lazy {
-        Speaker(this, { keys.cloudVoice }, { keys.phoneVoice }) { }
+        Speaker(this, { keys.cloudVoice }, { keys.phoneVoice }) { speaking ->
+            val micGranted = ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            if (speaking && inConversation && !paused && keys.bargeIn && micGranted && !dictation.isActive) interrupter.start() else interrupter.stop()
+        }
     }
 
     private val dictation by lazy {
@@ -109,6 +120,7 @@ class DexterService : Service() {
 
     override fun onDestroy() {
         instance = null
+        interrupter.stop()
         stopWake()
         dictation.release()
         speaker.shutdown()
@@ -195,6 +207,7 @@ class DexterService : Service() {
             endConversation()
             return
         }
+        interrupter.stop() // frees the microphone
         dictation.start(DictationMode.CONVERSATION)
     }
 
@@ -247,6 +260,7 @@ class DexterService : Service() {
 
     private fun endConversation(message: String? = null) {
         inConversation = false
+        interrupter.stop()
         turn++
         dictation.cancel()
         update(message ?: lastReply.ifBlank { getString(R.string.dexter_service_waiting) })

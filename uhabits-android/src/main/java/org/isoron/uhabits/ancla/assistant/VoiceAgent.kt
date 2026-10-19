@@ -106,7 +106,14 @@ class VoiceAgentController(private val activity: ComponentActivity, private val 
     private var turnGeneration = 0
     private var resumed = true
 
-    private val speaker = Speaker(activity, { keys.cloudVoice }, { keys.phoneVoice }) { speaking.value = it }
+    /** Talking over Dexter interrupts it and starts the next turn, as in Claude's voice mode. */
+    val bargeIn = mutableStateOf(keys.bargeIn)
+    private val interrupter = BargeIn { interrupted() }
+
+    private val speaker = Speaker(activity, { keys.cloudVoice }, { keys.phoneVoice }) {
+        speaking.value = it
+        updateBargeIn()
+    }
 
     /** The phone's Spanish voices, for the fallback voice picker. */
     fun phoneVoices() = speaker.phoneVoices()
@@ -185,6 +192,7 @@ class VoiceAgentController(private val activity: ComponentActivity, private val 
 
     private fun begin(mode: DictationMode) {
         error.value = null
+        interrupter.stop() // frees the microphone for dictation
         speaker.stop() // talking over Dexter interrupts it
         wake.stop()
         if (!resumed) return
@@ -207,7 +215,7 @@ class VoiceAgentController(private val activity: ComponentActivity, private val 
         val s = dictation.value
         when {
             s is DictationState.Listening && s.mode != DictationMode.HOLD -> engine.stop()
-            speaking.value -> speaker.stop()
+            speaking.value -> if (conversation.value) interrupted() else speaker.stop()
             conversation.value -> begin(DictationMode.CONVERSATION)
             else -> error.value = activity.getString(R.string.voice_hint)
         }
@@ -223,6 +231,27 @@ class VoiceAgentController(private val activity: ComponentActivity, private val 
     fun setConversation(on: Boolean) {
         conversation.value = on
         keys.conversationMode = on
+        updateBargeIn()
+    }
+
+    fun setBargeIn(on: Boolean) {
+        bargeIn.value = on
+        keys.bargeIn = on
+        updateBargeIn()
+    }
+
+    /** Listens for the user cutting in only while Dexter talks in a conversation. */
+    private fun updateBargeIn() {
+        val want = speaking.value && conversation.value && bargeIn.value && resumed && micGranted && !engine.isActive
+        if (want) interrupter.start() else interrupter.stop()
+    }
+
+    /** The user cut in (by voice or a tap): drop the rest of the reply and listen right away. */
+    private fun interrupted() {
+        turnGeneration++
+        thinking.value = false
+        liveReply.value = ""
+        begin(DictationMode.CONVERSATION)
     }
 
     fun setSpeak(on: Boolean) {
@@ -243,6 +272,7 @@ class VoiceAgentController(private val activity: ComponentActivity, private val 
 
     fun onPause() {
         resumed = false
+        interrupter.stop()
         DexterService.appInForeground = false
         DexterService.instance?.resume()
         handler.removeCallbacks(wakeCheck)
@@ -351,6 +381,7 @@ class VoiceAgentController(private val activity: ComponentActivity, private val 
     }
 
     fun release() {
+        interrupter.stop()
         handler.removeCallbacks(wakeCheck)
         wake.stop()
         engine.release()

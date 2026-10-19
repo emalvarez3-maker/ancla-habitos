@@ -187,6 +187,7 @@ internal class GeminiVoice(
                 setRequestProperty("Content-Type", "application/json")
                 setRequestProperty("x-goog-api-key", apiKey)
             }
+            var reusable = false
             try {
                 val sent = System.currentTimeMillis()
                 conn.outputStream.use { it.write(body(voice, text, style).toString().toByteArray()) }
@@ -235,9 +236,11 @@ internal class GeminiVoice(
                     }
                 }
                 if (!gotAudio) throw IllegalStateException("no audio")
+                reusable = true
                 return
             } finally {
-                conn.disconnect()
+                // Read to the end: the socket stays pooled for the next segment. Abandoned: close it.
+                if (!reusable) conn.disconnect()
             }
         }
         throw IllegalStateException("TTS request rejected")

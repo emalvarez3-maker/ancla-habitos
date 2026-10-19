@@ -203,6 +203,7 @@
     <string name="voice_pill_speaking">Dexter está hablando · toca el micrófono para interrumpir</string>
     <string name="voice_toggle_speak">Voz</string>
     <string name="voice_toggle_jarvis">Conversación</string>
+    <string name="voice_toggle_barge_in">Interrumpir hablando</string>
     <string name="voice_toggle_wake">Oye Dexter</string>
     <string name="keys_phone_voice">Voz de respaldo</string>
     <string name="keys_phone_voice_note">La usa el teléfono cuando Gemini no responde o se acaba la cuota. Toca cada una y elige una voz masculina.</string>

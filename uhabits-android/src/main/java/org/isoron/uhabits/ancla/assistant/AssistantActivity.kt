@@ -163,6 +163,7 @@ private fun AssistantScreen(controller: VoiceAgentController, settingsOpen: Bool
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ToggleChip(stringResource(R.string.voice_toggle_speak), controller.speak.value) { controller.setSpeak(it) }
             ToggleChip(stringResource(R.string.voice_toggle_jarvis), controller.conversation.value) { controller.setConversation(it) }
+            if (controller.conversation.value) ToggleChip(stringResource(R.string.voice_toggle_barge_in), controller.bargeIn.value) { controller.setBargeIn(it) }
             ToggleChip(stringResource(R.string.voice_toggle_wake), controller.wakeWord.value) { controller.setWakeWord(it) }
             ToggleChip(stringResource(R.string.voice_toggle_always), controller.alwaysListening.value) { controller.setAlwaysListening(it) }
         }
