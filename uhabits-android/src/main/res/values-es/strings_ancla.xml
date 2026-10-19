@@ -163,7 +163,6 @@
     <string name="goal_classic">Clásicos</string>
     <string name="nav_reading">Lectura</string>
     <string name="voice_need_mic">Ancla necesita el micrófono para dictar.</string>
-    <string name="voice_hint">Mantén presionado para hablar, o toca dos veces para manos libres.</string>
     <string name="voice_need_key">Agrega tu clave de Gemini o de Claude en Claves para hablar con Dexter.</string>
     <string name="voice_bad_key">El proveedor rechazó tu clave. Revísala en Claves.</string>
     <string name="voice_rate_limit">Demasiadas solicitudes ahora. Intenta en un minuto.</string>

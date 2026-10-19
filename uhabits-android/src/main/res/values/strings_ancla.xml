@@ -164,7 +164,6 @@
     <string name="goal_classic">Classics</string>
     <string name="nav_reading">Reading</string>
     <string name="voice_need_mic">Ancla needs the microphone to take dictation.</string>
-    <string name="voice_hint">Hold to talk, or double tap for hands-free.</string>
     <string name="voice_need_key">Add your Gemini or Claude key in Keys to talk to Dexter.</string>
     <string name="voice_bad_key">The provider rejected your key. Check it in Keys.</string>
     <string name="voice_rate_limit">Too many requests right now. Try again in a minute.</string>

@@ -103,10 +103,11 @@ class AssistantActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         controller.onResume()
-        // Opened as the phone's assistant: start listening right away, once.
+        // Opened as the phone's assistant: start listening right away, once. A conversation turn
+        // ends when the user stops talking (hands-free dictation would wait for another tap).
         if (intent.getBooleanExtra(EXTRA_LISTEN, false) && controller.hasAssistantKey) {
             intent.removeExtra(EXTRA_LISTEN)
-            controller.doubleTap()
+            controller.listenNow()
         }
     }
 

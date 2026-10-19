@@ -204,6 +204,9 @@ class VoiceAgentController(private val activity: ComponentActivity, private val 
         }
     }
 
+    /** Listens for one request now, ending on the user's pause, as when Claude's voice mode opens. */
+    fun listenNow() = begin(DictationMode.CONVERSATION)
+
     fun holdStart() = begin(DictationMode.HOLD)
     fun holdEnd() = engine.stop()
 
@@ -216,8 +219,9 @@ class VoiceAgentController(private val activity: ComponentActivity, private val 
         when {
             s is DictationState.Listening && s.mode != DictationMode.HOLD -> engine.stop()
             speaking.value -> if (conversation.value) interrupted() else speaker.stop()
-            conversation.value -> begin(DictationMode.CONVERSATION)
-            else -> error.value = activity.getString(R.string.voice_hint)
+            // A tap always listens for one request, ending on the user's pause; with "Conversación"
+            // on, Dexter keeps listening after each reply.
+            else -> begin(DictationMode.CONVERSATION)
         }
     }
 
@@ -404,8 +408,9 @@ class VoiceAgentController(private val activity: ComponentActivity, private val 
 }
 
 /**
- * Microphone button: hold to talk (release to send), double tap for hands-free,
- * tap again to finish hands-free.
+ * Microphone button: tap to say one request (it ends when you pause, and tapping while Dexter
+ * talks cuts it off), hold to talk (release to send), double tap for hands-free dictation and
+ * tap again to finish it.
  */
 @Composable
 fun MicButton(controller: VoiceAgentController, modifier: Modifier = Modifier, size: Int = 60) {
