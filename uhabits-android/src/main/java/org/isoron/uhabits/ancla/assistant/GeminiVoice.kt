@@ -22,6 +22,7 @@ package org.isoron.uhabits.ancla.assistant
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
+import android.media.PlaybackParams
 import android.util.Base64
 import android.util.Log
 import org.json.JSONArray
@@ -59,6 +60,9 @@ internal class GeminiVoice(
     @Volatile private var generation = 0
 
     @Volatile private var running = true
+
+    /** Playback speed, applied when a reply starts; the pitch stays the same. */
+    @Volatile var speed = 1f
     private var useMetadata = true
     private var useNewVoiceShape = true
 
@@ -91,6 +95,9 @@ internal class GeminiVoice(
                 is Chunk.Pcm -> {
                     if (startedGen != chunk.gen) {
                         startedGen = chunk.gen
+                        if (track.playbackParams.speed != speed) {
+                            runCatching { track.playbackParams = PlaybackParams().setSpeed(speed).setPitch(1f) }
+                        }
                         onAudioStart(chunk.gen)
                     }
                     if (track.playState != AudioTrack.PLAYSTATE_PLAYING) track.play()
@@ -262,7 +269,8 @@ internal class GeminiVoice(
         /** Dexter's delivery: a brilliant, sardonic doctor rather than a cheerful assistant. */
         const val ASSISTANT_STYLE = "Deep, elegant, beautifully modulated baritone male voice, sophisticated and composed, " +
             "like a refined AI butler with a dry, sardonic wit: expressive intonation that rises and falls naturally, " +
-            "deadpan comic timing on the sarcastic lines, unhurried pace. Never robotic, never flat, never cheerful-salesman."
+            "deadpan comic timing on the sarcastic lines, brisk and fluent pace, quicker than everyday conversation, " +
+            "with short pauses. Never robotic, never flat, never cheerful-salesman."
 
         /** Audiobook narration. */
         const val NARRATOR_STYLE = "Audiobook narrator: warm, deep and expressive male voice, measured storytelling pace, " +

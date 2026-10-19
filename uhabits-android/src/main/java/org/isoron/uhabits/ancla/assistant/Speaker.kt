@@ -60,6 +60,14 @@ class Speaker(
     /** How the Gemini voice should deliver the text. */
     var style = GeminiVoice.ASSISTANT_STYLE
 
+    /** How fast both voices talk: Dexter is brisk; book narration sets 1. */
+    var rate = ASSISTANT_RATE
+        set(v) {
+            field = v
+            voice.speed = v
+            if (ready) tts.setSpeechRate(v)
+        }
+
     private val voice = GeminiVoice(
         onAudioStart = { gen -> main.post { if (gen == cloudGen) onSpeaking(true) } },
         onSegmentDone = { gen -> main.post { if (gen == cloudGen) utteranceEnded() } },
@@ -88,6 +96,7 @@ class Speaker(
     }
 
     init {
+        voice.speed = rate
         tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
             override fun onStart(utteranceId: String?) {
                 main.post { onSpeaking(true) }
@@ -111,7 +120,7 @@ class Speaker(
     private fun configure() {
         tts.language = Locale("es", "US")
         applyPhoneVoice(phoneVoice())
-        tts.setSpeechRate(1.0f)
+        tts.setSpeechRate(rate)
         tts.setPitch(0.9f)
     }
 
@@ -254,6 +263,7 @@ class Speaker(
     }
 
     companion object {
+        const val ASSISTANT_RATE = 1.2f
         private const val GROUP_CHARS = 280
 
         /** The first part only needs to be a real phrase ("Claro." alone would sound clipped). */

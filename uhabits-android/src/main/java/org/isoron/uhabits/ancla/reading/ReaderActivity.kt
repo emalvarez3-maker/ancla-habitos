@@ -296,7 +296,10 @@ class ReaderActivity : AppCompatActivity() {
     private fun narrationStarted() {
         if (speaker == null) {
             val keys = SecureKeys(this)
-            speaker = Speaker(this, { keys.cloudVoice }, { keys.phoneVoice }) {}.also { it.style = GeminiVoice.NARRATOR_STYLE }
+            speaker = Speaker(this, { keys.cloudVoice }, { keys.phoneVoice }) {}.also {
+                it.style = GeminiVoice.NARRATOR_STYLE
+                it.rate = 1f
+            }
         }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
