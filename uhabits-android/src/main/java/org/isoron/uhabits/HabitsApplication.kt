@@ -45,6 +45,7 @@ class HabitsApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         context = this
+        org.isoron.uhabits.ancla.AppLock.install(this) // fingerprint/PIN lock and FLAG_SECURE for every screen
 
         if (isTestMode()) {
             val db = DatabaseUtils.getDatabaseFile(context)

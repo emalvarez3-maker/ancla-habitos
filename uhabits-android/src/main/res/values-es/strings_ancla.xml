@@ -204,6 +204,15 @@
     <string name="voice_toggle_jarvis">Conversación</string>
     <string name="voice_toggle_barge_in">Interrumpir hablando</string>
     <string name="voice_toggle_quiet">Modo silencio</string>
+    <string name="lock_title">Dexter está bloqueado</string>
+    <string name="lock_text">Tus notas, diario, chats y tareas solo se abren con tu huella, tu cara o tu PIN.</string>
+    <string name="lock_unlock">Desbloquear</string>
+    <string name="lock_prompt_title">Desbloquear Dexter</string>
+    <string name="lock_prompt_subtitle">Usa tu huella, tu cara o tu PIN</string>
+    <string name="keys_security">Seguridad</string>
+    <string name="keys_app_lock">Bloquear con huella o PIN</string>
+    <string name="keys_secure_screens">Ocultar en capturas y recientes</string>
+    <string name="keys_no_screen_lock">Este teléfono no tiene bloqueo de pantalla, así que el bloqueo de la app no puede funcionar: pon un PIN o una huella en los ajustes de Android.</string>
     <string name="dexter_announce_channel">Dexter hablando</string>
     <string name="dexter_announce_speaking">Dexter te está diciendo un recordatorio</string>
     <string name="voice_toggle_wake">Oye Dexter</string>

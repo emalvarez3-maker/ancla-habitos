@@ -205,6 +205,15 @@
     <string name="voice_toggle_jarvis">Conversation</string>
     <string name="voice_toggle_barge_in">Interrupt by talking</string>
     <string name="voice_toggle_quiet">Quiet mode</string>
+    <string name="lock_title">Dexter is locked</string>
+    <string name="lock_text">Your notes, journal, chats and tasks only open with your fingerprint, face or PIN.</string>
+    <string name="lock_unlock">Unlock</string>
+    <string name="lock_prompt_title">Unlock Dexter</string>
+    <string name="lock_prompt_subtitle">Use your fingerprint, face or PIN</string>
+    <string name="keys_security">Security</string>
+    <string name="keys_app_lock">Lock with fingerprint or PIN</string>
+    <string name="keys_secure_screens">Hide from screenshots and recents</string>
+    <string name="keys_no_screen_lock">This phone has no screen lock, so the app lock can't work: set a PIN or fingerprint in Android's settings.</string>
     <string name="dexter_announce_channel">Dexter speaking</string>
     <string name="dexter_announce_speaking">Dexter is saying a reminder</string>
     <string name="voice_toggle_wake">Hey Dexter</string>

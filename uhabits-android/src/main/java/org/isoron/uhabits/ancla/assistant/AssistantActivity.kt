@@ -268,6 +268,18 @@ private fun KeysSheet(
         ) {
             Text(stringResource(R.string.keys_title), style = MaterialTheme.typography.headlineSmall, color = c.ink)
             Text(stringResource(R.string.keys_privacy), style = MaterialTheme.typography.bodyMedium, color = c.inkSoft)
+            Text(stringResource(R.string.keys_security), style = MaterialTheme.typography.titleMedium, color = c.ink)
+            var appLock by remember { mutableStateOf(keys.appLock) }
+            var secureScreens by remember { mutableStateOf(keys.secureScreens) }
+            val context = androidx.compose.ui.platform.LocalContext.current
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ToggleChip(stringResource(R.string.keys_app_lock), appLock) { appLock = it; keys.appLock = it }
+                // Takes effect on screens opened from now on.
+                ToggleChip(stringResource(R.string.keys_secure_screens), secureScreens) { secureScreens = it; keys.secureScreens = it }
+            }
+            if (appLock && !org.isoron.uhabits.ancla.AppLock.deviceSecure(context)) {
+                Text(stringResource(R.string.keys_no_screen_lock), style = MaterialTheme.typography.bodyMedium, color = c.amberInk)
+            }
             Text(stringResource(R.string.keys_assistant), style = MaterialTheme.typography.titleMedium, color = c.ink)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 AssistantProvider.entries.forEach { p ->

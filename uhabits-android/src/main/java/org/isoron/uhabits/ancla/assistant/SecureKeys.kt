@@ -116,6 +116,16 @@ class SecureKeys(context: Context) {
         get() = prefs.getBoolean("conversation", false)
         set(v) = prefs.edit().putBoolean("conversation", v).apply()
 
+    /** App lock: opening the app asks for the phone's fingerprint, face or PIN. On by default. */
+    var appLock: Boolean
+        get() = prefs.getBoolean("app_lock", true)
+        set(v) = prefs.edit().putBoolean("app_lock", v).apply()
+
+    /** Keeps the app's screens out of screenshots, screen recordings and the recent-apps preview. */
+    var secureScreens: Boolean
+        get() = prefs.getBoolean("secure_screens", true)
+        set(v) = prefs.edit().putBoolean("secure_screens", v).apply()
+
     /** Quiet mode: Dexter never speaks on its own (reminders stay as silent notifications). */
     var quietMode: Boolean
         get() = prefs.getBoolean("quiet_mode", false)

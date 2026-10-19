@@ -42,6 +42,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -60,6 +61,18 @@ class DexterDeviceTest {
     val mic: GrantPermissionRule = GrantPermissionRule.grant(Manifest.permission.RECORD_AUDIO)
 
     private val ctx: Context = InstrumentationRegistry.getInstrumentation().targetContext
+
+    @Before
+    fun allowScreenshots() {
+        // FLAG_SECURE would turn every review screenshot black; the emulator has no screen lock,
+        // so the app lock is off there anyway.
+        SecureKeys(ctx).secureScreens = false
+    }
+
+    @Test
+    fun theAppLockNeedsAPhoneWithAScreenLock() {
+        assertEquals(SecureKeys(ctx).appLock && AppLock.deviceSecure(ctx), AppLock.required(ctx))
+    }
 
     private fun secret() = "secreto-" + UUID.randomUUID().toString().take(8)
 

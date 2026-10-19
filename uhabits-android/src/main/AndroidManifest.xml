@@ -144,6 +144,12 @@
             android:excludeFromRecents="true" />
 
         <activity
+            android:name=".ancla.LockActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="false" />
+
+        <activity
             android:name=".ancla.robotics.RoboticsActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden" />
