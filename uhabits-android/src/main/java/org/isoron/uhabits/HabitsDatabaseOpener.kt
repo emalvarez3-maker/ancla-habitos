@@ -20,19 +20,24 @@
 package org.isoron.uhabits
 
 import android.content.Context
-import android.database.sqlite.SQLiteDatabase
-import android.database.sqlite.SQLiteOpenHelper
+import net.zetetic.database.sqlcipher.SQLiteDatabase
+import net.zetetic.database.sqlcipher.SQLiteOpenHelper
 import kotlinx.coroutines.runBlocking
 import org.isoron.platform.io.migrateTo
 import org.isoron.platform.io.setVersion
 import org.isoron.uhabits.core.database.UnsupportedDatabaseVersionException
 import org.isoron.uhabits.database.AndroidDatabase
 
+/**
+ * Opens the habits database with SQLCipher; [passphrase] comes from DatabaseCipher.prepare
+ * ("" only while an old plain database couldn't be converted yet).
+ */
 class HabitsDatabaseOpener(
     private val context: Context,
     private val databaseFilename: String,
+    passphrase: String,
     private val version: Int
-) : SQLiteOpenHelper(context, databaseFilename, null, version) {
+) : SQLiteOpenHelper(context, databaseFilename, passphrase, null, version, 0, null, null, false) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.disableWriteAheadLogging()

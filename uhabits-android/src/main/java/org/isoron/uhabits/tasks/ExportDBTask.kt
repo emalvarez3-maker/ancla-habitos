@@ -35,6 +35,8 @@ class ExportDBTask(
     private val listener: Listener
 ) : Task {
     private var filename: String? = null
+    // The user asked for this export, so it is a plain copy they can import anywhere (also on a
+    // new phone, where this one's Keystore key doesn't exist). Automatic backups stay encrypted.
     override suspend fun doInBackground() {
         filename = null
         filename = try {
@@ -49,14 +51,14 @@ class ExportDBTask(
                     DocumentFile.fromFile(File(uri.path!!))
                 }
                 if (dir != null) {
-                    saveDatabaseCopy(context, dir)
+                    saveDatabaseCopy(context, dir, plain = true)
                 } else {
                     null
                 }
             } else {
                 // if public backup folder is unset, use default system folder to backup
                 val dir = system.getFilesDir("Backups") ?: return
-                saveDatabaseCopy(context, dir)
+                saveDatabaseCopy(context, dir, plain = true)
             }
         } catch (e: IOException) {
             throw RuntimeException(e)

@@ -47,7 +47,7 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: |
             adb logcat -c || true
-            ./gradlew --no-daemon :uhabits-android:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=org.isoron.uhabits.ancla.DexterDeviceTest || touch device-tests-failed
+            ./gradlew --no-daemon :uhabits-android:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=org.isoron.uhabits.ancla.DexterDeviceTest,org.isoron.uhabits.ancla.DatabaseEncryptionTest || touch device-tests-failed
             mkdir -p device-output && adb pull /sdcard/Android/data/ec.ancla.habitos/files/dexter-screens device-output/ || true
             adb logcat -d > device-output/logcat.txt || true
             if grep -n "FATAL EXCEPTION" -A 30 device-output/logcat.txt; then touch device-tests-failed; fi

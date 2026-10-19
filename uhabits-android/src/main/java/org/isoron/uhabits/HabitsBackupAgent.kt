@@ -20,7 +20,6 @@
 package org.isoron.uhabits
 
 import android.app.backup.BackupAgentHelper
-import android.app.backup.FileBackupHelper
 import android.app.backup.SharedPreferencesBackupHelper
 
 /**
@@ -29,6 +28,8 @@ import android.app.backup.SharedPreferencesBackupHelper
 class HabitsBackupAgent : BackupAgentHelper() {
     override fun onCreate() {
         addHelper("preferences", SharedPreferencesBackupHelper(this, "preferences"))
-        addHelper("database", FileBackupHelper(this, "../databases/uhabits.db"))
+        // The database is not sent to Google's backup any more: it is encrypted with a key that
+        // lives in this phone's Keystore and never travels, so a restored copy could not be read
+        // (and a plain one would put the user's data in the cloud). Use "Export full backup".
     }
 }

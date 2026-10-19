@@ -18,7 +18,7 @@
  */
 package org.isoron.uhabits.database
 
-import android.database.sqlite.SQLiteDatabase
+import net.zetetic.database.sqlcipher.SQLiteDatabase
 import org.isoron.platform.io.StepResult
 import org.isoron.platform.io.begin
 import org.isoron.platform.io.commit
@@ -36,6 +36,7 @@ class AndroidDatabaseTest : BaseAndroidTest() {
 
     override fun setUp() {
         super.setUp()
+        DatabaseCipher.loadLibrary()
         db = AndroidDatabase(SQLiteDatabase.create(null))
         db.run("create table test(color int, name string)")
     }

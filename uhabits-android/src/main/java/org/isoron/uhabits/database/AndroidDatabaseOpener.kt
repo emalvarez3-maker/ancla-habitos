@@ -19,19 +19,13 @@
 
 package org.isoron.uhabits.database
 
-import android.database.sqlite.SQLiteDatabase
 import me.tatarka.inject.annotations.Inject
 import org.isoron.platform.io.DatabaseOpener
 
+/** Opens database files the user imports: plain backups, or encrypted ones made on this phone. */
 @Inject
 class AndroidDatabaseOpener() : DatabaseOpener {
     override fun open(path: String): AndroidDatabase {
-        return AndroidDatabase(
-            db = SQLiteDatabase.openDatabase(
-                path,
-                null,
-                SQLiteDatabase.OPEN_READWRITE
-            )
-        )
+        return AndroidDatabase(db = DatabaseCipher.openForImport(path))
     }
 }

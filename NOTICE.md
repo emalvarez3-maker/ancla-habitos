@@ -59,6 +59,16 @@ under the SIL OFL 1.1.
     requirement for fonts to remain under this license does not apply
     to any document created using the fonts or their derivatives.
 
+## SQLCipher for Android
+
+<https://www.zetetic.net/sqlcipher/> (net.zetetic:sqlcipher-android 4.19.1), which encrypts the
+habits database.
+
+    Copyright (c) Zetetic LLC. All rights reserved.
+
+    Licensed under the BSD-style SQLCipher Community Edition license:
+    https://www.zetetic.net/sqlcipher/license/
+
 ## Material Design Icons
 
 <https://github.com/google/material-design-icons>
