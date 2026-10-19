@@ -51,6 +51,9 @@ jobs:
             mkdir -p device-output && adb pull /sdcard/Android/data/ec.ancla.habitos/files/dexter-screens device-output/ || true
             adb logcat -d > device-output/logcat.txt || true
             if grep -n "FATAL EXCEPTION" -A 30 device-output/logcat.txt; then touch device-tests-failed; fi
+            find uhabits-android/build/outputs/androidTest-results -name '*.xml' -exec grep -h -A25 '<failure' {} + || true
+            grep -n -A40 'AndroidRuntime\|FATAL EXCEPTION\|Process crashed' device-output/logcat.txt | head -300 || true
+            grep -n 'DatabaseCipher\|AnclaCrypto\|DexterDeviceTest\|TestRunner' device-output/logcat.txt | head -200 || true
             test ! -f device-tests-failed
 
       - uses: actions/upload-artifact@v4

@@ -125,31 +125,69 @@ object DatabaseCipher {
         }
     }
 
-    private fun quote(s: String) = "'" + s.replace("'", "''") + "'"
+    private fun ident(name: String) = "\"" + name.replace("\"", "\"\"") + "\""
+
+    /**
+     * Copies every table (with its rows), index, trigger and view of [src] into the empty [dst],
+     * plus the schema version, in one transaction. Two separate connections and plain SQL: no
+     * ATTACH, whose effect depends on which pooled connection a statement happens to run on.
+     */
+    private fun copyDatabase(src: SQLiteDatabase, dst: SQLiteDatabase) {
+        class Item(val type: String, val name: String, val sql: String)
+        val items = mutableListOf<Item>()
+        src.rawQuery("SELECT type, name, sql FROM sqlite_master WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%'", emptyArray<String>()).use { c ->
+            while (c.moveToNext()) items.add(Item(c.getString(0), c.getString(1), c.getString(2)))
+        }
+        // Tables the new file already has (android_metadata) keep their own rows.
+        val existing = mutableSetOf<String>()
+        dst.rawQuery("SELECT name FROM sqlite_master", emptyArray<String>()).use { c -> while (c.moveToNext()) existing.add(c.getString(0)) }
+        dst.beginTransaction()
+        try {
+            val tables = items.filter { it.type == "table" && it.name !in existing }
+            tables.forEach { dst.execSQL(it.sql) }
+            for (table in tables) {
+                src.rawQuery("SELECT * FROM ${ident(table.name)}", emptyArray<String>()).use { c ->
+                    val columns = c.columnNames.joinToString(", ") { ident(it) }
+                    val insert = "INSERT INTO ${ident(table.name)} ($columns) VALUES (${c.columnNames.joinToString(", ") { "?" }})"
+                    while (c.moveToNext()) {
+                        val args = Array<Any?>(c.columnCount) { i ->
+                            when (c.getType(i)) {
+                                android.database.Cursor.FIELD_TYPE_NULL -> null
+                                android.database.Cursor.FIELD_TYPE_INTEGER -> c.getLong(i)
+                                android.database.Cursor.FIELD_TYPE_FLOAT -> c.getDouble(i)
+                                android.database.Cursor.FIELD_TYPE_BLOB -> c.getBlob(i)
+                                else -> c.getString(i)
+                            }
+                        }
+                        dst.execSQL(insert, args)
+                    }
+                }
+            }
+            // Indexes, views and triggers after the rows, so no trigger fires during the copy.
+            items.filter { it.type != "table" && it.name !in existing }.forEach { dst.execSQL(it.sql) }
+            dst.version = src.version
+            dst.setTransactionSuccessful()
+        } finally {
+            dst.endTransaction()
+        }
+    }
 
     /** Converts the plain [file] into an encrypted one with [key]; false (and the plain file untouched) on any problem. */
     fun migrate(file: File, key: String): Boolean {
         val tmp = File(file.path + ".encrypting")
-        tmp.delete()
+        listOf("", "-journal", "-wal", "-shm").forEach { File(tmp.path + it).delete() }
         lastMigrationError = null
         return try {
             val (counts, version) = SQLiteDatabase.openDatabase(file.path, "", null, SQLiteDatabase.OPEN_READWRITE, null, null).use { plain ->
-                val counts = tableCounts(plain)
-                val version = plain.version
-                plain.rawExecSQL("ATTACH DATABASE ${quote(tmp.path)} AS encrypted KEY ${quote(key)}")
-                plain.rawExecSQL("SELECT sqlcipher_export('encrypted')")
-                plain.rawExecSQL("DETACH DATABASE encrypted")
-                counts to version
+                SQLiteDatabase.openOrCreateDatabase(tmp, key, null, null).use { encrypted -> copyDatabase(plain, encrypted) }
+                tableCounts(plain) to plain.version
             }
             SQLiteDatabase.openDatabase(tmp.path, key, null, SQLiteDatabase.OPEN_READWRITE, null, null).use { encrypted ->
-                // sqlcipher_export copies the schema and rows but not the schema version. It is set
-                // here, on the copy itself: a PRAGMA on the attached name may run on another pooled
-                // connection that doesn't have it attached.
-                encrypted.version = version
                 check(encrypted.version == version) { "schema version differs" }
                 check(tableCounts(encrypted) == counts) { "row counts differ" }
             }
             check(!isPlaintext(tmp)) { "the copy is not encrypted" }
+            listOf("-journal", "-wal", "-shm").forEach { File(tmp.path + it).delete() }
             if (!tmp.renameTo(file)) error("could not replace the plain database")
             listOf("-journal", "-wal", "-shm").forEach { File(file.path + it).delete() }
             Log.i(TAG, "database encrypted (${counts.size} tables)")
@@ -158,7 +196,7 @@ object DatabaseCipher {
             // SQLite messages name tables and statements, never rows; the key is cut out anyway.
             lastMigrationError = "${e.javaClass.simpleName}: ${e.message.orEmpty().replace(key, "<key>")}".take(300)
             Log.w(TAG, "could not encrypt the database yet: $lastMigrationError")
-            tmp.delete()
+            listOf("", "-journal", "-wal", "-shm").forEach { File(tmp.path + it).delete() }
             false
         }
     }
@@ -168,20 +206,13 @@ object DatabaseCipher {
      * for (so it can be imported anywhere). Automatic backups copy the encrypted file instead.
      */
     fun exportPlain(db: SQLiteDatabase, out: File) {
-        out.delete()
+        listOf("", "-journal", "-wal", "-shm").forEach { File(out.path + it).delete() }
         if (current == null) {
             File(db.path).copyTo(out, overwrite = true) // still plain text
             return
         }
-        val version = db.version
-        db.rawExecSQL("ATTACH DATABASE ${quote(out.path)} AS plaintext KEY ''")
-        try {
-            db.rawExecSQL("SELECT sqlcipher_export('plaintext')")
-        } finally {
-            db.rawExecSQL("DETACH DATABASE plaintext")
-        }
-        // The schema version isn't exported; set it on the copy so an import knows how to read it.
-        SQLiteDatabase.openDatabase(out.path, "", null, SQLiteDatabase.OPEN_READWRITE, null, null).use { it.version = version }
+        SQLiteDatabase.openOrCreateDatabase(out, "", null, null).use { plain -> copyDatabase(db, plain) }
+        listOf("-journal", "-wal", "-shm").forEach { File(out.path + it).delete() }
     }
 
     /** Opens a database file chosen by the user (an import): plain, or encrypted with this phone's key. */
