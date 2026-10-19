@@ -36,13 +36,10 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import org.isoron.uhabits.R
-import org.json.JSONObject
 import org.vosk.LibVosk
 import org.vosk.LogLevel
+import org.isoron.uhabits.ancla.ui.OwlState
 import org.vosk.Model
-import org.vosk.Recognizer
-import org.vosk.android.RecognitionListener
-import org.vosk.android.SpeechService
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
@@ -59,7 +56,17 @@ class DexterService : Service() {
     private val notifications by lazy { getSystemService(NotificationManager::class.java) }
 
     private var model: Model? = null
-    private var wakeListener: SpeechService? = null
+    private var wakeListener: DexterWake? = null
+
+    /** Dexter on top of other apps while you talk to it, like Siri (when allowed to draw there). */
+    private val overlay: DexterOverlay by lazy {
+        DexterOverlay(this) {
+            turn++
+            speaker.stop()
+            endConversation()
+            overlay.hide()
+        }
+    }
     private var paused = false
     private var inConversation = false
     private var agent: AssistantAgent? = null
@@ -77,6 +84,7 @@ class DexterService : Service() {
 
     private val speaker: Speaker by lazy {
         Speaker(this, { keys.cloudVoice }, { keys.phoneVoice }) { speaking ->
+            if (speaking) overlay.show(OwlState.SPEAKING)
             val micGranted = ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
             if (speaking && inConversation && !paused && keys.bargeIn && micGranted && !dictation.isActive) interrupter.start() else interrupter.stop()
         }
@@ -86,8 +94,25 @@ class DexterService : Service() {
         Dictation(
             this,
             keys,
-            onState = { s -> if (s is DictationState.Listening) update(getString(R.string.dexter_service_listening)) },
-            onTranscript = { text -> if (text.isBlank()) endConversation() else runTurn { a, onEvent -> a.send(text, onEvent) } },
+            onState = { s ->
+                when (s) {
+                    is DictationState.Listening -> {
+                        update(getString(R.string.dexter_service_listening))
+                        overlay.show(OwlState.LISTENING, youSaid = s.partial.takeIf { it.isNotBlank() })
+                        overlay.level(s.level)
+                    }
+                    DictationState.Transcribing -> overlay.show(OwlState.THINKING)
+                    DictationState.Idle -> Unit
+                }
+            },
+            onTranscript = { text ->
+                if (text.isBlank()) {
+                    endConversation()
+                } else {
+                    overlay.show(OwlState.THINKING, youSaid = text)
+                    runTurn { a, onEvent -> a.send(text, onEvent) }
+                }
+            },
             onError = { endConversation() },
             onAudio = { file ->
                 val audio = file.readBytes().also { file.delete() }
@@ -123,6 +148,7 @@ class DexterService : Service() {
         instance = null
         interrupter.stop()
         stopWake()
+        overlay.hide()
         dictation.release()
         speaker.shutdown()
         model?.close()
@@ -151,54 +177,88 @@ class DexterService : Service() {
     private fun startWake() {
         val m = model ?: return
         if (paused || appInForeground || inConversation || wakeListener != null) return
-        try {
-            val recognizer = Recognizer(m, SAMPLE_RATE, "[\"oye dexter\", \"hey dexter\", \"ey dexter\", \"dexter\", \"[unk]\"]")
-            wakeListener = SpeechService(recognizer, SAMPLE_RATE).also { it.startListening(wakeCallbacks) }
-            update(getString(R.string.dexter_service_waiting))
-        } catch (e: Exception) {
-            Log.w(TAG, "wake start failed: ${e.message}")
-            main.postDelayed({ startWake() }, 5000)
+        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) return
+        val listener = DexterWake(
+            m,
+            onRequest = { wav -> main.post { wakeEnded(); onRequestWithName(wav) } },
+            onWakeOnly = { main.post { wakeEnded(); onWake() } }
+        )
+        wakeListener = listener
+        listener.start()
+        update(getString(R.string.dexter_service_waiting))
+        // If the microphone was busy (a call, another app) the listener ends at once: try again later.
+        main.postDelayed(wakeWatchdog, 5000)
+    }
+
+    /** Restarts the wake listener if it died on its own (microphone taken by a call or another app). */
+    private val wakeWatchdog = object : Runnable {
+        override fun run() {
+            val listener = wakeListener ?: return
+            if (!listener.alive && !inConversation) {
+                Log.w(TAG, "wake listener ended, restarting")
+                wakeListener = null
+                startWake()
+            } else {
+                main.postDelayed(this, 5000)
+            }
         }
     }
 
-    private fun stopWake() {
-        wakeListener?.let {
-            it.stop()
-            it.shutdown()
-        }
+    /** The listener finished by itself after hearing the name; it already released the microphone. */
+    private fun wakeEnded() {
+        main.removeCallbacks(wakeWatchdog)
         wakeListener = null
     }
 
-    private val wakeCallbacks = object : RecognitionListener {
-        private fun check(json: String?, key: String) {
-            val text = runCatching { JSONObject(json ?: "{}").optString(key) }.getOrDefault("")
-            if ("dexter" in text) main.post { onWake() }
-        }
-        override fun onPartialResult(hypothesis: String?) = check(hypothesis, "partial")
-        override fun onResult(hypothesis: String?) = check(hypothesis, "text")
-        override fun onFinalResult(hypothesis: String?) = check(hypothesis, "text")
-        override fun onError(exception: Exception?) {
-            Log.w(TAG, "wake error: ${exception?.message}")
-            main.post {
-                stopWake()
-                main.postDelayed({ startWake() }, 3000)
-            }
-        }
-        override fun onTimeout() = Unit
+    private fun stopWake() {
+        main.removeCallbacks(wakeWatchdog)
+        wakeListener?.stop()
+        wakeListener = null
     }
 
-    private fun onWake() {
-        if (inConversation || paused) return
-        Log.d(TAG, "Oye Dexter (service)")
-        stopWake()
+    private fun canStart(): Boolean {
+        if (inConversation || paused) return false
         if (keys.usableAssistant == null) {
             update(getString(R.string.voice_need_key))
             main.postDelayed({ startWake() }, 3000)
-            return
+            return false
         }
+        return true
+    }
+
+    /** "Oye Dexter" and a pause: a tone, then Dexter listens for the request. */
+    private fun onWake() {
+        if (!canStart()) return
+        Log.d(TAG, "Oye Dexter (service)")
         inConversation = true
+        overlay.clear()
+        overlay.show(OwlState.LISTENING)
         runCatching { ToneGenerator(AudioManager.STREAM_MUSIC, 70).startTone(ToneGenerator.TONE_PROP_ACK, 160) }
         main.postDelayed({ listenForRequest() }, 300)
+    }
+
+    /** "Oye Dexter, pon una alarma..." in one breath: the recording goes straight to Dexter. */
+    private fun onRequestWithName(wav: ByteArray) {
+        if (!canStart()) return
+        val gemini = keys.geminiKey
+        if (keys.usableAssistant?.first != AssistantProvider.GEMINI && gemini.isBlank()) {
+            // Claude with no Gemini key: nothing here can transcribe the recording, so ask again.
+            onWake()
+            return
+        }
+        Log.d(TAG, "Oye Dexter with the request (service)")
+        inConversation = true
+        overlay.clear()
+        overlay.show(OwlState.THINKING)
+        runTurn { a, onEvent ->
+            if (a is GeminiAgent) {
+                a.sendAudio(wav, "audio/wav", onEvent)
+            } else {
+                val text = GeminiText.transcribe(gemini, wav, "audio/wav")
+                overlay.show(OwlState.THINKING, youSaid = text)
+                a.send(text, onEvent)
+            }
+        }
     }
 
     // --- Conversation without the app ---
@@ -210,6 +270,7 @@ class DexterService : Service() {
             return
         }
         interrupter.stop() // frees the microphone
+        overlay.show(OwlState.LISTENING, youSaid = "")
         dictation.start(DictationMode.CONVERSATION)
     }
 
@@ -234,6 +295,7 @@ class DexterService : Service() {
         if (locked) agent = null
         val gen = ++turn
         update(getString(R.string.voice_pill_thinking))
+        overlay.show(OwlState.THINKING, answer = "")
         speaker.begin { if (gen == turn) listenForRequest() } // keep the conversation going, like the app's Jarvis mode
         Thread {
             val reply = StringBuilder()
@@ -241,7 +303,11 @@ class DexterService : Service() {
                 call(a) { event ->
                     if (event is AgentEvent.Reply) {
                         reply.append(event.text)
-                        main.post { if (gen == turn) speaker.append(event.text) }
+                        main.post {
+                            if (gen != turn) return@post
+                            speaker.append(event.text)
+                            overlay.appendReply(event.text)
+                        }
                     }
                 }
             }.exceptionOrNull()
@@ -249,8 +315,9 @@ class DexterService : Service() {
                 if (gen != turn) return@post
                 lastReply = reply.toString().trim()
                 if (failure != null) {
-                    Log.w(TAG, "service turn failed: ${failure.javaClass.simpleName}")
+                    Log.w(TAG, "service turn failed: ${failure.javaClass.simpleName}: ${failure.message?.take(120)}")
                     speaker.stop()
+                    overlay.show(OwlState.IDLE, answer = getString(R.string.voice_failed))
                     endConversation(getString(R.string.voice_failed))
                 } else {
                     update(lastReply.ifBlank { getString(R.string.dexter_service_waiting) })
@@ -265,7 +332,13 @@ class DexterService : Service() {
         if (inConversation) return
         stopWake() // the wake word would hear Dexter's own voice
         val gen = ++turn
-        speaker.begin { if (gen == turn && !inConversation) startWake() }
+        overlay.clear()
+        overlay.show(OwlState.SPEAKING, answer = text)
+        speaker.begin {
+            if (gen != turn || inConversation) return@begin
+            overlay.hideSoon()
+            startWake()
+        }
         speaker.append(text)
         speaker.finish()
     }
@@ -275,6 +348,7 @@ class DexterService : Service() {
         interrupter.stop()
         turn++
         dictation.cancel()
+        overlay.hideSoon()
         update(message ?: lastReply.ifBlank { getString(R.string.dexter_service_waiting) })
         main.postDelayed({ startWake() }, 400)
     }
@@ -332,7 +406,6 @@ class DexterService : Service() {
         private const val CHANNEL = "ANCLA_DEXTER"
         private const val NOTIFICATION_ID = 7342
         private const val ACTION_STOP = "stop"
-        private const val SAMPLE_RATE = 16000f
         private const val MODEL_URL = "https://alphacephei.com/vosk/models/vosk-model-small-es-0.42.zip"
 
         /** The running service, so the app can pause it while it uses the microphone itself. */

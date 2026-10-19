@@ -43,11 +43,11 @@ object GeminiText {
         "Write exactly that text, ready to send, in the user's language and a natural tone, as short as the request allows. " +
         "Output only the text to insert, with no quotes, preface or explanation."
 
-    /** Blocking. Clean transcript of [audio] (audio/mp4), or throws [AgentException]. */
-    fun transcribe(apiKey: String, audio: ByteArray): String = call(
+    /** Blocking. Clean transcript of [audio] ([mimeType]), or throws [AgentException]. */
+    fun transcribe(apiKey: String, audio: ByteArray, mimeType: String = "audio/mp4"): String = call(
         apiKey,
         JSONArray()
-            .put(JSONObject().put("inlineData", JSONObject().put("mimeType", "audio/mp4").put("data", Base64.encodeToString(audio, Base64.NO_WRAP))))
+            .put(JSONObject().put("inlineData", JSONObject().put("mimeType", mimeType).put("data", Base64.encodeToString(audio, Base64.NO_WRAP))))
             .put(JSONObject().put("text", "Transcribe.")),
         TRANSCRIBE
     )

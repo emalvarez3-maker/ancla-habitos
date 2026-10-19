@@ -500,6 +500,8 @@
     <string name="phone_grant">Activar</string>
     <string name="phone_grant_notifications">Notificaciones</string>
     <string name="phone_grant_notifications_detail">Para ver a Dexter fuera de la app: cuándo te escucha, qué te responde y tus recordatorios.</string>
+    <string name="phone_grant_overlay">Ver a Dexter sobre otras apps</string>
+    <string name="phone_grant_overlay_detail">Mostrar sobre otras apps: cuando dices «Oye Dexter», una tarjeta lo muestra escuchando y lo que te responde, como Siri. Tócala para pararlo.</string>
     <string name="phone_grant_battery">Siempre activo</string>
     <string name="phone_grant_battery_detail">Sin límites de batería, para que Android no apague «Oye Dexter» mientras el teléfono duerme.</string>
     <string name="phone_grant_screen">Usar la pantalla</string>

@@ -82,6 +82,11 @@ private val GRANTS = listOf(
         { it.getSystemService(PowerManager::class.java)?.isIgnoringBatteryOptimizations(it.packageName) == true },
         { settings(it, Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, withPackage = true) }
     ),
+    Grant(
+        R.string.phone_grant_overlay, R.string.phone_grant_overlay_detail,
+        { Settings.canDrawOverlays(it) },
+        { settings(it, Settings.ACTION_MANAGE_OVERLAY_PERMISSION, withPackage = true) }
+    ),
     Grant(R.string.phone_grant_screen, R.string.phone_grant_screen_detail, { DexterAccessibility.enabled(it) }, { settings(it, Settings.ACTION_ACCESSIBILITY_SETTINGS) }),
     Grant(
         R.string.phone_grant_files, R.string.phone_grant_files_detail,

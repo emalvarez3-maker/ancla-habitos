@@ -292,7 +292,7 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
         // A pending risky step needs the user's actual words: transcribe the reply so "sí" confirms
         // and "no" doesn't. If transcription fails, the audio goes as is and can't confirm anything.
         if (actions.awaitingConfirmation) {
-            val heard = runCatching { GeminiText.transcribe(apiKey, audio) }.getOrNull()
+            val heard = runCatching { GeminiText.transcribe(apiKey, audio, mimeType) }.getOrNull()
             if (!heard.isNullOrBlank()) return send(heard, onEvent)
         }
         sendRawAudio(audio, mimeType, onEvent)
@@ -309,7 +309,7 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
         // The model heard the audio, but the history needs the words: transcribe it in the background.
         if (log != null && seq != null) {
             Thread {
-                runCatching { GeminiText.transcribe(apiKey, audio) }.getOrNull()?.takeIf { it.isNotBlank() }?.let { log.update(seq, it) }
+                runCatching { GeminiText.transcribe(apiKey, audio, mimeType) }.getOrNull()?.takeIf { it.isNotBlank() }?.let { log.update(seq, it) }
             }.start()
         }
     }
@@ -390,7 +390,9 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
             requestMethod = "POST"
             doOutput = true
             connectTimeout = 15000
-            readTimeout = 60000
+            // A free model that hasn't answered in 15 s is overloaded: the turn moves on to the
+            // next one (see run) instead of leaving the user waiting half a minute.
+            readTimeout = SLOW_MS
             setRequestProperty("Content-Type", "application/json")
             setRequestProperty("x-goog-api-key", apiKey)
         }
@@ -398,7 +400,12 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
         try {
             conn.outputStream.use { it.write(body.toString().toByteArray()) }
             val sent = System.currentTimeMillis()
-            val code = conn.responseCode
+            val code = try {
+                conn.responseCode
+            } catch (e: java.net.SocketTimeoutException) {
+                android.util.Log.w("AnclaVoice", "$model gave no answer in $SLOW_MS ms")
+                throw AgentException(AgentException.Kind.RATE_LIMIT, "slow")
+            }
             android.util.Log.d("AnclaVoice", "Gemini HTTP $code after ${System.currentTimeMillis() - sent} ms")
             if (code !in 200..299) {
                 val text = conn.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
@@ -438,6 +445,9 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
     companion object {
         /** Stands for a voice message in the history until its transcription arrives. */
         private const val VOICE_MESSAGE = "(mensaje de voz)"
+
+        /** How long a model may take to start answering before the next one is tried. */
+        private const val SLOW_MS = 15_000
 
         /** Free models, fastest first; the next one is used when one hits its rate limit. */
         val MODELS = listOf("gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.8-flash")
