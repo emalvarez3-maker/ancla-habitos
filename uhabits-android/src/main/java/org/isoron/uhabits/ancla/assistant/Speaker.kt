@@ -263,7 +263,7 @@ class Speaker(
     }
 
     companion object {
-        const val ASSISTANT_RATE = 1.2f
+        const val ASSISTANT_RATE = 1.35f
         private const val GROUP_CHARS = 280
 
         /** The first part only needs to be a real phrase ("Claro." alone would sound clipped). */
