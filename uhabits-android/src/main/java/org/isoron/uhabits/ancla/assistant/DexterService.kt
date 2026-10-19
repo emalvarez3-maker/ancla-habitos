@@ -68,21 +68,21 @@ class DexterService : Service() {
     private var turn = 0
 
     /** Talking over Dexter cuts it off and starts the next request, as in the app. */
-    private val interrupter = BargeIn {
+    private val interrupter: BargeIn = BargeIn {
         if (!inConversation) return@BargeIn
         turn++
         speaker.stop()
         listenForRequest()
     }
 
-    private val speaker by lazy {
+    private val speaker: Speaker by lazy {
         Speaker(this, { keys.cloudVoice }, { keys.phoneVoice }) { speaking ->
             val micGranted = ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
             if (speaking && inConversation && !paused && keys.bargeIn && micGranted && !dictation.isActive) interrupter.start() else interrupter.stop()
         }
     }
 
-    private val dictation by lazy {
+    private val dictation: Dictation by lazy {
         Dictation(
             this,
             keys,
