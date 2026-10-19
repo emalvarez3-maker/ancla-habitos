@@ -21,12 +21,14 @@ package org.isoron.uhabits.ancla.assistant
 
 import android.Manifest
 import android.app.NotificationManager
+import android.app.role.RoleManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
+import android.os.PowerManager
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -70,7 +72,16 @@ private fun settings(context: Context, action: String, withPackage: Boolean = fa
     runCatching { context.startActivity(intent) }.onFailure { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
 }
 
+/** Dexter is the phone's digital assistant (hold home or power). */
+private fun isAssistant(context: Context) =
+    Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && context.getSystemService(RoleManager::class.java)?.isRoleHeld(RoleManager.ROLE_ASSISTANT) == true
+
 private val GRANTS = listOf(
+    Grant(
+        R.string.phone_grant_battery, R.string.phone_grant_battery_detail,
+        { it.getSystemService(PowerManager::class.java)?.isIgnoringBatteryOptimizations(it.packageName) == true },
+        { settings(it, Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, withPackage = true) }
+    ),
     Grant(R.string.phone_grant_screen, R.string.phone_grant_screen_detail, { DexterAccessibility.enabled(it) }, { settings(it, Settings.ACTION_ACCESSIBILITY_SETTINGS) }),
     Grant(
         R.string.phone_grant_files, R.string.phone_grant_files_detail,
@@ -83,7 +94,7 @@ private val GRANTS = listOf(
         { it.getSystemService(NotificationManager::class.java)?.isNotificationPolicyAccessGranted == true },
         { settings(it, Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS) }
     ),
-    Grant(R.string.phone_grant_assistant, R.string.phone_grant_assistant_detail, { false }, { settings(it, Settings.ACTION_VOICE_INPUT_SETTINGS) })
+    Grant(R.string.phone_grant_assistant, R.string.phone_grant_assistant_detail, ::isAssistant, { settings(it, Settings.ACTION_VOICE_INPUT_SETTINGS) })
 )
 
 /** "Control del teléfono" in Dexter's settings: every permission, its state and a button to grant it. */
@@ -100,15 +111,30 @@ fun PhoneControlSettings() {
         }
     }
     val contactsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { tick++ }
+    val notificationsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        // Denied twice, Android stops asking: send the user to the app's notification settings.
+        if (!granted) {
+            val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            runCatching { context.startActivity(intent) }
+        }
+        tick++
+    }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(stringResource(R.string.phone_title), style = MaterialTheme.typography.titleMedium, color = c.ink)
         Text(stringResource(R.string.phone_explain), style = MaterialTheme.typography.bodyMedium, color = c.inkSoft)
         key(tick) {
+            val notifications = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+            GrantRow(stringResource(R.string.phone_grant_notifications), stringResource(R.string.phone_grant_notifications_detail), notifications) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) notificationsLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
             GRANTS.forEach { g ->
-                GrantRow(stringResource(g.title), stringResource(g.detail), g.granted(context), g.title == R.string.phone_grant_assistant) { g.open(context) }
+                GrantRow(stringResource(g.title), stringResource(g.detail), g.granted(context)) { g.open(context) }
             }
             val contacts = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
-            GrantRow(stringResource(R.string.phone_grant_contacts), stringResource(R.string.phone_grant_contacts_detail), contacts, false) {
+            GrantRow(stringResource(R.string.phone_grant_contacts), stringResource(R.string.phone_grant_contacts_detail), contacts) {
                 contactsLauncher.launch(Manifest.permission.READ_CONTACTS)
             }
         }
@@ -156,7 +182,7 @@ private fun Switch(label: String, on: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun GrantRow(title: String, detail: String, granted: Boolean, alwaysOpen: Boolean, onGrant: () -> Unit) {
+private fun GrantRow(title: String, detail: String, granted: Boolean, onGrant: () -> Unit) {
     val c = Ancla.colors
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.ground).padding(12.dp),
@@ -166,9 +192,9 @@ private fun GrantRow(title: String, detail: String, granted: Boolean, alwaysOpen
             Text((if (granted) "✓ " else "") + title, style = MaterialTheme.typography.titleSmall, color = if (granted) c.mintInk else c.ink)
             Text(detail, style = MaterialTheme.typography.bodySmall, color = c.inkSoft)
         }
-        if (!granted || alwaysOpen) {
+        if (!granted) {
             Text(
-                stringResource(if (alwaysOpen) R.string.phone_open else R.string.phone_grant),
+                stringResource(R.string.phone_grant),
                 style = MaterialTheme.typography.labelLarge, color = c.lilacInk,
                 modifier = Modifier.clip(CircleShape).background(c.lilacSoft).combinedClickableCompat(Role.Button, onGrant).padding(horizontal = 12.dp, vertical = 8.dp)
             )

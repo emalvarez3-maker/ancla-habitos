@@ -493,7 +493,10 @@
     <string name="phone_title">Phone control</string>
     <string name="phone_explain">Say “Oye Dexter” or “Hey Dexter” anywhere (turn on “Always listening”) and ask for what you need: volume, brightness, flashlight, opening apps, alarms, calling or texting someone, your folders and files, or using any app for you. Each permission is turned on separately:</string>
     <string name="phone_grant">Turn on</string>
-    <string name="phone_open">Open</string>
+    <string name="phone_grant_notifications">Notifications</string>
+    <string name="phone_grant_notifications_detail">So you can see Dexter outside the app: when it\'s listening, what it answers, and your reminders.</string>
+    <string name="phone_grant_battery">Always on</string>
+    <string name="phone_grant_battery_detail">No battery limits, so Android doesn\'t switch off “Hey Dexter” while the phone sleeps.</string>
     <string name="phone_grant_screen">Use the screen</string>
     <string name="phone_grant_screen_detail">Accessibility: read, tap, type and scroll in any app; back, home, notifications, screenshot. Also lets it open apps while Dexter is closed.</string>
     <string name="phone_grant_files">Folders and files</string>

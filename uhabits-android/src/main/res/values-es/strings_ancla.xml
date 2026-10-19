@@ -492,7 +492,10 @@
     <string name="phone_title">Control del teléfono</string>
     <string name="phone_explain">Di «Oye Dexter» o «Hey Dexter» en cualquier parte (activa «Siempre escuchando») y pídele lo que necesites: volumen, brillo, linterna, abrir apps, alarmas, llamar o escribir a alguien, tus carpetas y archivos, o usar cualquier app por ti. Cada permiso se activa por separado:</string>
     <string name="phone_grant">Activar</string>
-    <string name="phone_open">Abrir</string>
+    <string name="phone_grant_notifications">Notificaciones</string>
+    <string name="phone_grant_notifications_detail">Para ver a Dexter fuera de la app: cuándo te escucha, qué te responde y tus recordatorios.</string>
+    <string name="phone_grant_battery">Siempre activo</string>
+    <string name="phone_grant_battery_detail">Sin límites de batería, para que Android no apague «Oye Dexter» mientras el teléfono duerme.</string>
     <string name="phone_grant_screen">Usar la pantalla</string>
     <string name="phone_grant_screen_detail">Accesibilidad: leer, tocar, escribir y desplazar en cualquier app; atrás, inicio, notificaciones, captura. También permite abrir apps con Dexter cerrado.</string>
     <string name="phone_grant_files">Carpetas y archivos</string>
