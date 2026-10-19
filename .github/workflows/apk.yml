@@ -1,6 +1,6 @@
-# Builds Ancla's APK on GitHub's servers and publishes it as the "ancla-ultima" release, so the
+# Builds Dexter's APK on GitHub's servers and publishes it as the "dexter-ultima" release, so the
 # latest version can be downloaded and installed straight from the phone:
-# https://github.com/emalvarez3-maker/ancla-habitos/releases/download/ancla-ultima/ancla.apk
+# https://github.com/emalvarez3-maker/ancla-habitos/releases/download/dexter-ultima/dexter.apk
 #
 # To install it over the version already on the phone (keeping its data), the APK has to be
 # signed with the same key: add your PC's ~/.android/debug.keystore as the repository secret
@@ -52,19 +52,21 @@ jobs:
         run: |
           apk=$(find uhabits-android/build/outputs/apk/debug -name '*.apk' | head -n 1)
           test -n "$apk"
-          cp "$apk" ancla.apk
+          cp "$apk" dexter.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ancla-apk
-          path: ancla.apk
+          name: dexter-apk
+          path: dexter.apk
 
-      - name: Publish as the "ancla-ultima" release
+      - name: Publish as the "dexter-ultima" release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # The old "ancla-ultima" release (before the app was renamed) goes too.
           gh release delete ancla-ultima --yes --cleanup-tag || true
-          gh release create ancla-ultima ancla.apk \
+          gh release delete dexter-ultima --yes --cleanup-tag || true
+          gh release create dexter-ultima dexter.apk \
             --target "$GITHUB_SHA" --prerelease \
-            --title "Ancla (última versión)" \
-            --notes "Compilado de ${GITHUB_SHA::7} en la rama ${GITHUB_REF_NAME}. Firma: ${SIGNING}. En el celular: abre este enlace, descarga ancla.apk y ábrelo para instalar."
+            --title "Dexter (última versión)" \
+            --notes "Compilado de ${GITHUB_SHA::7} en la rama ${GITHUB_REF_NAME}. Firma: ${SIGNING}. En el celular: abre este enlace, descarga dexter.apk y ábrelo para instalar."
