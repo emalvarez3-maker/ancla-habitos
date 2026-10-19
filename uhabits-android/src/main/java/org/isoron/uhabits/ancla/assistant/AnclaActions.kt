@@ -223,6 +223,11 @@ class AnclaActions(private val context: Context) : AgentActions {
 
     override fun deviceLocked() = context.getSystemService(android.app.KeyguardManager::class.java)?.isKeyguardLocked == true
 
+    private val conversation = DexterConversation(context)
+
+    // Anyone can talk to a locked phone: then nothing said before is shown, and nothing is kept.
+    override fun conversation() = if (deviceLocked()) null else conversation
+
     override fun updateBook(title: String, status: String?, rating: Int?, remove: Boolean): String {
         val book = findBook(title)
         if (remove) {

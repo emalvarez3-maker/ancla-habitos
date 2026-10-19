@@ -403,6 +403,25 @@ private fun KeysSheet(
                         }).padding(horizontal = 14.dp, vertical = 10.dp)
                 )
             }
+            val conversation = remember { DexterConversation(context) }
+            var talked by remember { mutableStateOf(conversation.entries().size) }
+            Text(
+                if (talked == 0) stringResource(R.string.conversation_empty) else stringResource(R.string.conversation_kept, talked),
+                style = MaterialTheme.typography.bodyMedium,
+                color = c.muted
+            )
+            if (talked > 0) {
+                Text(
+                    stringResource(R.string.conversation_clear),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = c.amberInk,
+                    modifier = Modifier.clip(CircleShape).background(c.ground)
+                        .combinedClickableCompat(Role.Button, {
+                            conversation.clear()
+                            talked = 0
+                        }).padding(horizontal = 14.dp, vertical = 10.dp)
+                )
+            }
             PhoneControlSettings()
             WhatsAppSettings(usingGemini = assistant == AssistantProvider.GEMINI)
             Box(

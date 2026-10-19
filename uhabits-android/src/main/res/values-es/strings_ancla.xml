@@ -307,6 +307,9 @@
     <string name="memory_title">Lo que Dexter sabe de ti</string>
     <string name="memory_empty">Todavía nada. Habla con él y lo irá aprendiendo.</string>
     <string name="memory_clear">Borrar memoria</string>
+    <string name="conversation_empty">Conversación: todavía nada. Lo que hablen aquí o con «Oye Dexter» se le queda, cifrado en el teléfono (nunca con el teléfono bloqueado).</string>
+    <string name="conversation_kept">Conversación: recuerda tus últimos %1$d mensajes, aquí y con «Oye Dexter», cifrados en el teléfono.</string>
+    <string name="conversation_clear">Borrar conversación</string>
     <string name="keys_gemini_transcription">Gemini</string>
     <string name="keys_gemini_transcription_note">Gemini escucha tu audio directamente y actúa en un solo paso: la opción más rápida, gratis con tu clave de Gemini.</string>
     <string name="keys_voice">Voz de Dexter</string>

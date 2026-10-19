@@ -25,6 +25,8 @@ import android.util.Base64
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.security.KeyStore
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
@@ -127,9 +129,12 @@ object EncryptedStore {
             it.write(encrypt(text.toByteArray(), file.name))
             it.fd.sync()
         }
-        if (!tmp.renameTo(file)) {
+        // An atomic replace: rename(2) on Android, and it also overwrites on Windows (unit tests).
+        try {
+            Files.move(tmp.toPath(), file.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+        } catch (e: Exception) {
             tmp.delete()
-            throw IOException("Could not replace ${file.name}")
+            throw IOException("Could not replace ${file.name}", e)
         }
     }
 

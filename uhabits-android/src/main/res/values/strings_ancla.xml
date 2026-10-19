@@ -308,6 +308,9 @@
     <string name="memory_title">What Dexter knows about you</string>
     <string name="memory_empty">Nothing yet. Talk to him and he will learn.</string>
     <string name="memory_clear">Clear memory</string>
+    <string name="conversation_empty">Conversation: nothing yet. Whatever you talk about here or with “Hey Dexter” stays with him, encrypted on the phone (never with the phone locked).</string>
+    <string name="conversation_kept">Conversation: he remembers your last %1$d messages, here and with “Hey Dexter”, encrypted on the phone.</string>
+    <string name="conversation_clear">Clear conversation</string>
     <string name="keys_gemini_transcription">Gemini</string>
     <string name="keys_gemini_transcription_note">Gemini listens to your audio directly and acts in one step: the fastest option, free with your Gemini key.</string>
     <string name="keys_voice">Dexter\'s voice</string>

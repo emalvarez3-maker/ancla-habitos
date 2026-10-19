@@ -75,6 +75,7 @@ internal fun dispatchTool(actions: AgentActions, name: String, input: JSONObject
  */
 class GeminiAgent(private val apiKey: String, private val actions: AgentActions) : AssistantAgent {
     private val history = JSONArray()
+    private val sync = ConversationSync()
     private var lowThinking = true
 
     private fun prop(type: String, description: String? = null, nullable: Boolean = false) = JSONObject().apply {
@@ -272,8 +273,19 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
         )
     )
 
-    override fun send(userText: String, onEvent: (AgentEvent) -> Unit) =
-        run(JSONArray().put(JSONObject().put("text", userText)), onEvent)
+    override fun send(userText: String, onEvent: (AgentEvent) -> Unit) {
+        sync.turn(actions.conversation(), userText, onEvent) { context, events ->
+            run(withContext(context, JSONArray().put(JSONObject().put("text", userText))), userText, events)
+        }
+    }
+
+    /** Puts the conversation the agent hasn't seen yet in front of the user's message. */
+    private fun withContext(context: String?, parts: JSONArray): JSONArray {
+        if (context == null) return parts
+        val all = JSONArray().put(JSONObject().put("text", context))
+        for (i in 0 until parts.length()) all.put(parts.get(i))
+        return all
+    }
 
     /** Sends recorded speech straight to Gemini, which understands and acts on it in one call. */
     fun sendAudio(audio: ByteArray, mimeType: String, onEvent: (AgentEvent) -> Unit) {
@@ -286,15 +298,25 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
         sendRawAudio(audio, mimeType, onEvent)
     }
 
-    private fun sendRawAudio(audio: ByteArray, mimeType: String, onEvent: (AgentEvent) -> Unit) = run(
-        JSONArray()
-            .put(JSONObject().put("inlineData", JSONObject().put("mimeType", mimeType).put("data", android.util.Base64.encodeToString(audio, android.util.Base64.NO_WRAP))))
-            .put(JSONObject().put("text", PhoneSafety.AUDIO_TURN)),
-        onEvent
-    )
+    private fun sendRawAudio(audio: ByteArray, mimeType: String, onEvent: (AgentEvent) -> Unit) {
+        val log = actions.conversation()
+        val (_, seq) = sync.turn(log, VOICE_MESSAGE, onEvent) { context, events ->
+            val parts = JSONArray()
+                .put(JSONObject().put("inlineData", JSONObject().put("mimeType", mimeType).put("data", android.util.Base64.encodeToString(audio, android.util.Base64.NO_WRAP))))
+                .put(JSONObject().put("text", PhoneSafety.AUDIO_TURN))
+            run(withContext(context, parts), PhoneSafety.AUDIO_TURN, events)
+        }
+        // The model heard the audio, but the history needs the words: transcribe it in the background.
+        if (log != null && seq != null) {
+            Thread {
+                runCatching { GeminiText.transcribe(apiKey, audio) }.getOrNull()?.takeIf { it.isNotBlank() }?.let { log.update(seq, it) }
+            }.start()
+        }
+    }
 
-    private fun run(userParts: JSONArray, onEvent: (AgentEvent) -> Unit) {
-        actions.userTurn((0 until userParts.length()).mapNotNull { userParts.getJSONObject(it).optString("text").takeIf { t -> t.isNotBlank() } }.joinToString(" "))
+    /** One turn; [userTurnText] is only what the user said (never the history), for the confirmation gate. */
+    private fun run(userParts: JSONArray, userTurnText: String, onEvent: (AgentEvent) -> Unit) {
+        actions.userTurn(userTurnText)
         history.put(JSONObject().put("role", "user").put("parts", userParts))
         val instructions = assistantInstructions(actions.snapshot())
         // One model per turn: thought signatures from one model are not valid for another.
@@ -414,6 +436,9 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
 
 
     companion object {
+        /** Stands for a voice message in the history until its transcription arrives. */
+        private const val VOICE_MESSAGE = "(mensaje de voz)"
+
         /** Free models, fastest first; the next one is used when one hits its rate limit. */
         val MODELS = listOf("gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.8-flash")
 
