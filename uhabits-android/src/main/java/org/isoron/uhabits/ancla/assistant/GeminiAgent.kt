@@ -329,6 +329,7 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
                 .put("tools", tools)
             var result: Pair<JSONArray, String>? = null
             var attempts = 0
+            var retries = 0
             while (result == null) {
                 // Thinking adds seconds before the first word; the lowest level is plenty for a voice assistant.
                 if (lowThinking) {
@@ -346,6 +347,12 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
                             limitedUntil[model] = System.currentTimeMillis() + 60_000
                             model = nextModel()
                             android.util.Log.w("AnclaVoice", "chat model busy, switching to $model")
+                        }
+                        busy && it > 0 && !produced && ++retries <= 2 -> {
+                            // Mid-turn the model can't change (thought signatures), so a brief overload
+                            // ("high demand", 503) is waited out instead of failing the whole turn.
+                            android.util.Log.w("AnclaVoice", "$model busy mid-turn, retry $retries")
+                            Thread.sleep(1200L * retries)
                         }
                         lowThinking && e.kind == AgentException.Kind.OTHER && e.message.orEmpty().startsWith("HTTP 400") -> {
                             android.util.Log.w("AnclaVoice", "thinkingLevel rejected")
@@ -370,14 +377,26 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
                 return
             }
             val responses = JSONArray()
+            val results = mutableListOf<String>()
+            var failed = false
             calls.forEach { call ->
                 val name = call.getString("name")
                 val (output, isError) = dispatchTool(actions, name, call.optJSONObject("args") ?: JSONObject(), onEvent)
+                if (isError) failed = true
+                results += output
                 val fr = JSONObject().put("name", name).put("response", JSONObject().put(if (isError) "error" else "result", output))
                 if (call.has("id")) fr.put("id", call.getString("id"))
                 responses.put(JSONObject().put("functionResponse", fr))
             }
             history.put(JSONObject().put("role", "user").put("parts", responses))
+            // A simple action that worked ("linterna encendida") needs no second trip to the model just to
+            // say so: that trip took 5 to 11 s. The tool's own words are the answer.
+            if (text.isEmpty() && !failed && calls.all { it.optString("name") in QUICK_TOOLS }) {
+                val said = results.joinToString(". ") { it.trim().trimEnd('.') } + "."
+                onEvent(AgentEvent.Reply(said))
+                history.put(JSONObject().put("role", "model").put("parts", JSONArray().put(JSONObject().put("text", said))))
+                return
+            }
         }
     }
 
@@ -446,8 +465,14 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
         /** Stands for a voice message in the history until its transcription arrives. */
         private const val VOICE_MESSAGE = "(mensaje de voz)"
 
+        /** Actions whose own result is the whole answer ("Linterna encendida"), so the turn ends there. */
+        private val QUICK_TOOLS = setOf(
+            "phone_toggle", "phone_volume", "phone_media", "phone_brightness", "phone_alarm",
+            "phone_open_app", "phone_settings_panel", "quiet_mode", "complete_habit"
+        )
+
         /** How long a model may take to start answering before the next one is tried. */
-        private const val SLOW_MS = 15_000
+        private const val SLOW_MS = 9_000
 
         /** Free models, fastest first; the next one is used when one hits its rate limit. */
         val MODELS = listOf("gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.8-flash")
