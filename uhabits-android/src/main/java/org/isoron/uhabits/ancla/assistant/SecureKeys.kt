@@ -111,10 +111,17 @@ class SecureKeys(context: Context) {
         get() = prefs.getBoolean("always_listening", false)
         set(v) = prefs.edit().putBoolean("always_listening", v).apply()
 
-    /** "Oye Dexter" paused from its card, tile or notification: the service stays, the microphone is off. */
+    /**
+     * "Oye Dexter" paused from its card, tile or notification: the service stays, the microphone is
+     * off. A pause lasts [PAUSE_MS] and then ends by itself, so a forgotten pause never leaves
+     * Dexter deaf.
+     */
     var listeningPaused: Boolean
-        get() = prefs.getBoolean("listening_paused", false)
-        set(v) = prefs.edit().putBoolean("listening_paused", v).apply()
+        get() = System.currentTimeMillis() < prefs.getLong("listening_paused_until", 0)
+        set(v) = prefs.edit().putLong("listening_paused_until", if (v) System.currentTimeMillis() + PAUSE_MS else 0).remove("listening_paused").apply()
+
+    /** When the current pause ends (0 when not paused). */
+    val listeningPausedUntil: Long get() = prefs.getLong("listening_paused_until", 0)
 
     /** Jarvis mode: after Dexter speaks, listen again automatically. */
     var conversationMode: Boolean
@@ -179,6 +186,8 @@ class SecureKeys(context: Context) {
     }
 
     companion object {
+        /** How long "Pausar" keeps Dexter from listening. */
+        const val PAUSE_MS = 30 * 60 * 1000L
         private const val ALIAS = "ancla_api_keys"
         private const val TRANSFORM = "AES/GCM/NoPadding"
         private const val IV_SIZE = 12

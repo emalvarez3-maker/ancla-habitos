@@ -56,6 +56,9 @@ class DexterConversation(private val file: File) {
         save(load().map { if (it.seq == seq) Entry(it.seq, it.time, it.user, text.trim().take(MAX_LENGTH)) else it })
     }
 
+    /** Drops message [seq] (a recording nobody meant for Dexter). */
+    fun remove(seq: Long) = synchronized(LOCK) { save(load().filter { it.seq != seq }) }
+
     fun clear() = synchronized(LOCK) { file.delete() }
 
     private fun load(): List<Entry> {
@@ -137,9 +140,16 @@ internal class ConversationSync {
                 }
                 onEvent(event)
             }
+            val reply = said.toString().trim()
+            if (reply == PhoneSafety.IGNORE) {
+                // Not meant for Dexter: as if it never happened.
+                userSeq?.let { runCatching { log.remove(it) } }
+                return result to null
+            }
             return result to userSeq
         } finally {
-            record(log, false, said.toString().trim())
+            val reply = said.toString().trim()
+            if (reply != PhoneSafety.IGNORE) record(log, false, reply)
         }
     }
 

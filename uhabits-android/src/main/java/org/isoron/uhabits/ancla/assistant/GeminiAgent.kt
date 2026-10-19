@@ -288,22 +288,22 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
     }
 
     /** Sends recorded speech straight to Gemini, which understands and acts on it in one call. */
-    fun sendAudio(audio: ByteArray, mimeType: String, onEvent: (AgentEvent) -> Unit) {
+    fun sendAudio(audio: ByteArray, mimeType: String, onEvent: (AgentEvent) -> Unit, afterWake: Boolean = false) {
         // A pending risky step needs the user's actual words: transcribe the reply so "sí" confirms
         // and "no" doesn't. If transcription fails, the audio goes as is and can't confirm anything.
         if (actions.awaitingConfirmation) {
             val heard = runCatching { GeminiText.transcribe(apiKey, audio, mimeType) }.getOrNull()
             if (!heard.isNullOrBlank()) return send(heard, onEvent)
         }
-        sendRawAudio(audio, mimeType, onEvent)
+        sendRawAudio(audio, mimeType, onEvent, afterWake)
     }
 
-    private fun sendRawAudio(audio: ByteArray, mimeType: String, onEvent: (AgentEvent) -> Unit) {
+    private fun sendRawAudio(audio: ByteArray, mimeType: String, onEvent: (AgentEvent) -> Unit, afterWake: Boolean) {
         val log = actions.conversation()
         val (_, seq) = sync.turn(log, VOICE_MESSAGE, onEvent) { context, events ->
             val parts = JSONArray()
                 .put(JSONObject().put("inlineData", JSONObject().put("mimeType", mimeType).put("data", android.util.Base64.encodeToString(audio, android.util.Base64.NO_WRAP))))
-                .put(JSONObject().put("text", PhoneSafety.AUDIO_TURN))
+                .put(JSONObject().put("text", if (afterWake) PhoneSafety.WAKE_AUDIO_TURN else PhoneSafety.AUDIO_TURN))
             run(withContext(context, parts), PhoneSafety.AUDIO_TURN, events)
         }
         // The model heard the audio, but the history needs the words: transcribe it in the background.

@@ -163,6 +163,16 @@ class DexterService : Service() {
         when (intent?.action) {
             ACTION_PAUSE -> pause(byUser = true)
             ACTION_RESUME -> resumeListening()
+            ACTION_MIC -> {
+                // Started again while Dexter's invisible screen is on top: the microphone is ours again.
+                Log.d(TAG, "microphone handed back")
+                micLost = false
+                unregisterUnlock()
+                if (!inConversation) {
+                    stopWake()
+                    startWake()
+                }
+            }
         }
         if (model == null) loadModel() else if (keys.listeningPaused) update(getString(R.string.dexter_service_paused))
         return START_STICKY
@@ -172,6 +182,7 @@ class DexterService : Service() {
         instance = null
         interrupter.stop()
         stopWake()
+        unregisterUnlock()
         overlay.hide()
         dictation.release()
         speaker.shutdown()
@@ -202,6 +213,9 @@ class DexterService : Service() {
         val m = model ?: return
         if (keys.listeningPaused) {
             update(getString(R.string.dexter_service_paused))
+            // The pause ends by itself: listen again then.
+            main.removeCallbacks(pauseEnd)
+            main.postDelayed(pauseEnd, (keys.listeningPausedUntil - System.currentTimeMillis()).coerceAtLeast(1000) + 500)
             return
         }
         if (paused || appInForeground || inConversation || wakeListener != null) return
@@ -209,7 +223,11 @@ class DexterService : Service() {
         val listener = DexterWake(
             m,
             onRequest = { wav -> main.post { wakeEnded(); onRequestWithName(wav) } },
-            onWakeOnly = { main.post { wakeEnded(); onWake() } }
+            onWakeOnly = { main.post { wakeEnded(); onWake() } },
+            onSilenced = {
+                Log.w(TAG, "microphone silenced by Android")
+                main.post { regainMicrophone() }
+            }
         )
         wakeListener = listener
         listener.start()
@@ -230,6 +248,57 @@ class DexterService : Service() {
                 main.postDelayed(this, 5000)
             }
         }
+    }
+
+    // --- Getting the microphone back after a background start ---
+
+    private var micLost = false
+    private var unlockReceiver: android.content.BroadcastReceiver? = null
+
+    /**
+     * Android silenced the microphone (the service was started in the background). Dexter's
+     * invisible screen gets it back: now if the phone is in use, or right after it's unlocked.
+     */
+    private fun regainMicrophone() {
+        if (micLost) return
+        micLost = true
+        val power = getSystemService(android.os.PowerManager::class.java)
+        val keyguard = getSystemService(android.app.KeyguardManager::class.java)
+        if (power.isInteractive && !keyguard.isKeyguardLocked) {
+            openMicScreen()
+        } else {
+            update(getString(R.string.dexter_service_silenced))
+            val receiver = object : android.content.BroadcastReceiver() {
+                override fun onReceive(context: Context, intent: Intent) {
+                    unregisterUnlock()
+                    openMicScreen()
+                }
+            }
+            unlockReceiver = receiver
+            ContextCompat.registerReceiver(this, receiver, android.content.IntentFilter(Intent.ACTION_USER_PRESENT), ContextCompat.RECEIVER_NOT_EXPORTED)
+        }
+    }
+
+    private fun openMicScreen() {
+        if (!android.provider.Settings.canDrawOverlays(this)) {
+            // Without "Display over other apps" Android won't let it open from the background.
+            Log.w(TAG, "can't reclaim the microphone: no overlay permission")
+            update(getString(R.string.dexter_service_silenced))
+            micLost = false
+            return
+        }
+        Log.d(TAG, "reclaiming the microphone")
+        runCatching {
+            startActivity(Intent(this, DexterMicActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION))
+        }.onFailure {
+            Log.w(TAG, "mic screen refused: ${it.javaClass.simpleName}")
+            micLost = false
+        }
+    }
+
+    private fun unregisterUnlock() {
+        unlockReceiver?.let { runCatching { unregisterReceiver(it) } }
+        unlockReceiver = null
     }
 
     /** The listener finished by itself after hearing the name; it already released the microphone. */
@@ -279,10 +348,9 @@ class DexterService : Service() {
         inConversation = true
         overlay.clear()
         overlay.quiet(keys.quietMode)
-        overlay.show(OwlState.THINKING)
-        runTurn { a, onEvent ->
+        runTurn(verifyFirst = true) { a, onEvent ->
             if (a is GeminiAgent) {
-                a.sendAudio(wav, "audio/wav", onEvent)
+                a.sendAudio(wav, "audio/wav", onEvent, afterWake = true)
             } else {
                 val text = GeminiText.transcribe(gemini, wav, "audio/wav")
                 overlay.show(OwlState.THINKING, youSaid = text)
@@ -316,7 +384,8 @@ class DexterService : Service() {
         return agent
     }
 
-    private fun runTurn(call: (AssistantAgent, (AgentEvent) -> Unit) -> Unit) {
+    /** [verifyFirst]: a recording started by the wake word; the card waits until it's known to be for Dexter. */
+    private fun runTurn(verifyFirst: Boolean = false, call: (AssistantAgent, (AgentEvent) -> Unit) -> Unit) {
         // With the phone locked the speaker may not be its owner: start from a blank conversation,
         // so nothing said earlier can be asked back, and forget this one afterwards.
         val locked = getSystemService(android.app.KeyguardManager::class.java)?.isKeyguardLocked == true
@@ -325,24 +394,48 @@ class DexterService : Service() {
         if (locked) agent = null
         val gen = ++turn
         update(getString(R.string.voice_pill_thinking))
-        overlay.show(OwlState.THINKING, answer = "")
+        if (!verifyFirst) overlay.show(OwlState.THINKING, answer = "")
         speaker.begin { if (gen == turn) listenForRequest() } // keep the conversation going, like the app's Jarvis mode
         Thread {
             val reply = StringBuilder()
+            // The first characters wait until they can't be the "nobody called me" answer, so a
+            // false wake never says or shows anything.
+            var released = false
+            var shown = !verifyFirst
+            fun out(text: String) = main.post {
+                if (gen != turn) return@post
+                if (!shown) {
+                    shown = true
+                    overlay.show(OwlState.THINKING, answer = "")
+                }
+                if (!textOnly) speaker.append(text)
+                overlay.appendReply(text)
+            }
             val failure = runCatching {
                 call(a) { event ->
                     if (event is AgentEvent.Reply) {
                         reply.append(event.text)
-                        main.post {
-                            if (gen != turn) return@post
-                            if (!textOnly) speaker.append(event.text)
-                            overlay.appendReply(event.text)
+                        if (released) {
+                            out(event.text)
+                        } else if (!PhoneSafety.IGNORE.startsWith(reply.toString().trim())) {
+                            released = true
+                            out(reply.toString())
                         }
                     }
                 }
             }.exceptionOrNull()
+            val ignored = failure == null && reply.toString().trim() == PhoneSafety.IGNORE
+            if (failure == null && !released && !ignored) out(reply.toString())
             main.post {
                 if (gen != turn) return@post
+                if (ignored) {
+                    Log.d(TAG, "false wake: nobody was talking to Dexter")
+                    turn++
+                    speaker.stop()
+                    overlay.hide()
+                    endConversation(getString(R.string.dexter_service_waiting))
+                    return@post
+                }
                 lastReply = reply.toString().trim()
                 if (failure != null) {
                     Log.w(TAG, "service turn failed: ${failure.javaClass.simpleName}: ${failure.message?.take(120)}")
@@ -420,8 +513,14 @@ class DexterService : Service() {
         startWake()
     }
 
+    private val pauseEnd = Runnable {
+        DexterTile.update(this)
+        startWake()
+    }
+
     /** "Oye Dexter" listens again after the user paused it. */
     fun resumeListening() {
+        main.removeCallbacks(pauseEnd)
         keys.listeningPaused = false
         DexterTile.update(this)
         startWake()
@@ -471,6 +570,7 @@ class DexterService : Service() {
         private const val ACTION_STOP = "stop"
         private const val ACTION_PAUSE = "pause"
         const val ACTION_RESUME = "resume"
+        const val ACTION_MIC = "mic"
         private const val MODEL_URL = "https://alphacephei.com/vosk/models/vosk-model-small-es-0.42.zip"
 
         /** The running service, so the app can pause it while it uses the microphone itself. */

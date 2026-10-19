@@ -105,7 +105,9 @@ object AppLock : Application.ActivityLifecycleCallbacks {
         unlocked = true
     }
 
-    private fun locked(activity: Activity) = activity !is LockActivity && required(activity) && !unlocked
+    // DexterMicActivity shows nothing at all (it only hands the microphone back), so it needs no unlock.
+    private fun locked(activity: Activity) =
+        activity !is LockActivity && activity !is org.isoron.uhabits.ancla.assistant.DexterMicActivity && required(activity) && !unlocked
 
     override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {
         if (SecureKeys(activity).secureScreens) {

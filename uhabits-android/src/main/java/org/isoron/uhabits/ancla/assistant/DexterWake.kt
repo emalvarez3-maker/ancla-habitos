@@ -45,7 +45,8 @@ class DexterWake(
     private val model: Model,
     private val onRequest: (wav: ByteArray) -> Unit,
     private val onWakeOnly: () -> Unit,
-    private val onLevel: (Float) -> Unit = {}
+    private val onLevel: (Float) -> Unit = {},
+    private val onSilenced: () -> Unit = {}
 ) {
     @Volatile private var running = false
     private var thread: Thread? = null
@@ -72,22 +73,35 @@ class DexterWake(
         val record = AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, max(minBuffer, FRAME * 4))
         val recognizer = Recognizer(model, RATE.toFloat(), GRAMMAR)
         try {
-            if (record.state != AudioRecord.STATE_INITIALIZED) throw IllegalStateException("microphone busy")
+            if (record.state != AudioRecord.STATE_INITIALIZED) {
+                // No microphone at all for a background service: same remedy as a silenced one.
+                onSilenced()
+                throw IllegalStateException("microphone busy")
+            }
             record.startRecording()
             val ring = ArrayDeque<ShortArray>()
             var noise = 300.0
+            var zeros = 0
+            var hits = 0
             while (running) {
                 val frame = read(record) ?: break
                 ring.addLast(frame)
                 while (ring.size > RING_FRAMES) ring.removeFirst()
                 val rms = rms(frame)
                 onLevel((rms / 4000.0).coerceIn(0.0, 1.0).toFloat())
+                // Android hands a silenced microphone over as pure zeros (another app, or a start it disallowed).
+                zeros = if (rms == 0.0) zeros + 1 else 0
+                if (zeros == SILENCED_FRAMES) onSilenced()
                 // The room's noise, learned only from quiet frames.
                 if (rms < noise * 2) noise = noise * 0.95 + rms * 0.05
                 val final = recognizer.acceptWaveForm(frame, frame.size)
                 val heard = JSONObject(if (final) recognizer.result else recognizer.partialResult)
                     .let { it.optString("text").ifEmpty { it.optString("partial") } }
-                if ("dexter" !in heard) continue
+                // Only the whole phrase counts ("oye/hey/ey dexter", never "dexter" alone), and only
+                // once Vosk keeps it in two guesses in a row or a final result: a passing sound
+                // that merely resembles the name is dropped.
+                hits = if (WAKE_PHRASES.any { it in heard }) hits + 1 else 0
+                if (hits < 2 && !(final && hits == 1)) continue
 
                 Log.d(TAG, "wake word heard")
                 val request = capture(record, ring.toList(), noise)
@@ -164,7 +178,13 @@ class DexterWake(
 
         /** About two and a half seconds before the name was recognized, so "Oye" isn't cut. */
         private const val RING_FRAMES = 25
-        private const val GRAMMAR = "[\"oye dexter\", \"hey dexter\", \"ey dexter\", \"dexter\", \"[unk]\"]"
+        private val WAKE_PHRASES = listOf("oye dexter", "hey dexter", "ey dexter")
+
+        // Common words in the grammar give everyday speech something to match other than the name.
+        private const val GRAMMAR = "[\"oye dexter\", \"hey dexter\", \"ey dexter\", \"oye\", \"hey\", \"de\", \"que\", \"el\", \"la\", \"texto\", \"[unk]\"]"
+
+        /** Two seconds of exact zeros: the microphone is silenced. */
+        private const val SILENCED_FRAMES = 20
 
         private const val MIN_SPEECH_RMS = 350.0
         private const val GRACE_MS = 250L

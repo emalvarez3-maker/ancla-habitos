@@ -270,6 +270,16 @@
             android:exported="false"
             android:foregroundServiceType="microphone" />
 
+        <!-- Gives "Oye Dexter" its microphone back after a background start. Invisible, own task,
+             never in recents, not exported. -->
+        <activity
+            android:name="org.isoron.uhabits.ancla.assistant.DexterMicActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
         <!-- "Oye Dexter" on/off in the Quick Settings panel. Only the system can bind to it. -->
         <service
             android:name="org.isoron.uhabits.ancla.assistant.DexterTile"
@@ -359,6 +369,15 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_target_info" />
+        </receiver>
+
+        <receiver
+            android:name=".ancla.assistant.DexterAutostart"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
         </receiver>
 
         <receiver

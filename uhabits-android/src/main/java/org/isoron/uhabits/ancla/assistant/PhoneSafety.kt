@@ -51,6 +51,17 @@ object PhoneSafety {
     /** What a voice message sent as audio looks like to the tools: its words aren't known. */
     const val AUDIO_TURN = "(Voice message from the user. Act on what they said.)"
 
+    /** Answer that means "nobody was talking to Dexter": the turn is dropped without a word. */
+    const val IGNORE = "[IGNORAR]"
+
+    /**
+     * A recording that began because the wake word seemed to be heard. The model double-checks it,
+     * so a TV, a song or someone else's conversation never makes Dexter act or talk.
+     */
+    const val WAKE_AUDIO_TURN = "(Recorded because the phone thought it heard \"Oye Dexter\". First check: does someone clearly " +
+        "call Dexter by name and ask or say something to it? If not (background talk, TV, music, a name that only sounds alike, " +
+        "or just noise), reply with exactly $IGNORE and nothing else, and call no tool. Otherwise act on what they said.)"
+
     /** Tools that work with the phone locked: nothing that shows or changes personal data. */
     val WHILE_LOCKED = setOf("phone_volume", "phone_media", "phone_alarm", "phone_status", "phone_toggle")
 
