@@ -111,6 +111,11 @@ class SecureKeys(context: Context) {
         get() = prefs.getBoolean("always_listening", false)
         set(v) = prefs.edit().putBoolean("always_listening", v).apply()
 
+    /** "Oye Dexter" paused from its card, tile or notification: the service stays, the microphone is off. */
+    var listeningPaused: Boolean
+        get() = prefs.getBoolean("listening_paused", false)
+        set(v) = prefs.edit().putBoolean("listening_paused", v).apply()
+
     /** Jarvis mode: after Dexter speaks, listen again automatically. */
     var conversationMode: Boolean
         get() = prefs.getBoolean("conversation", false)

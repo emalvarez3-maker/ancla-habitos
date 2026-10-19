@@ -81,11 +81,19 @@ import kotlin.math.sin
 /**
  * Dexter on top of whatever app is open while you talk to it with "Oye Dexter", like Siri: a card
  * at the bottom of the screen with the owl, a glow that follows your voice, what you said and
- * Dexter's answer as it streams. Tapping it ends the conversation. Needs "Display over other
- * apps"; without it nothing is shown and Dexter still answers out loud. Android never draws it
- * over the lock screen.
+ * Dexter's answer as it streams. It stays out of the way: it never takes touches outside itself,
+ * tapping the owl shrinks it to a small pill, and it hides by itself when the conversation ends.
+ * Its buttons: silence (answers in text only, no voice), pause "Oye Dexter", and close.
+ * Needs "Display over other apps"; without it nothing is shown and Dexter still answers out loud.
+ * Android never draws it over the lock screen.
  */
-class DexterOverlay(private val context: Context, private val onTap: () -> Unit) {
+class DexterOverlay(private val context: Context, private val controls: Controls) {
+    interface Controls {
+        fun close()
+        fun setQuiet(on: Boolean)
+        fun pauseListening()
+    }
+
     private val main = Handler(Looper.getMainLooper())
     private val windows = context.getSystemService(WindowManager::class.java)
     private var view: ComposeView? = null
@@ -95,6 +103,11 @@ class DexterOverlay(private val context: Context, private val onTap: () -> Unit)
     private val level = mutableFloatStateOf(0f)
     private val heard = mutableStateOf("")
     private val reply = mutableStateOf("")
+    private val quiet = mutableStateOf(false)
+    private val compact = mutableStateOf(false)
+
+    /** Whether the silence button shows as on. */
+    fun quiet(on: Boolean) = onMain { quiet.value = on }
 
     private val hideLater = Runnable { remove() }
 
@@ -158,9 +171,20 @@ class DexterOverlay(private val context: Context, private val onTap: () -> Unit)
         view = compose
     }
 
+    /** The pill only takes the space it needs, so the screen around it stays touchable. */
+    private fun setCompact(on: Boolean) {
+        compact.value = on
+        val v = view ?: return
+        val params = v.layoutParams as? WindowManager.LayoutParams ?: return
+        params.width = if (on) WindowManager.LayoutParams.WRAP_CONTENT else WindowManager.LayoutParams.MATCH_PARENT
+        params.gravity = if (on) Gravity.BOTTOM or Gravity.END else Gravity.BOTTOM
+        runCatching { windows.updateViewLayout(v, params) }
+    }
+
     private fun remove() {
         view?.let { runCatching { windows.removeView(it) } }
         view = null
+        compact.value = false
         owner?.destroy()
         owner = null
     }
@@ -180,41 +204,75 @@ class DexterOverlay(private val context: Context, private val onTap: () -> Unit)
             },
             tween(160), label = "glow"
         )
+        val silent by quiet
+        val small by compact
         val scroll = rememberScrollState()
         LaunchedEffect(answer) { scroll.animateScrollTo(scroll.maxValue) }
+        val status = when (owl) {
+            OwlState.LISTENING -> stringResource(R.string.dexter_service_listening)
+            OwlState.THINKING -> stringResource(R.string.voice_pill_thinking)
+            else -> null
+        }
         Box(
-            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 18.dp)
-                .clip(RoundedCornerShape(28.dp))
-                .background(Color(0xF2141226))
-                .combinedClickableCompat(Role.Button, onTap)
+            Modifier.then(if (small) Modifier else Modifier.fillMaxWidth()).padding(horizontal = 12.dp, vertical = 16.dp),
+            contentAlignment = if (small) Alignment.BottomEnd else Alignment.BottomCenter
         ) {
-            Glow(glow, Modifier.matchParentSize())
-            Row(
-                Modifier.fillMaxWidth().padding(14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            Box(
+                Modifier.then(if (small) Modifier else Modifier.fillMaxWidth())
+                    .clip(RoundedCornerShape(26.dp))
+                    .background(Color(0xF0141226))
             ) {
-                DexterOwl(owl, Modifier.size(64.dp), mic)
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    val status = when (owl) {
-                        OwlState.LISTENING -> stringResource(R.string.dexter_service_listening)
-                        OwlState.THINKING -> stringResource(R.string.voice_pill_thinking)
-                        else -> null
+                Glow(glow, Modifier.matchParentSize())
+                if (small) {
+                    // The pill: just the owl and what it's doing; tap to open the card again.
+                    Row(
+                        Modifier.combinedClickableCompat(Role.Button, { setCompact(false) }).padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        DexterOwl(owl, Modifier.size(36.dp), mic)
+                        Text(status ?: "Dexter", style = MaterialTheme.typography.labelLarge, color = Color.White, maxLines = 1)
                     }
-                    if (you.isNotBlank()) {
-                        Text("“$you”", style = MaterialTheme.typography.bodySmall, color = Color(0xFFB9B4E0), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    return@Box
+                }
+                Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        // Tapping the owl shrinks the card to a pill.
+                        DexterOwl(owl, Modifier.size(52.dp).clip(RoundedCornerShape(26.dp)).combinedClickableCompat(Role.Button, { setCompact(true) }), mic)
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            if (you.isNotBlank()) {
+                                Text("“$you”", style = MaterialTheme.typography.bodySmall, color = Color(0xFFB9B4E0), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            }
+                            if (answer.isNotBlank()) {
+                                Text(
+                                    answer.trim(), style = MaterialTheme.typography.bodyMedium, color = Color.White,
+                                    modifier = Modifier.heightIn(max = 120.dp).verticalScroll(scroll)
+                                )
+                            } else if (status != null) {
+                                Text(status, style = MaterialTheme.typography.bodyLarge, color = Color.White)
+                            }
+                        }
                     }
-                    if (answer.isNotBlank()) {
-                        Text(
-                            answer.trim(), style = MaterialTheme.typography.bodyLarge, color = Color.White,
-                            modifier = Modifier.heightIn(max = 150.dp).verticalScroll(scroll)
-                        )
-                    } else if (status != null) {
-                        Text(status, style = MaterialTheme.typography.bodyLarge, color = Color.White)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.align(Alignment.End)) {
+                        Chip(stringResource(if (silent) R.string.overlay_voice_on else R.string.overlay_quiet), active = silent) { controls.setQuiet(!silent) }
+                        Chip(stringResource(R.string.overlay_pause)) { controls.pauseListening() }
+                        Chip("✕") { controls.close() }
                     }
                 }
             }
         }
+    }
+
+    @Composable
+    private fun Chip(label: String, active: Boolean = false, onClick: () -> Unit) {
+        Text(
+            label, style = MaterialTheme.typography.labelMedium,
+            color = if (active) Color(0xFF141226) else Color(0xFFE4E1FF), maxLines = 1,
+            modifier = Modifier.clip(RoundedCornerShape(14.dp))
+                .background(if (active) Color(0xFFFFC233) else Color(0x22FFFFFF))
+                .combinedClickableCompat(Role.Button, onClick)
+                .padding(horizontal = 12.dp, vertical = 6.dp)
+        )
     }
 
     /** The Siri-like edge: a band of moving colors whose brightness follows [strength]. */

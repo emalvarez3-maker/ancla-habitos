@@ -60,13 +60,33 @@ class DexterService : Service() {
 
     /** Dexter on top of other apps while you talk to it, like Siri (when allowed to draw there). */
     private val overlay: DexterOverlay by lazy {
-        DexterOverlay(this) {
-            turn++
-            speaker.stop()
-            endConversation()
-            overlay.hide()
-        }
+        DexterOverlay(this, object : DexterOverlay.Controls {
+            override fun close() {
+                turn++
+                speaker.stop()
+                endConversation()
+                overlay.hide()
+            }
+
+            override fun setQuiet(on: Boolean) {
+                keys.quietMode = on
+                overlay.quiet(on)
+                // Silence takes effect at once; the answer keeps arriving as text on the card.
+                if (on) silenceNow()
+            }
+
+            override fun pauseListening() = pause(byUser = true)
+        })
     }
+
+    /** Quiet mode with the card on screen: answers are shown, not spoken. */
+    private val textOnly get() = keys.quietMode && overlay.allowed
+
+    /** Stops the voice mid-answer; the turn then goes back to listening when its text is complete. */
+    private fun silenceNow() {
+        speaker.stop()
+    }
+
     private var paused = false
     private var inConversation = false
     private var agent: AssistantAgent? = null
@@ -140,7 +160,11 @@ class DexterService : Service() {
         }
         createChannel()
         startForeground(NOTIFICATION_ID, notification(getString(R.string.dexter_service_starting)), ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
-        if (model == null) loadModel()
+        when (intent?.action) {
+            ACTION_PAUSE -> pause(byUser = true)
+            ACTION_RESUME -> resumeListening()
+        }
+        if (model == null) loadModel() else if (keys.listeningPaused) update(getString(R.string.dexter_service_paused))
         return START_STICKY
     }
 
@@ -176,6 +200,10 @@ class DexterService : Service() {
 
     private fun startWake() {
         val m = model ?: return
+        if (keys.listeningPaused) {
+            update(getString(R.string.dexter_service_paused))
+            return
+        }
         if (paused || appInForeground || inConversation || wakeListener != null) return
         if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) return
         val listener = DexterWake(
@@ -232,6 +260,7 @@ class DexterService : Service() {
         Log.d(TAG, "Oye Dexter (service)")
         inConversation = true
         overlay.clear()
+        overlay.quiet(keys.quietMode)
         overlay.show(OwlState.LISTENING)
         runCatching { ToneGenerator(AudioManager.STREAM_MUSIC, 70).startTone(ToneGenerator.TONE_PROP_ACK, 160) }
         main.postDelayed({ listenForRequest() }, 300)
@@ -249,6 +278,7 @@ class DexterService : Service() {
         Log.d(TAG, "Oye Dexter with the request (service)")
         inConversation = true
         overlay.clear()
+        overlay.quiet(keys.quietMode)
         overlay.show(OwlState.THINKING)
         runTurn { a, onEvent ->
             if (a is GeminiAgent) {
@@ -305,7 +335,7 @@ class DexterService : Service() {
                         reply.append(event.text)
                         main.post {
                             if (gen != turn) return@post
-                            speaker.append(event.text)
+                            if (!textOnly) speaker.append(event.text)
                             overlay.appendReply(event.text)
                         }
                     }
@@ -321,7 +351,13 @@ class DexterService : Service() {
                     endConversation(getString(R.string.voice_failed))
                 } else {
                     update(lastReply.ifBlank { getString(R.string.dexter_service_waiting) })
-                    speaker.finish()
+                    if (textOnly) {
+                        // Nothing was spoken (or the voice was cut): go straight back to listening.
+                        speaker.stop()
+                        listenForRequest()
+                    } else {
+                        speaker.finish()
+                    }
                 }
             }
         }.start()
@@ -333,6 +369,7 @@ class DexterService : Service() {
         stopWake() // the wake word would hear Dexter's own voice
         val gen = ++turn
         overlay.clear()
+        overlay.quiet(keys.quietMode)
         overlay.show(OwlState.SPEAKING, answer = text)
         speaker.begin {
             if (gen != turn || inConversation) return@begin
@@ -355,17 +392,38 @@ class DexterService : Service() {
 
     // --- Pausing while the app itself uses the microphone ---
 
-    fun pause() {
-        paused = true
+    /**
+     * Stops listening. [byUser]: the user paused "Oye Dexter" (card, tile or notification), and it
+     * stays paused until they resume it; otherwise the app took the microphone for a moment.
+     */
+    fun pause(byUser: Boolean = false) {
+        if (byUser) {
+            keys.listeningPaused = true
+            overlay.hide()
+        } else {
+            paused = true
+        }
         if (inConversation) {
+            turn++
             speaker.stop()
             endConversation()
         }
         stopWake()
+        if (byUser) {
+            update(getString(R.string.dexter_service_paused))
+            DexterTile.update(this)
+        }
     }
 
     fun resume() {
         paused = false
+        startWake()
+    }
+
+    /** "Oye Dexter" listens again after the user paused it. */
+    fun resumeListening() {
+        keys.listeningPaused = false
+        DexterTile.update(this)
         startWake()
     }
 
@@ -384,6 +442,10 @@ class DexterService : Service() {
         val stop = PendingIntent.getService(
             this, 1, Intent(this, DexterService::class.java).setAction(ACTION_STOP), PendingIntent.FLAG_IMMUTABLE
         )
+        val pausedByUser = keys.listeningPaused
+        val toggle = PendingIntent.getService(
+            this, 2, Intent(this, DexterService::class.java).setAction(if (pausedByUser) ACTION_RESUME else ACTION_PAUSE), PendingIntent.FLAG_IMMUTABLE
+        )
         return NotificationCompat.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(getString(R.string.dexter_service_title))
@@ -392,6 +454,7 @@ class DexterService : Service() {
             .setOngoing(true)
             .setSilent(true)
             .setContentIntent(open)
+            .addAction(0, getString(if (pausedByUser) R.string.dexter_service_resume else R.string.overlay_pause), toggle)
             .addAction(0, getString(R.string.dexter_service_stop), stop)
             .build()
     }
@@ -406,6 +469,8 @@ class DexterService : Service() {
         private const val CHANNEL = "ANCLA_DEXTER"
         private const val NOTIFICATION_ID = 7342
         private const val ACTION_STOP = "stop"
+        private const val ACTION_PAUSE = "pause"
+        const val ACTION_RESUME = "resume"
         private const val MODEL_URL = "https://alphacephei.com/vosk/models/vosk-model-small-es-0.42.zip"
 
         /** The running service, so the app can pause it while it uses the microphone itself. */

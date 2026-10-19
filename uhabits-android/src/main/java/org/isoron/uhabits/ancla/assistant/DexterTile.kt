@@ -51,22 +51,42 @@ class DexterTile : TileService() {
             openDexter()
             return
         }
-        if (DexterService.instance != null) {
-            keys.alwaysListening = false
-            DexterService.stop(this)
-        } else {
-            keys.alwaysListening = true
-            DexterService.start(this)
+        val service = DexterService.instance
+        // The service starts or stops asynchronously: draw the state it is heading to.
+        val listening = when {
+            // Paused from the card or the notification: one tap listens again.
+            service != null && keys.listeningPaused -> {
+                service.resumeListening()
+                true
+            }
+            service != null -> {
+                keys.alwaysListening = false
+                DexterService.stop(this)
+                false
+            }
+            else -> {
+                keys.alwaysListening = true
+                keys.listeningPaused = false
+                DexterService.start(this)
+                true
+            }
         }
-        refresh(listening = DexterService.instance == null)
+        refresh(listening)
     }
 
-    private fun refresh(listening: Boolean = DexterService.instance != null) {
+    private fun refresh(listening: Boolean = DexterService.instance != null && !keys.listeningPaused) {
         val tile = qsTile ?: return
+        val pausedByUser = DexterService.instance != null && keys.listeningPaused
         tile.state = if (listening) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
         tile.label = getString(R.string.dexter_tile_label)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            tile.subtitle = getString(if (listening) R.string.dexter_tile_on else R.string.dexter_tile_off)
+            tile.subtitle = getString(
+                when {
+                    listening -> R.string.dexter_tile_on
+                    pausedByUser -> R.string.dexter_tile_paused
+                    else -> R.string.dexter_tile_off
+                }
+            )
         }
         tile.updateTile()
     }
