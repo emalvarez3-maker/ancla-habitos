@@ -138,12 +138,14 @@ object DatabaseCipher {
                 val version = plain.version
                 plain.rawExecSQL("ATTACH DATABASE ${quote(tmp.path)} AS encrypted KEY ${quote(key)}")
                 plain.rawExecSQL("SELECT sqlcipher_export('encrypted')")
-                // sqlcipher_export copies the schema and rows but not the schema version.
-                plain.rawExecSQL("PRAGMA encrypted.user_version = $version")
                 plain.rawExecSQL("DETACH DATABASE encrypted")
                 counts to version
             }
             SQLiteDatabase.openDatabase(tmp.path, key, null, SQLiteDatabase.OPEN_READWRITE, null, null).use { encrypted ->
+                // sqlcipher_export copies the schema and rows but not the schema version. It is set
+                // here, on the copy itself: a PRAGMA on the attached name may run on another pooled
+                // connection that doesn't have it attached.
+                encrypted.version = version
                 check(encrypted.version == version) { "schema version differs" }
                 check(tableCounts(encrypted) == counts) { "row counts differ" }
             }
@@ -175,10 +177,11 @@ object DatabaseCipher {
         db.rawExecSQL("ATTACH DATABASE ${quote(out.path)} AS plaintext KEY ''")
         try {
             db.rawExecSQL("SELECT sqlcipher_export('plaintext')")
-            db.rawExecSQL("PRAGMA plaintext.user_version = $version")
         } finally {
             db.rawExecSQL("DETACH DATABASE plaintext")
         }
+        // The schema version isn't exported; set it on the copy so an import knows how to read it.
+        SQLiteDatabase.openDatabase(out.path, "", null, SQLiteDatabase.OPEN_READWRITE, null, null).use { it.version = version }
     }
 
     /** Opens a database file chosen by the user (an import): plain, or encrypted with this phone's key. */

@@ -124,8 +124,10 @@ class DatabaseEncryptionTest {
     @Test
     fun anExportTheUserAsksForIsPlainAndImportable() {
         val out = File(ctx.cacheDir, "export-test.db")
-        DatabaseCipher.exportPlain(DatabaseUtils.openDatabase(), out)
+        val db = DatabaseUtils.openDatabase()
+        DatabaseCipher.exportPlain(db, out)
         assertTrue(DatabaseCipher.isPlaintext(out))
+        SQLiteDatabase.openDatabase(out.path, "", null, SQLiteDatabase.OPEN_READWRITE, null, null).use { assertEquals(db.version, it.version) }
         DatabaseCipher.openForImport(out.path).use { db -> assertTrue(count(db, "sqlite_master") > 0) }
         out.delete()
     }
