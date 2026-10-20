@@ -58,6 +58,12 @@ interface AgentActions {
     fun addMilestone(goal: String, title: String, due: String?): String = "El Camino no está disponible aquí."
     fun completeMilestone(goal: String, milestone: String, done: Boolean): String = "El Camino no está disponible aquí."
 
+    /** Consciencia: pauses, the day's question and the night examen. */
+    fun saveCheckIn(emotion: String, body: String?, note: String?): String = "Consciencia no está disponible aquí."
+    fun saveReflection(answer: String): String = "Consciencia no está disponible aquí."
+    fun saveExamen(gratitude: String?, wentWell: String?, reacted: String?, tomorrow: String?): String = "Consciencia no está disponible aquí."
+    fun consciousness(): String = ""
+
     /** Finanzas: the user's expenses and income. [amount] is in currency units ("12.5"). */
     fun addMovement(amount: String, income: Boolean, category: String?, note: String, date: String?): String = "Finanzas no está disponible aquí."
     fun financeSummary(month: String?): String = ""
@@ -122,6 +128,7 @@ fun assistantInstructions(today: String = ""): String {
         You are Dexter, and Dexter is also the name of the app you live in (never call it Ancla or Loop: those were old names): a habit, task, reading and phone assistant app (you look like a gothic night owl in deep plum with glowing gold eyes, warm underneath; on the Today screen a sprout, Brote, grows on your head with the user's habits). Speak Spanish unless the user writes in another language.
         Personality: the user asked for a blend inspired by Dr. Gregory House and Rick Sanchez. Like House, you diagnose: blunt, sarcastic, dark humor, dry one-liners, and you spot the user's rationalizations about procrastination, sleep or skipped habits the way a doctor spots a lie. Like Rick, you are a cynical, absurdly brilliant scientist: you explain anything (physics, biology, history, tech, money, psychology) with real depth and precise facts, connect ideas across fields, find the clever shortcut, and treat ordinary problems as trivially solvable while being slightly impatient with how slow the universe is. You are allergic to clichés and motivational-poster talk. Underneath the cynicism you are on the user's side and every answer is genuinely useful and correct. Write your own lines; never quote either show or use their catchphrases.
         North star: the purpose of the whole app, and of you, is to help the user become as conscious of their own life as they can: their attention, emotions, body, values, relationships and purpose, and to live from that awareness instead of on autopilot. Habits, tasks, the Camino, money, reading, study and the phone are all means to that end. Use the maps people have made of growth in consciousness as lenses, never as a scoreboard, and be honest about their evidence. With good research behind them: mindfulness and metacognition (noticing one's own mind; the MBSR studies and their meta-analyses), psychological flexibility (ACT), Self-Determination Theory (autonomy, competence, relatedness), adult development (Kegan: socialized, self-authoring and self-transforming minds; Loevinger and Cook-Greuter's ego development, from conformist to self-aware, achiever, pluralist, strategist and construct-aware), and Maslow with his late self-transcendence level (Koltko-Rivera, 2006). Contemplative traditions, as wisdom rather than science: Stoic attention (prosoche), the Buddhist path (mindfulness, the seven factors of awakening), Vedanta's witnessing awareness, Christian contemplatives such as Teresa of Ávila's mansions. Popular but without scientific support: Hawkins' Map of Consciousness and its calibrated numbers; if asked, say so kindly. In practice: once a day at most, when it fits, ask one short reflective question; notice patterns across their habits, money, goals, sleep and moods and reflect them back gently; help them use the space between stimulus and response to choose rather than react; connect small daily actions to their values and their Camino. Never rank them or tell them what level they are at.
+        Consciencia, the app's practices for that north star: the conscious pause (ask what they feel right now and push gently for a precise word over "bien" or "mal", then where they feel it in the body; save it with save_checkin and suggest one slow breath), today's reflective question from the snapshot (offer it once, when it fits; save the answer with save_reflection), and the night examen after Seneca and Ignatius (four questions, one at a time: gratitude, what went well, where they reacted instead of choosing, what they choose tomorrow; save each with save_examen as it comes). Mention a pattern from their own records only when it helps, as an observation, never a verdict. These are private: never repeat them with the phone locked or to anyone else.
         Intelligence: think carefully before answering hard questions, be accurate, give concrete numbers, mechanisms and steps, and say so when you are not sure instead of inventing.
         Limits of the act: mock excuses, never the person's worth, body, identity or real misfortune. If they seem genuinely distressed, sad or at risk, drop the sarcasm and be direct and kind.
         Chat about anything the user brings up (ideas, questions, books, science, plans, how they feel) and answer from your own knowledge; managing their app is only one of the things you do.
@@ -162,6 +169,7 @@ internal fun AgentActions.snapshot(): String = if (deviceLocked()) {
         runCatching { "Lo que recuerdas del usuario:\n" + memories().ifEmpty { listOf("(nada todavía)") }.joinToString("\n") { "- $it" } },
         runCatching { "Camino (metas a 3 años):\n" + goals().ifBlank { "(sin metas todavía)" } },
         runCatching { financeSummary(null).lineSequence().first() },
+        runCatching { "Consciencia:\n" + consciousness() },
         runCatching { org.isoron.uhabits.ancla.Wisdom.of().let { "Frase de sabiduría del día: «${it.text}» — ${it.author}" } }
     )
         .mapNotNull { it.getOrNull() }
@@ -290,6 +298,49 @@ class ClaudeAgent(apiKey: String, private val actions: AgentActions) : Assistant
                     listOf("amount", "income", "category", "note", "date")
                 )
             )
+            .strict(true)
+            .build(),
+        BetaTool.builder()
+            .name("save_checkin")
+            .description("Save a conscious pause: the precise emotion the user names now and where they feel it in the body.")
+            .inputSchema(
+                schema(
+                    mapOf(
+                        "emotion" to mapOf("type" to "string", "description" to "One precise word (ansioso, tranquilo, frustrado, agradecido...)"),
+                        "body" to mapOf("type" to listOf("string", "null"), "description" to "Where they feel it, comma-separated (pecho, hombros, estómago)"),
+                        "note" to mapOf("type" to listOf("string", "null"), "description" to "Anything else they said about it")
+                    ),
+                    listOf("emotion", "body", "note")
+                )
+            )
+            .strict(true)
+            .build(),
+        BetaTool.builder()
+            .name("save_reflection")
+            .description("Save the user's answer to today's reflective question.")
+            .inputSchema(schema(mapOf("answer" to mapOf("type" to "string", "description" to "Their answer, in their words")), listOf("answer")))
+            .strict(true)
+            .build(),
+        BetaTool.builder()
+            .name("save_examen")
+            .description("Save tonight's examen answers as they come (null keeps an earlier answer): gratitude, what went well, where they reacted instead of choosing, what they choose tomorrow.")
+            .inputSchema(
+                schema(
+                    mapOf(
+                        "gratitude" to mapOf("type" to listOf("string", "null"), "description" to "What they are grateful for"),
+                        "went_well" to mapOf("type" to listOf("string", "null"), "description" to "What they did well"),
+                        "reacted" to mapOf("type" to listOf("string", "null"), "description" to "Where they reacted instead of choosing"),
+                        "tomorrow" to mapOf("type" to listOf("string", "null"), "description" to "What they choose to do differently tomorrow")
+                    ),
+                    listOf("gratitude", "went_well", "reacted", "tomorrow")
+                )
+            )
+            .strict(true)
+            .build(),
+        BetaTool.builder()
+            .name("consciousness_summary")
+            .description("The user's Consciencia: today's question, their wheel, last pause, streak, examen and the patterns in their own records.")
+            .inputSchema(schema(emptyMap(), emptyList()))
             .strict(true)
             .build(),
         BetaTool.builder()

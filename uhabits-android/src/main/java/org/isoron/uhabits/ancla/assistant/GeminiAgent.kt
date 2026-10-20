@@ -51,6 +51,10 @@ internal fun dispatchTool(actions: AgentActions, name: String, input: JSONObject
             input.get("amount").toString(), input.optBoolean("income", false), opt("category"), input.optString("note"), opt("date")
         ).also { onEvent(AgentEvent.Action(it)) }
         "finance_summary" -> actions.financeSummary(opt("month"))
+        "save_checkin" -> actions.saveCheckIn(input.getString("emotion"), opt("body"), opt("note")).also { onEvent(AgentEvent.Action(it)) }
+        "save_reflection" -> actions.saveReflection(input.getString("answer")).also { onEvent(AgentEvent.Action(it)) }
+        "save_examen" -> actions.saveExamen(opt("gratitude"), opt("went_well"), opt("reacted"), opt("tomorrow")).also { onEvent(AgentEvent.Action(it)) }
+        "consciousness_summary" -> actions.consciousness()
         "set_budget" -> actions.setBudget(input.getString("category"), input.get("amount").toString()).also { onEvent(AgentEvent.Action(it)) }
         "undo_movement" -> actions.undoMovement().also { onEvent(AgentEvent.Action(it)) }
         "create_task" -> actions.createTask(input.getString("title"), opt("date"), opt("time"), input.optBoolean("remind", false))
@@ -226,6 +230,31 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
                         listOf("amount", "income", "note")
                     )
                 )
+                .put(
+                    function(
+                        "save_checkin",
+                        "Save a conscious pause: the precise emotion the user names now and where they feel it in the body.",
+                        JSONObject()
+                            .put("emotion", prop("string", "One precise word (ansioso, tranquilo, frustrado, agradecido...)"))
+                            .put("body", prop("string", "Where they feel it, comma-separated (pecho, hombros, estómago)", nullable = true))
+                            .put("note", prop("string", "Anything else they said about it", nullable = true)),
+                        listOf("emotion")
+                    )
+                )
+                .put(function("save_reflection", "Save the user's answer to today's reflective question.", JSONObject().put("answer", prop("string", "Their answer, in their words")), listOf("answer")))
+                .put(
+                    function(
+                        "save_examen",
+                        "Save tonight's examen answers as they come (null keeps an earlier answer): gratitude, what went well, where they reacted instead of choosing, what they choose tomorrow.",
+                        JSONObject()
+                            .put("gratitude", prop("string", "What they are grateful for", nullable = true))
+                            .put("went_well", prop("string", "What they did well", nullable = true))
+                            .put("reacted", prop("string", "Where they reacted instead of choosing", nullable = true))
+                            .put("tomorrow", prop("string", "What they choose to do differently tomorrow", nullable = true)),
+                        emptyList()
+                    )
+                )
+                .put(function("consciousness_summary", "The user's Consciencia: today's question, their wheel, last pause, streak, examen and the patterns in their own records.", JSONObject(), emptyList()))
                 .put(function("finance_summary", "The month's money: spent, income, balance, by category, with budgets.", JSONObject().put("month", prop("string", "YYYY-MM, this month if null", nullable = true)), emptyList()))
                 .put(
                     function(

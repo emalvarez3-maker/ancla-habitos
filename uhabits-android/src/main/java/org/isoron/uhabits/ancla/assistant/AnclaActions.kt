@@ -209,6 +209,27 @@ class AnclaActions(private val context: Context) : AgentActions {
         return if (g.done) "¡Meta «${g.title}» lograda! Completaste todos sus hitos." else "«${g.title}»: ${g.effectiveProgress} % (${g.milestones.count { it.done }} de ${g.milestones.size} hitos)"
     }
 
+    private val mind by lazy { org.isoron.uhabits.ancla.consciousness.ConsciousnessStore(context) }
+
+    override fun saveCheckIn(emotion: String, body: String?, note: String?): String {
+        val places = body?.split(',', ';')?.map { it.trim().replaceFirstChar { c -> c.uppercase() } }?.filter { it.isNotEmpty() }.orEmpty()
+        val c = mind.addCheckIn(emotion.replaceFirstChar { it.uppercase() }, places, note.orEmpty())
+        return "Pausa guardada: ${c.emotion}" + (if (c.body.isNotEmpty()) ", en ${c.body.joinToString()}" else "") + " · racha de ${mind.pauseStreak()} días"
+    }
+
+    override fun saveReflection(answer: String): String {
+        val r = mind.saveReflection(answer)
+        return "Respuesta guardada a «${r.question}»"
+    }
+
+    override fun saveExamen(gratitude: String?, wentWell: String?, reacted: String?, tomorrow: String?): String {
+        val e = mind.saveExamen(gratitude, wentWell, reacted, tomorrow)
+        val missing = listOf(e.gratitude to "gratitud", e.wentWell to "lo que hizo bien", e.reacted to "dónde reaccionó", e.tomorrow to "qué elige mañana").filter { it.first.isBlank() }.map { it.second }
+        return if (missing.isEmpty()) "Examen de hoy completo" else "Examen guardado; falta: ${missing.joinToString()}"
+    }
+
+    override fun consciousness() = mind.describe()
+
     private val money by lazy { org.isoron.uhabits.ancla.finance.FinanceStore(context) }
 
     override fun addMovement(amount: String, income: Boolean, category: String?, note: String, date: String?): String {
