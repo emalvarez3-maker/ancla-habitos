@@ -22,7 +22,7 @@ package org.isoron.uhabits.ancla
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
+import org.isoron.uhabits.ancla.ui.enableDexterEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -53,7 +53,7 @@ class TodayActivity : AppCompatActivity(), CommandRunner.Listener {
     private lateinit var voice: org.isoron.uhabits.ancla.assistant.VoiceAgentController
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        enableEdgeToEdge()
+        enableDexterEdgeToEdge()
         super.onCreate(savedInstanceState)
         voice = org.isoron.uhabits.ancla.assistant.VoiceAgentController(this) { refresh() }
         setContent {

@@ -26,7 +26,7 @@ import android.provider.Settings
 import android.view.WindowManager
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
+import org.isoron.uhabits.ancla.ui.enableDexterEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
@@ -84,7 +84,7 @@ import java.util.Locale
 class WhatsAppActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
-        enableEdgeToEdge()
+        enableDexterEdgeToEdge()
         super.onCreate(savedInstanceState)
         val vault = WhatsAppVault(this)
         setContent {

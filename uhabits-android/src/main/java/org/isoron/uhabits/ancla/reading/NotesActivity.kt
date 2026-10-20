@@ -27,7 +27,7 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
+import org.isoron.uhabits.ancla.ui.enableDexterEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.background
@@ -105,7 +105,7 @@ class NotesActivity : AppCompatActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        enableEdgeToEdge()
+        enableDexterEdgeToEdge()
         super.onCreate(savedInstanceState)
         graph = IdeaGraph(this)
         study = StudyStore(this)

@@ -25,7 +25,7 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
+import org.isoron.uhabits.ancla.ui.enableDexterEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -95,7 +95,7 @@ class RoboticsActivity : AppCompatActivity() {
     private val study by lazy { StudyStore(this) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        enableEdgeToEdge()
+        enableDexterEdgeToEdge()
         super.onCreate(savedInstanceState)
         handle(intent)
         setContent {

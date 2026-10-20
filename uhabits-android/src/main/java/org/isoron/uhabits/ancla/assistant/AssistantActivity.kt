@@ -23,7 +23,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
+import org.isoron.uhabits.ancla.ui.enableDexterEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
@@ -80,7 +80,7 @@ class AssistantActivity : AppCompatActivity() {
     private val showSettings = mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        enableEdgeToEdge()
+        enableDexterEdgeToEdge()
         super.onCreate(savedInstanceState)
         controller = VoiceAgentController(this)
         showSettings.value = !controller.hasAssistantKey

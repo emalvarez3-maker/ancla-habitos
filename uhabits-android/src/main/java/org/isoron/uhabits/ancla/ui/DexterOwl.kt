@@ -62,23 +62,24 @@ import kotlin.random.Random
 /** What Dexter is doing, for its face. SLEEPING is quiet mode. */
 enum class OwlState { IDLE, LISTENING, THINKING, SPEAKING, SLEEPING }
 
-/** Dexter's colors, the same as the launcher icon: a friendly purple owl with amber eyes. */
+/** Dexter's colors, the same as the launcher icon: a night owl in deep plum with glowing gold eyes. */
 private object Owl {
-    val body = Color(0xFF6E52D6)
-    val light = Color(0xFF9F82F5)
-    val shade = Color(0xFF5B3FC4)
-    val tuft = Color(0xFF5B3FC4)
-    val disc = Color(0xFFF6F2FF)
-    val belly = Color(0xFFE6DDFF)
-    val lid = Color(0xFF8468E4)
-    val iris = Color(0xFFFFC233)
-    val pupil = Color(0xFF1F1640)
-    val brow = Color(0xFF3E2A8C)
-    val beak = Color(0xFFFFB347)
-    val beakShade = Color(0xFFF2962E)
-    val chevron = Color(0xFFC3B2F5)
-    val cheek = Color(0xFFFF8FBF)
-    val sleep = Color(0xFF8A84B8)
+    val body = Color(0xFF3B2266)
+    val light = Color(0xFF55358A)
+    val shade = Color(0xFF24133F)
+    val tuft = Color(0xFF1C0D33)
+    val disc = Color(0xFF2A1A46)
+    val belly = Color(0xFF4A3373)
+    val lid = Color(0xFF2E1A50)
+    val iris = Color(0xFFFFB627)
+    val glow = Color(0x2EFFB627)
+    val pupil = Color(0xFF0B0614)
+    val brow = Color(0xFFC9B8FF)
+    val beak = Color(0xFFE8B04A)
+    val beakShade = Color(0xFFB8862E)
+    val chevron = Color(0xFF7A62B3)
+    val cheek = Color(0xFFB98CFF)
+    val sleep = Color(0xFFB4A6E6)
 }
 
 /** One pose of the face; poses are blended by how much each state is showing. */
@@ -389,8 +390,8 @@ private fun DrawScope.drawHead(p: Face) {
     for (s in listOf(-1f, 1f)) {
         val tuft = Path().apply {
             moveTo(50f + s * 21f, 30f)
-            quadraticTo(50f + s * 28f, 14f - perk, 50f + s * 26f, 8f - perk)
-            quadraticTo(50f + s * 16f, 14f, 50f + s * 8f, 20f)
+            quadraticTo(50f + s * 27.5f, 16f - perk, 50f + s * 27f, 3.5f - perk) // tall, pointed tufts: the night look
+            quadraticTo(50f + s * 18f, 13f, 50f + s * 8f, 20f)
             close()
         }
         drawPath(tuft, Owl.tuft)
@@ -400,8 +401,8 @@ private fun DrawScope.drawHead(p: Face) {
     // Facial disc around both eyes.
     drawCircle(Owl.disc, 13f, Offset(38.5f, 44f))
     drawCircle(Owl.disc, 13f, Offset(61.5f, 44f))
-    // Rosy cheeks always, warmer when pleased or tapped.
-    val warmth = (0.45f + 0.4f * max(p.pleased, p.squint)).coerceIn(0f, 0.85f) * (1f - p.sleep * 0.5f)
+    // A faint violet warmth on the cheeks, brighter when pleased or tapped.
+    val warmth = (0.12f + 0.45f * max(p.pleased, p.squint)).coerceIn(0f, 0.6f) * (1f - p.sleep * 0.5f)
     oval(Owl.cheek.copy(alpha = warmth), 33f, 55.5f, 4.6f, 2.8f)
     oval(Owl.cheek.copy(alpha = warmth), 67f, 55.5f, 4.6f, 2.8f)
 
@@ -409,6 +410,8 @@ private fun DrawScope.drawHead(p: Face) {
         val ex = 50f + s * 11.5f
         val ey = 44f
         val r = 9f * (1f + p.wide * 0.08f)
+        // The gold eyes glow a little, more when Dexter listens.
+        drawCircle(Owl.glow, r + 2.6f + p.wide * 1.6f, Offset(ex, ey))
         val eye = Path().apply { addOval(Rect(ex - r, ey - r, ex + r, ey + r)) }
         clipPath(eye) {
             drawRect(Owl.iris, Offset(ex - r, ey - r), Size(2 * r, 2 * r))
@@ -476,12 +479,12 @@ private fun DrawScope.drawHead(p: Face) {
 }
 
 private object Leaf {
-    val dark = Color(0xFF2FB57E)
-    val light = Color(0xFF46C793)
-    val stem = Color(0xFF239467)
-    val wood = Color(0xFF7A4A24)
-    val petal = Color(0xFFFFB4A2)
-    val bud = Color(0xFFF2A93B)
+    val dark = Color(0xFF2F8F73)
+    val light = Color(0xFF3FBF95)
+    val stem = Color(0xFF23705A)
+    val wood = Color(0xFF3A2A4A)
+    val petal = Color(0xFFB98CFF)
+    val bud = Color(0xFFFFB627)
 }
 
 /** A pointed leaf from its base to its tip, swelling to one side by [bulge]. */

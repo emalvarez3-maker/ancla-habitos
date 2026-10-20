@@ -19,7 +19,8 @@
 
 package org.isoron.uhabits.ancla.ui
 
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.activity.SystemBarStyle
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
@@ -85,25 +86,26 @@ val LightAnclaColors = AnclaColors(
     onInk = Color(0xFFFFFFFF)
 )
 
+/** Dexter's night: near-black violet, plum cards, a violet accent, gold for eyes and wins, jade for growth. */
 val DarkAnclaColors = AnclaColors(
-    ground = Color(0xFF15131F),
-    card = Color(0xFF221F31),
-    cardMuted = Color(0x8C221F31),
-    ink = Color(0xFFF1EFFA),
-    inkSoft = Color(0xFFD6D2EA),
-    muted = Color(0xFFA9A4C4),
-    track = Color(0xFF34304A),
-    mint = Color(0xFF4FCB95),
-    mintSoft = Color(0xFF1C3B2E),
-    mintInk = Color(0xFFBDEFD7),
-    lilac = Color(0xFFA899F5),
-    lilacSoft = Color(0xFF2E2853),
-    lilacInk = Color(0xFFDCD5FF),
-    amber = Color(0xFFF2B65A),
-    amberSoft = Color(0xFF45331A),
-    amberInk = Color(0xFFFFDDA6),
-    blush = Color(0xFFFF9F8C),
-    onInk = Color(0xFF15131F)
+    ground = Color(0xFF0E0817),
+    card = Color(0xFF1A1027),
+    cardMuted = Color(0x8C1A1027),
+    ink = Color(0xFFEDE6F7),
+    inkSoft = Color(0xFFCBBFE0),
+    muted = Color(0xFF9A8DB5),
+    track = Color(0xFF2B1D40),
+    mint = Color(0xFF3FBF95),
+    mintSoft = Color(0xFF14322A),
+    mintInk = Color(0xFFB4EEDA),
+    lilac = Color(0xFF9D7BFF),
+    lilacSoft = Color(0xFF2A1A47),
+    lilacInk = Color(0xFFD9CCFF),
+    amber = Color(0xFFFFB627),
+    amberSoft = Color(0xFF3A2A12),
+    amberInk = Color(0xFFFFD98A),
+    blush = Color(0xFFB98CFF),
+    onInk = Color(0xFF0E0817)
 )
 
 val LocalAnclaColors = staticCompositionLocalOf { LightAnclaColors }
@@ -151,12 +153,13 @@ object Ancla {
         @Composable get() = LocalAnclaColors.current
 }
 
+/** Dexter is a night owl: the app is always in its dark violet look, whatever the system theme. */
 @Composable
-fun AnclaTheme(dark: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
+fun AnclaTheme(dark: Boolean = true, content: @Composable () -> Unit) {
     val colors = if (dark) DarkAnclaColors else LightAnclaColors
     val scheme = if (dark) {
         darkColorScheme(
-            primary = colors.mint,
+            primary = colors.lilac,
             onPrimary = colors.onInk,
             secondary = colors.lilac,
             background = colors.ground,
@@ -179,3 +182,9 @@ fun AnclaTheme(dark: Boolean = isSystemInDarkTheme(), content: @Composable () ->
         MaterialTheme(colorScheme = scheme, typography = AnclaTypography, shapes = AnclaShapes, content = content)
     }
 }
+
+/** Edge to edge with light status and navigation bar icons, since Dexter's screens are always dark. */
+fun androidx.activity.ComponentActivity.enableDexterEdgeToEdge() = enableEdgeToEdge(
+    statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+    navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+)
