@@ -158,8 +158,13 @@ class GoalStore(private val file: File) {
         changed
     }
 
-    private fun load(): List<Goal> {
-        val text = EncryptedStore.readText(file) ?: return emptyList()
+    /** Changes whenever the goals may have changed; cheap, for the Camino screen's poll. */
+    fun version(): Long = synchronized(LOCK) { StoreCache.version(file, ::parse) }
+
+    private fun load(): List<Goal> = StoreCache.read(file, ::parse)
+
+    private fun parse(text: String?): List<Goal> {
+        text ?: return emptyList()
         val arr = runCatching { JSONObject(text).optJSONArray("goals") }.getOrNull() ?: return emptyList()
         return (0 until arr.length()).map { arr.getJSONObject(it) }.map { o ->
             val habits = o.optJSONArray("habits")
@@ -187,6 +192,7 @@ class GoalStore(private val file: File) {
             }
         )
         EncryptedStore.writeText(file, JSONObject().put("goals", arr).toString())
+        StoreCache.wrote(file, goals.toList())
     }
 
     companion object {
