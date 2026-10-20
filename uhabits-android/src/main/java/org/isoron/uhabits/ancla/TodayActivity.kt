@@ -61,6 +61,7 @@ class TodayActivity : AppCompatActivity(), CommandRunner.Listener {
         enableDexterEdgeToEdge()
         super.onCreate(savedInstanceState)
         voice = org.isoron.uhabits.ancla.assistant.VoiceAgentController(this) { refresh() }
+        Wisdom.schedule(this)
         val goals = GoalStore(this)
         val money = org.isoron.uhabits.ancla.finance.FinanceStore(this)
         setContent {

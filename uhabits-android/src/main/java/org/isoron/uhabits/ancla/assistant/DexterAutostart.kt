@@ -34,6 +34,7 @@ import androidx.core.content.ContextCompat
 class DexterAutostart : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Intent.ACTION_BOOT_COMPLETED && intent.action != Intent.ACTION_MY_PACKAGE_REPLACED) return
+        org.isoron.uhabits.ancla.Wisdom.schedule(context)
         val keys = SecureKeys(context)
         val mic = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
         if (!keys.alwaysListening || !mic || DexterService.instance != null) return

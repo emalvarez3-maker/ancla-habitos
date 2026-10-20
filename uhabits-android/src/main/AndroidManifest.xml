@@ -377,6 +377,10 @@
         </receiver>
 
         <receiver
+            android:name=".ancla.WisdomReceiver"
+            android:exported="false" />
+
+        <receiver
             android:name=".ancla.assistant.DexterAutostart"
             android:exported="false">
             <intent-filter>

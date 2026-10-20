@@ -583,6 +583,10 @@
     <string name="goal_milestone_hint">Terminar el curso, primer prototipo…</string>
     <string name="goal_month">Mes (AAAA-MM)</string>
     <string name="goal_dexter_hint">También puedes decirle: «Dexter, hagamos el WOOP de %1$s» o «agrega un hito: …».</string>
+    <string name="wisdom_channel">Frase del día</string>
+    <string name="wisdom_title">La frase de hoy</string>
+    <string name="wisdom_label">SABIDURÍA DEL DÍA</string>
+    <string name="wisdom_spoken">Buenos días. La frase de hoy: %1$s. Lo dijo %2$s.</string>
     <string name="setup_title">Configurar Dexter</string>
     <string name="overlay_quiet">Silencio</string>
     <string name="overlay_voice_on">Con voz</string>

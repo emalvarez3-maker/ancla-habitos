@@ -179,6 +179,7 @@ fun TodayScreen(
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
             Column(Modifier.padding(start = 22.dp, end = 22.dp, top = 18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Header(summary, onMenu)
+                WisdomCard()
                 MascotCard(summary, hopKey, onAssistant)
                 if (summary != null && summary.totalCount > 0) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -260,6 +261,26 @@ private fun Header(summary: TodaySummary?, onMenu: () -> Unit) {
                 )
             }
         }
+    }
+}
+
+/** The wisdom of the day, in quotation marks with its author; tap to fold it to one line. */
+@Composable
+private fun WisdomCard() {
+    val c = Ancla.colors
+    val saying = remember { org.isoron.uhabits.ancla.Wisdom.of() }
+    var open by rememberSaveable { mutableStateOf(true) }
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(c.card)
+            .combinedClickableCompat(role = Role.Button, onClick = { open = !open }).padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Text(stringResource(R.string.wisdom_label), style = MaterialTheme.typography.labelSmall, color = c.amber)
+        Text(
+            "«${saying.text}»", style = MaterialTheme.typography.bodyLarge.copy(fontStyle = androidx.compose.ui.text.font.FontStyle.Italic), color = c.ink,
+            maxLines = if (open) 6 else 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+        )
+        if (open) Text("— ${saying.author}", style = MaterialTheme.typography.labelMedium, color = c.muted)
     }
 }
 
