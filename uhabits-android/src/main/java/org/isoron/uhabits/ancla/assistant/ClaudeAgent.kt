@@ -54,6 +54,9 @@ interface AgentActions {
     fun updateGoal(title: String, progress: Int?, done: Boolean?, year: Int?, newTitle: String?, habit: String?, remove: Boolean): String =
         "El Camino no está disponible aquí."
     fun goals(): String = ""
+    fun setWoop(goal: String, outcome: String?, obstacle: String?, plan: String?): String = "El Camino no está disponible aquí."
+    fun addMilestone(goal: String, title: String, due: String?): String = "El Camino no está disponible aquí."
+    fun completeMilestone(goal: String, milestone: String, done: Boolean): String = "El Camino no está disponible aquí."
 
     /** Finanzas: the user's expenses and income. [amount] is in currency units ("12.5"). */
     fun addMovement(amount: String, income: Boolean, category: String?, note: String, date: String?): String = "Finanzas no está disponible aquí."
@@ -131,6 +134,7 @@ fun assistantInstructions(today: String = ""): String {
         Summaries: when asked to summarize a book or chapter in their library, call read_book_text to work from the real text (for the whole book, combine what you know of it with the chapters they have read, and never spoil past where they are unless asked). A good summary gives the core argument or plot, the three to five key ideas with why they matter, one concrete example, and how it connects to their goals or other books. For summaries you may speak longer, up to about ten sentences, still without lists. Then offer to save it, and save it with save_idea (kind summary) when they agree or ask.
         Notes: Dexter has an Obsidian-like notes system (titles, Markdown, [[links]], backlinks, a graph, journal and study notes). The user is building a network of connected ideas from what they read and study; to discuss a note, read it with read_note. When they share an insight, or a summary yields strong ideas, save them with save_idea and call list_ideas to find related ideas on the map; connect real relationships with link_ideas (label like "explica", "contradice", "es un ejemplo de", "se aplica a"), and point out surprising cross-book connections, which is where you shine. Call open_idea_map when they want to see it.
         Camino: the user's three-year roadmap of long-term goals (a path from today to three years ahead). When they state a goal or a dream for the coming years ("quiero viajar a Japón en 2028", "agrega una meta"), call add_goal with a short title and the year (this year + 1 if not said); then offer, in one sentence, a small habit that would feed it. Progress, done, moving or renaming go to update_goal; deleting one needs their explicit yes first. Connect daily habits to these goals when you encourage them ("esto te acerca a la tesis").
+        WOOP: for every important goal, use Gabriele Oettingen's WOOP to make it stick, as a short conversation, one question at a time, never a form: Wish (the goal itself), then Outcome ("imagina que ya lo lograste: ¿qué es lo mejor de eso?"), then Obstacle ("¿qué hay en ti que más podría frenarte?", an inner obstacle such as a habit, an emotion or a belief, not bad luck), then the Plan as an if-then ("Si [obstáculo], entonces [acción]"). Save each answer with set_woop as it comes. Then propose three to five concrete milestones spread over the years until the goal, with months, and add the ones they accept with add_milestone. When they report one done, call complete_milestone and celebrate. To motivate them, bring back their own Outcome words and their if-then plan when they hit the obstacle; a goal marked [sin WOOP todavía] is a good moment to offer it.
         Finanzas: Dexter is also the user's money manager. When they mention spending or receiving money ("gasté 12 en almuerzo", "pagué 4,50 de Uber", "me pagaron el sueldo, 800"), call add_movement once per movement with the amount, income true or false, the best category and a short note; several in one sentence are several calls. Confirm briefly with the amount and category; if the result mentions a budget, say how much is left or how much they went over. For "¿cuánto he gastado?" or advice, use finance_summary and answer with concrete numbers and one practical tip. "Borra eso" or a mistake right after recording goes to undo_movement. Never give investment advice; you track and organize, nothing else.
         Journal and study: "anota en mi diario" or "nota del día" goes to add_to_journal (tasks still go to create_task). When the user starts or stops studying ("voy a estudiar cálculo", "terminé"), call start_study or stop_study, passing what they learned as the summary; use study_summary for questions about their study time, and point out patterns like a topic they neglect.
         Robotics tutor: the user is learning robotics and Dexter has a course in Spanish that follows the order of industrial robotics textbooks such as Barrientos' Fundamentos de Robótica: 1 Fundamentos y grados de libertad, 2 Mecanismos y criterio de Grübler, 3 Configuraciones de robots industriales, 4 Rotaciones y transformaciones homogéneas, 5 Orientación 3D (Euler, RPY, cuaterniones), 6 Cinemática directa y Denavit–Hartenberg, 7 Cinemática inversa 2R, 8 Jacobiano y velocidades, 9 Dinámica (Lagrange con el péndulo), 10 Trayectorias, 11 Control PID, 12 Robots móviles diferenciales, 13 Sensores y ROS 2; plus a mechanism workshop (draw linkages, animate them, count links and pairs with Grübler step by step) and a 3D view of the cartesian, cylindrical, polar, angular and SCARA robots. Be a demanding but patient tutor: build intuition first (what moves, what is fixed, which way it turns), then the formula, then a worked number; ask the user to predict before you explain, invent small exercises when they want practice and check their answers step by step. Follow the textbook's notation (DH parameters θ, d, a, α; Grübler M = 3(N−1) − 2j1 − j2 in the plane, Grübler–Kutzbach in space) but never recite or copy the book's text or its exercises. When a lesson, the workshop or the 3D robots would help them see it, call open_robotics_lesson. Formulas cannot be heard: say them in words ("ele uno por coseno de theta uno").
@@ -306,6 +310,52 @@ class ClaudeAgent(apiKey: String, private val actions: AgentActions) : Assistant
             .name("undo_movement")
             .description("Delete the movement recorded last (\"borra eso\", \"me equivoqué\").")
             .inputSchema(schema(emptyMap(), emptyList()))
+            .strict(true)
+            .build(),
+        BetaTool.builder()
+            .name("set_woop")
+            .description("Save a goal's WOOP (Wish = the goal, Outcome, Obstacle, Plan) after working it out with the user. Null fields keep what they had.")
+            .inputSchema(
+                schema(
+                    mapOf(
+                        "goal" to mapOf("type" to "string", "description" to "The goal as the user names it"),
+                        "outcome" to mapOf("type" to listOf("string", "null"), "description" to "The best result they imagine, vivid and in their words"),
+                        "obstacle" to mapOf("type" to listOf("string", "null"), "description" to "The inner obstacle most likely to stop them"),
+                        "plan" to mapOf("type" to listOf("string", "null"), "description" to "If-then plan: «Si [obstáculo], entonces [acción concreta]»")
+                    ),
+                    listOf("goal", "outcome", "obstacle", "plan")
+                )
+            )
+            .strict(true)
+            .build(),
+        BetaTool.builder()
+            .name("add_milestone")
+            .description("Add a step to a goal's own roadmap, with the month it's due when known.")
+            .inputSchema(
+                schema(
+                    mapOf(
+                        "goal" to mapOf("type" to "string", "description" to "The goal"),
+                        "title" to mapOf("type" to "string", "description" to "The milestone, short and concrete"),
+                        "due" to mapOf("type" to listOf("string", "null"), "description" to "YYYY-MM")
+                    ),
+                    listOf("goal", "title", "due")
+                )
+            )
+            .strict(true)
+            .build(),
+        BetaTool.builder()
+            .name("complete_milestone")
+            .description("Mark a milestone of a goal as done (or not done with done=false). Completing the last one reaches the goal.")
+            .inputSchema(
+                schema(
+                    mapOf(
+                        "goal" to mapOf("type" to "string", "description" to "The goal"),
+                        "milestone" to mapOf("type" to "string", "description" to "The milestone as the user names it"),
+                        "done" to mapOf("type" to "boolean", "description" to "false to undo")
+                    ),
+                    listOf("goal", "milestone", "done")
+                )
+            )
             .strict(true)
             .build(),
         BetaTool.builder()

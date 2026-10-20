@@ -19,6 +19,7 @@
 
 package org.isoron.uhabits.ancla.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -59,6 +60,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -93,7 +95,7 @@ import kotlin.math.roundToInt
  * picks up what Dexter adds while it is open.
  */
 @Composable
-fun CaminoScreen(store: GoalStore, openMenu: () -> Unit) {
+fun CaminoScreen(store: GoalStore, openMenu: () -> Unit, onDexter: () -> Unit = {}) {
     val c = Ancla.colors
     val scope = rememberCoroutineScope()
     var goals by remember { mutableStateOf(emptyList<Goal>()) }
@@ -105,17 +107,23 @@ fun CaminoScreen(store: GoalStore, openMenu: () -> Unit) {
         }
     }
     var editing by remember { mutableStateOf<Goal?>(null) }
+    var openId by rememberSaveable { mutableStateOf<String?>(null) }
     var adding by remember { mutableStateOf(false) }
 
     val thisYear = remember { LocalDate.now().year }
     val years = (thisYear..thisYear + 3).toList()
     fun yearOf(g: Goal) = g.year.coerceIn(thisYear, thisYear + 3)
     val byYear = years.associateWith { y -> goals.filter { yearOf(it) == y } }
-    val reached = if (goals.isEmpty()) 0.04f else (goals.sumOf { if (it.done) 100 else it.progress } / (goals.size * 100f)).coerceIn(0.04f, 1f)
+    val reached = if (goals.isEmpty()) 0.04f else (goals.sumOf { it.effectiveProgress } / (goals.size * 100f)).coerceIn(0.04f, 1f)
 
     val draw = remember { Animatable(0f) }
     LaunchedEffect(Unit) { draw.animateTo(1f, tween(1500, easing = FastOutSlowInEasing)) }
 
+    val open = goals.firstOrNull { it.id == openId }
+    if (open != null) {
+        BackHandler { openId = null }
+        GoalDetail(open, store, onBack = { openId = null }, onEdit = { editing = open }, onDexter = onDexter, changed = { scope.launch { reload() } })
+    } else
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).statusBarsPadding().padding(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 150.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
@@ -166,7 +174,7 @@ fun CaminoScreen(store: GoalStore, openMenu: () -> Unit) {
                             color = if (y == thisYear + 3) c.amber else c.lilacInk,
                             modifier = Modifier.clip(CircleShape).background(c.ground).padding(horizontal = 10.dp, vertical = 4.dp)
                         )
-                        byYear.getValue(y).forEach { g -> GoalCard(g) { editing = g } }
+                        byYear.getValue(y).forEach { g -> GoalCard(g) { openId = g.id } }
                         if (byYear.getValue(y).isEmpty() && y == thisYear + 3) {
                             Text(
                                 stringResource(R.string.camino_big_goal_hint), style = MaterialTheme.typography.bodyMedium, color = c.muted,
@@ -258,13 +266,14 @@ private fun GoalCard(goal: Goal, onClick: () -> Unit) {
             goal.title, style = MaterialTheme.typography.titleMedium, color = if (goal.done) c.mint else c.ink,
             maxLines = 2, overflow = TextOverflow.Ellipsis
         )
-        val progress = if (goal.done) 1f else goal.progress / 100f
+        val progress = goal.effectiveProgress / 100f
         Box(Modifier.fillMaxWidth().height(6.dp).clip(CircleShape).background(c.track)) {
             Box(Modifier.fillMaxWidth(progress.coerceIn(0.02f, 1f)).height(6.dp).clip(CircleShape).background(if (goal.done) c.amber else c.mint))
         }
         Text(
-            if (goal.done) stringResource(R.string.camino_done) else stringResource(R.string.camino_progress, goal.progress) +
-                if (goal.habits.isNotEmpty()) " · " + goal.habits.joinToString() else "",
+            if (goal.done) stringResource(R.string.camino_done) else stringResource(R.string.camino_progress, goal.effectiveProgress) +
+                (if (goal.milestones.isNotEmpty()) " · " + stringResource(R.string.goal_milestones_count, goal.milestones.count { it.done }, goal.milestones.size) else "") +
+                (if (!goal.hasWoop) " · " + stringResource(R.string.goal_no_woop) else ""),
             style = MaterialTheme.typography.labelMedium, color = c.muted, maxLines = 1, overflow = TextOverflow.Ellipsis
         )
     }

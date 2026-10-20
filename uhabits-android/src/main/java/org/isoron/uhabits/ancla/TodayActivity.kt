@@ -80,7 +80,7 @@ class TodayActivity : AppCompatActivity(), CommandRunner.Listener {
                             voice = voice,
                             onAssistant = ::openAssistant
                         )
-                        Space.CAMINO -> CaminoScreen(goals, openMenu)
+                        Space.CAMINO -> CaminoScreen(goals, openMenu, ::openAssistant)
                         Space.FINANZAS -> org.isoron.uhabits.ancla.finance.FinanzasScreen(money, openMenu)
                         Space.APRENDER -> AprenderScreen(openMenu, ::openBranch)
                     }

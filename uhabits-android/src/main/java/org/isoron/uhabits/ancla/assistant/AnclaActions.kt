@@ -192,6 +192,23 @@ class AnclaActions(private val context: Context) : AgentActions {
 
     override fun goals() = org.isoron.uhabits.ancla.GoalStore.describe(goalStore.all())
 
+    private fun noGoal(title: String) = "No encuentro una meta llamada «$title». " + goalStore.all().joinToString(prefix = "Metas: ") { it.title }
+
+    override fun setWoop(goal: String, outcome: String?, obstacle: String?, plan: String?): String {
+        val g = goalStore.setWoop(goal, outcome, obstacle, plan) ?: return noGoal(goal)
+        return "WOOP de «${g.title}» guardado" + if (g.outcome.isNotBlank() && g.obstacle.isNotBlank() && g.plan.isNotBlank()) " (completo)" else ""
+    }
+
+    override fun addMilestone(goal: String, title: String, due: String?): String {
+        val g = goalStore.addMilestone(goal, title, due) ?: return noGoal(goal)
+        return "Hito en el camino de «${g.title}»: $title" + (due?.let { " ($it)" } ?: "") + " · ${g.milestones.size} hitos"
+    }
+
+    override fun completeMilestone(goal: String, milestone: String, done: Boolean): String {
+        val g = goalStore.setMilestoneDone(goal, milestone, done) ?: return noGoal(goal)
+        return if (g.done) "¡Meta «${g.title}» lograda! Completaste todos sus hitos." else "«${g.title}»: ${g.effectiveProgress} % (${g.milestones.count { it.done }} de ${g.milestones.size} hitos)"
+    }
+
     private val money by lazy { org.isoron.uhabits.ancla.finance.FinanceStore(context) }
 
     override fun addMovement(amount: String, income: Boolean, category: String?, note: String, date: String?): String {

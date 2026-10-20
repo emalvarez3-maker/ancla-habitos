@@ -43,6 +43,10 @@ internal fun dispatchTool(actions: AgentActions, name: String, input: JSONObject
             opt("new_title"), opt("habit"), input.optBoolean("remove", false)
         ).also { onEvent(AgentEvent.Action(it)) }
         "list_goals" -> actions.goals()
+        "set_woop" -> actions.setWoop(input.getString("goal"), opt("outcome"), opt("obstacle"), opt("plan")).also { onEvent(AgentEvent.Action(it)) }
+        "add_milestone" -> actions.addMilestone(input.getString("goal"), input.getString("title"), opt("due")).also { onEvent(AgentEvent.Action(it)) }
+        "complete_milestone" -> actions.completeMilestone(input.getString("goal"), input.getString("milestone"), input.optBoolean("done", true))
+            .also { onEvent(AgentEvent.Action(it)) }
         "add_movement" -> actions.addMovement(
             input.get("amount").toString(), input.optBoolean("income", false), opt("category"), input.optString("note"), opt("date")
         ).also { onEvent(AgentEvent.Action(it)) }
@@ -175,6 +179,40 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
                     )
                 )
                 .put(function("list_goals", "The user's whole Camino: goals by year, progress and the habits that feed them.", JSONObject(), emptyList()))
+                .put(
+                    function(
+                        "set_woop",
+                        "Save a goal's WOOP (Wish = the goal, Outcome, Obstacle, Plan) after working it out with the user. Fields left null keep what they had.",
+                        JSONObject()
+                            .put("goal", prop("string", "The goal as the user names it"))
+                            .put("outcome", prop("string", "The best result they imagine, vivid and in their words", nullable = true))
+                            .put("obstacle", prop("string", "The inner obstacle most likely to stop them (a habit, an emotion, a belief)", nullable = true))
+                            .put("plan", prop("string", "If-then plan: «Si [obstáculo], entonces [acción concreta]»", nullable = true)),
+                        listOf("goal")
+                    )
+                )
+                .put(
+                    function(
+                        "add_milestone",
+                        "Add a step to a goal's own roadmap, with the month it's due when known.",
+                        JSONObject()
+                            .put("goal", prop("string", "The goal"))
+                            .put("title", prop("string", "The milestone, short and concrete"))
+                            .put("due", prop("string", "YYYY-MM", nullable = true)),
+                        listOf("goal", "title")
+                    )
+                )
+                .put(
+                    function(
+                        "complete_milestone",
+                        "Mark a milestone of a goal as done (or not done with done=false). Completing the last one reaches the goal.",
+                        JSONObject()
+                            .put("goal", prop("string", "The goal"))
+                            .put("milestone", prop("string", "The milestone as the user names it"))
+                            .put("done", prop("boolean", "false to undo", nullable = true)),
+                        listOf("goal", "milestone")
+                    )
+                )
                 .put(
                     function(
                         "add_movement",

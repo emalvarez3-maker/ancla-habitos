@@ -76,6 +76,30 @@ class GoalStoreTest {
     }
 
     @Test
+    fun woopAndTheGoalsOwnRoadmap() {
+        val goals = store()
+        goals.add("Trabajar en robótica", 2029)
+        val woop = goals.setWoop("robótica", "Diseñar robots que ayuden en hospitales", "Me distraigo con el celular", null)!!
+        assertTrue(woop.hasWoop)
+        assertEquals("", woop.plan)
+        goals.setWoop("robótica", null, null, "Si tomo el celular al estudiar, entonces lo dejo en otra habitación 25 min")
+        goals.addMilestone("robótica", "Terminar el curso de robótica", "2027-06")
+        goals.addMilestone("robótica", "Construir mi primer brazo", "2028-03")
+        goals.addMilestone("robótica", "Pasantía", null)
+        var g = goals.find("robótica")!!
+        assertEquals(listOf("Terminar el curso de robótica", "Construir mi primer brazo", "Pasantía"), g.milestones.map { it.title })
+        assertEquals(0, g.effectiveProgress)
+        g = goals.setMilestoneDone("robótica", "curso")!!
+        assertEquals(33, g.effectiveProgress)
+        goals.setMilestoneDone("robótica", "brazo")
+        g = goals.setMilestoneDone("robótica", "pasantía")!!
+        assertTrue("the last milestone reaches the goal", g.done)
+        assertEquals("Me distraigo con el celular", g.obstacle)
+        assertTrue(GoalStore.describe(goals.all()).contains("plan si-entonces: Si tomo el celular"))
+        assertTrue(runCatching { goals.setMilestoneDone("robótica", "algo inexistente") }.isFailure)
+    }
+
+    @Test
     fun removingAndBadInput() {
         val goals = store()
         goals.add("Correr 10 km", 2027)
