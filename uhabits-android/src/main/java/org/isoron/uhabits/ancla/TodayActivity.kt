@@ -64,9 +64,10 @@ class TodayActivity : AppCompatActivity(), CommandRunner.Listener {
         Wisdom.schedule(this)
         val goals = GoalStore(this)
         val money = org.isoron.uhabits.ancla.finance.FinanceStore(this)
+        val consciousness = org.isoron.uhabits.ancla.consciousness.ConsciousnessStore(this)
         setContent {
             AnclaTheme {
-                DexterHome(onDexter = ::openAssistant, onBranch = ::openBranch) { space, openMenu ->
+                DexterHome(onDexter = ::openAssistant, onBranch = ::openBranch) { space, openMenu, go ->
                     when (space) {
                         Space.HOY -> TodayScreen(
                             summary = summary.value,
@@ -78,12 +79,14 @@ class TodayActivity : AppCompatActivity(), CommandRunner.Listener {
                             onDeleteTask = ::deleteTask,
                             onAddHabit = { HabitTypeDialog().show(supportFragmentManager, "habitType") },
                             onMenu = openMenu,
+                            onConsciencia = { go(Space.CONSCIENCIA) },
                             voice = voice,
                             onAssistant = ::openAssistant
                         )
                         Space.CAMINO -> CaminoScreen(goals, openMenu, ::openAssistant)
                         Space.FINANZAS -> org.isoron.uhabits.ancla.finance.FinanzasScreen(money, openMenu)
                         Space.APRENDER -> AprenderScreen(openMenu, ::openBranch)
+                        Space.CONSCIENCIA -> org.isoron.uhabits.ancla.consciousness.ConscienciaScreen(consciousness, openMenu, ::openAssistant)
                     }
                 }
             }

@@ -83,7 +83,7 @@ import kotlinx.coroutines.launch
 import org.isoron.uhabits.R
 
 /** The places in Dexter's bottom bar, in order. Dexter itself sits in the middle. */
-enum class Space { HOY, CAMINO, FINANZAS, APRENDER }
+enum class Space { HOY, CAMINO, FINANZAS, APRENDER, CONSCIENCIA }
 
 /** Every branch the "Espacios" panel opens, beyond the bar's places. */
 enum class Branch { HABITS, LIBRARY, NOTES, STUDY, ROBOTICS, DEXTER, PHONE, WHATSAPP, SETTINGS }
@@ -97,7 +97,7 @@ enum class Branch { HABITS, LIBRARY, NOTES, STUDY, ROBOTICS, DEXTER, PHONE, WHAT
 fun DexterHome(
     onDexter: () -> Unit,
     onBranch: (Branch) -> Unit,
-    content: @Composable (space: Space, openMenu: () -> Unit) -> Unit
+    content: @Composable (space: Space, openMenu: () -> Unit, go: (Space) -> Unit) -> Unit
 ) {
     var space by rememberSaveable { mutableStateOf(Space.HOY) }
     val drawer = rememberDrawerState(DrawerValue.Closed)
@@ -122,7 +122,7 @@ fun DexterHome(
                         (slideOutHorizontally(tween(260)) { w -> if (forward) -w / 6 else w / 6 } + fadeOut(tween(200)))
                 },
                 label = "space"
-            ) { s -> content(s, openMenu) }
+            ) { s -> content(s, openMenu) { space = it } }
             DexterBottomBar(
                 selected = space,
                 onSelect = { space = it },
@@ -212,6 +212,20 @@ internal fun DrawScope.drawSpaceIcon(space: Space, color: Color) {
             drawLine(color, o(12f, 5.8f), o(12f, 7.3f), 2.1f * k, StrokeCap.Round)
             drawLine(color, o(12f, 16.7f), o(12f, 18.2f), 2.1f * k, StrokeCap.Round)
         }
+        Space.CONSCIENCIA -> {
+            // The north star: four long points and four short ones.
+            val star = Path().apply {
+                for (i in 0 until 16) {
+                    val a = Math.PI.toFloat() / 8f * i - Math.PI.toFloat() / 2f
+                    val r = when { i % 4 == 0 -> 10f; i % 2 == 0 -> 5f; else -> 2.2f } * k
+                    val x = 12f * k + r * kotlin.math.cos(a)
+                    val y = 12f * k + r * kotlin.math.sin(a)
+                    if (i == 0) moveTo(x, y) else lineTo(x, y)
+                }
+                close()
+            }
+            drawPath(star, color, style = Stroke(1.8f * k, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+        }
         Space.APRENDER -> {
             drawPath(Path().apply { moveTo(4f * k, 5.5f * k); cubicTo(7f * k, 4f * k, 9.5f * k, 4f * k, 12f * k, 5.5f * k); lineTo(12f * k, 19.5f * k); cubicTo(9.5f * k, 18f * k, 7f * k, 18f * k, 4f * k, 19.5f * k); close() }, color, style = stroke)
             drawPath(Path().apply { moveTo(20f * k, 5.5f * k); cubicTo(17f * k, 4f * k, 14.5f * k, 4f * k, 12f * k, 5.5f * k); lineTo(12f * k, 19.5f * k); cubicTo(14.5f * k, 18f * k, 17f * k, 18f * k, 20f * k, 19.5f * k); close() }, color, style = stroke)
@@ -245,6 +259,8 @@ private fun SpacesPanel(current: Space, onSpace: (Space) -> Unit, onBranch: (Bra
                 Text(stringResource(R.string.spaces_title), style = MaterialTheme.typography.headlineSmall, color = c.ink)
             }
             Spacer(Modifier.height(8.dp))
+            // The north star first: everything else serves it.
+            Area(R.string.nav_consciencia, current == Space.CONSCIENCIA, { onSpace(Space.CONSCIENCIA) }, emptyList(), onBranch)
             Area(R.string.nav_today, current == Space.HOY, { onSpace(Space.HOY) }, listOf(R.string.branch_habits to Branch.HABITS), onBranch)
             Area(R.string.nav_camino, current == Space.CAMINO, { onSpace(Space.CAMINO) }, emptyList(), onBranch)
             Area(R.string.nav_finanzas, current == Space.FINANZAS, { onSpace(Space.FINANZAS) }, emptyList(), onBranch)
