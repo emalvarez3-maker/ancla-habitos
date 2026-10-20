@@ -86,12 +86,19 @@ class PhoneControlTest {
         assertEquals(File(root, "DCIM/Camera"), PhoneSafety.resolvePath(root, "Fotos"))
         assertEquals(root, PhoneSafety.resolvePath(root, ""))
         assertEquals(root, PhoneSafety.resolvePath(root, null))
+        // A full path to the storage works with either separator (Windows roots are "C:\...").
         assertEquals(File(root, "Documents"), PhoneSafety.resolvePath(root, root.absolutePath + "/Documents"))
+        assertEquals(File(root, "Documents"), PhoneSafety.resolvePath(root, File(root, "Documents").path))
+        assertEquals(File(root, "Documents"), PhoneSafety.resolvePath(root, root.absolutePath.replace('\\', '/') + "/Documents"))
+        assertEquals(root, PhoneSafety.resolvePath(root, root.absolutePath))
+        // A sibling whose name starts like the root is not inside it.
+        assertNull(PhoneSafety.resolvePath(root, root.absolutePath + "x/Documents"))
+        assertNull(PhoneSafety.resolvePath(root, root.absolutePath + "/Android/data/com.bank"))
         assertNotNull(PhoneSafety.resolvePath(root, "whatsapp"))
         // Escapes and private app folders are refused.
         listOf(
             "..", "../secret", "Download/../../secret", "Android/data/com.bank", "Android/obb", "android/../Android/data",
-            "/etc/passwd", "Documents/../../../etc", "Android", "Android/media/../data"
+            "/etc/passwd", "Documents/../../../etc", "Android", "Android/media/../data", "C:/Windows", "c:\\Users", "\\\\server\\share"
         ).forEach { assertNull(it, PhoneSafety.resolvePath(root, it)) }
         // A symbolic link pointing outside is followed by canonicalization and refused.
         val link = File(root, "Download/escape").toPath()

@@ -137,11 +137,13 @@ object PhoneSafety {
      */
     fun resolvePath(root: File, path: String?): File? {
         val raw = path.orEmpty().trim().replace('\\', '/').trim('/')
-        val absolute = if (raw.startsWith(root.absolutePath.trim('/'))) "/" + raw else null
-        // Any other absolute path ("/etc/...") is outside the user's storage.
-        if (absolute == null && path.orEmpty().trim().replace('\\', '/').startsWith("/")) return null
-        val candidate = if (absolute != null) {
-            File(absolute)
+        // Separators compared as '/' on every OS (the root is "C:\..." in unit tests on Windows).
+        val rootKey = root.absolutePath.replace('\\', '/').trim('/')
+        val inRoot = raw == rootKey || raw.startsWith("$rootKey/")
+        // Any other absolute path ("/etc/...", "C:/...") is outside the user's storage.
+        if (!inRoot && (path.orEmpty().trim().replace('\\', '/').startsWith("/") || Regex("^[A-Za-z]:/").containsMatchIn(raw))) return null
+        val candidate = if (inRoot) {
+            File(root, raw.removePrefix(rootKey).trim('/'))
         } else {
             val first = raw.substringBefore('/')
             val rest = raw.substringAfter('/', "")
@@ -150,7 +152,7 @@ object PhoneSafety {
         }
         val canonical = runCatching { candidate.canonicalFile }.getOrNull() ?: return null
         val base = runCatching { root.canonicalFile }.getOrNull() ?: return null
-        val relative = canonical.toRelativeString(base)
+        val relative = canonical.toRelativeString(base).replace('\\', '/')
         if (canonical != base && (relative.startsWith("..") || File(relative).isAbsolute)) return null
         val parts = relative.split('/')
         if (parts.firstOrNull() == "Android" && !relative.startsWith("Android/media")) return null
