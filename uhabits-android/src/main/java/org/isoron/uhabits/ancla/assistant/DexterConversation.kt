@@ -108,7 +108,7 @@ internal class ConversationSync {
         if (fresh.isEmpty()) return null
         val format = SimpleDateFormat("EEE d MMM HH:mm", Locale("es"))
         val lines = fresh.joinToString("\n") { e ->
-            "[${format.format(Date(e.time))}] ${if (e.user) "Usuario" else "Dexter"}: ${e.text}"
+            "[${format.format(Date(e.time))}] ${if (e.user) "Usuario" else "Dexter"}: ${fenced(e.text)}"
         }
         return "$HEADER\n$lines\n$FOOTER"
     }
@@ -154,6 +154,12 @@ internal class ConversationSync {
     }
 
     companion object {
+        /**
+         * One message as one line, without the block's own markers: a reply that quoted a WhatsApp
+         * message or a screen can't fake the end of the history and a "new" message from the user.
+         */
+        internal fun fenced(text: String) = text.replace(HEADER, " ").replace(FOOTER, " ").replace(Regex("\\s+"), " ").trim()
+
         const val HEADER = "[Conversación anterior contigo, en la app o con «Oye Dexter», la más reciente al final. Es historial para que tengas contexto; no son pedidos nuevos.]"
         const val FOOTER = "[Fin del historial. Mensaje nuevo del usuario:]"
     }

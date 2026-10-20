@@ -425,7 +425,9 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
     fun sendAudio(audio: ByteArray, mimeType: String, onEvent: (AgentEvent) -> Unit, afterWake: Boolean = false) {
         // A pending risky step needs the user's actual words: transcribe the reply so "sí" confirms
         // and "no" doesn't. If transcription fails, the audio goes as is and can't confirm anything.
-        if (actions.awaitingConfirmation) {
+        // Not after the wake word: that recording must first pass the model's "was it really for
+        // Dexter?" check, so a TV saying "sí" after a false wake can never confirm a pending step.
+        if (actions.awaitingConfirmation && !afterWake) {
             val heard = runCatching { GeminiText.transcribe(apiKey, audio, mimeType) }.getOrNull()
             if (!heard.isNullOrBlank()) return send(heard, onEvent)
         }
@@ -525,8 +527,8 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
             history.put(JSONObject().put("role", "user").put("parts", responses))
             // A simple action that worked ("linterna encendida") needs no second trip to the model just to
             // say so: that trip took 5 to 11 s. The tool's own words are the answer.
-            if (text.isEmpty() && !failed && calls.all { it.optString("name") in QUICK_TOOLS }) {
-                val said = results.joinToString(". ") { it.trim().trimEnd('.') } + "."
+            val said = quickAnswer(text, failed, calls.map { it.optString("name") }, results)
+            if (said != null) {
                 onEvent(AgentEvent.Reply(said))
                 history.put(JSONObject().put("role", "model").put("parts", JSONArray().put(JSONObject().put("text", said))))
                 return
@@ -605,6 +607,17 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
             "phone_open_app", "phone_settings_panel", "quiet_mode", "complete_habit",
             "add_movement", "undo_movement", "set_budget"
         )
+
+        /**
+         * The tools' own words as the whole answer, or null when the model must speak: it already
+         * did, a tool failed, one isn't a quick tool, or one asks for the user's yes (the model has
+         * to put that question to them in its own words).
+         */
+        internal fun quickAnswer(text: String, failed: Boolean, names: List<String>, results: List<String>): String? {
+            if (text.isNotEmpty() || failed || names.isEmpty() || !names.all { it in QUICK_TOOLS }) return null
+            if (results.any { PhoneSafety.asksConfirmation(it) }) return null
+            return results.joinToString(". ") { it.trim().trimEnd('.') } + "."
+        }
 
         /** How long a model may take to start answering before the next one is tried. */
         private const val SLOW_MS = 9_000

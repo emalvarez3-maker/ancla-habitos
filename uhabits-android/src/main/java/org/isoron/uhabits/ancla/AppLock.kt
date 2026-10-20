@@ -115,7 +115,12 @@ object AppLock : Application.ActivityLifecycleCallbacks {
         }
     }
 
+    // DexterMicActivity flashes by while the user is in other apps: it must not count as the app
+    // coming back, or each microphone hand-back would restart the grace period and keep it unlocked.
+    private fun counts(activity: Activity) = activity !is org.isoron.uhabits.ancla.assistant.DexterMicActivity
+
     override fun onActivityStarted(activity: Activity) {
+        if (!counts(activity)) return
         if (started++ == 0 && backgroundSince > 0 && SystemClock.elapsedRealtime() - backgroundSince > GRACE_MS) unlocked = false
     }
 
@@ -132,6 +137,7 @@ object AppLock : Application.ActivityLifecycleCallbacks {
     override fun onActivityPaused(activity: Activity) = Unit
 
     override fun onActivityStopped(activity: Activity) {
+        if (!counts(activity)) return
         if (--started <= 0) {
             started = 0
             backgroundSince = SystemClock.elapsedRealtime()
