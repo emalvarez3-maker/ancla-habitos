@@ -21,6 +21,7 @@ package org.isoron.uhabits.ancla.finance
 
 import android.content.Context
 import org.isoron.uhabits.ancla.EncryptedStore
+import org.isoron.uhabits.ancla.StoreCache
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -131,8 +132,13 @@ class FinanceStore(private val file: File) {
 
     private data class Data(val movements: List<Movement>, val budgets: Map<String, Long>)
 
-    private fun load(): Data {
-        val text = EncryptedStore.readText(file) ?: return Data(emptyList(), emptyMap())
+    /** Changes whenever the movements or budgets may have changed; cheap, for the Finanzas screen's poll. */
+    fun version(): Long = synchronized(LOCK) { StoreCache.version(file, ::parse) }
+
+    private fun load(): Data = StoreCache.read(file, ::parse)
+
+    private fun parse(text: String?): Data {
+        text ?: return Data(emptyList(), emptyMap())
         val json = runCatching { JSONObject(text) }.getOrNull() ?: return Data(emptyList(), emptyMap())
         val arr = json.optJSONArray("movements") ?: JSONArray()
         val movements = (0 until arr.length()).map { arr.getJSONObject(it) }.map {
@@ -159,6 +165,7 @@ class FinanceStore(private val file: File) {
             )
             .put("budgets", JSONObject(data.budgets))
         EncryptedStore.writeText(file, json.toString())
+        StoreCache.wrote(file, Data(data.movements.toList(), data.budgets.toMap()))
     }
 
     companion object {
@@ -211,18 +218,24 @@ class FinanceStore(private val file: File) {
                 ?: if (income) "Otros ingresos" else "Otros"
         }
 
-        /** "12", "12.50", "12,50", "$1.200,50" → cents; null when it isn't an amount. */
+        /**
+         * "12", "12.50", "12,50", "$1.200,50", "1.200.000" → cents; null when it isn't an amount, rounds
+         * to nothing, or is beyond [MAX_CENTS].
+         */
         fun parseAmount(text: String): Long? {
             var t = text.trim().replace("$", "").replace(" ", "").replace("usd", "", ignoreCase = true)
-            if (t.isEmpty()) return null
-            // A comma followed by exactly two digits at the end is a decimal comma.
+            // Only digits and separators: no sign, and no "1e999999999" for BigDecimal to blow up on.
+            if (t.isEmpty() || !Regex("[0-9.,]+").matches(t)) return null
             t = when {
+                // A comma followed by one or two digits at the end is a decimal comma.
                 Regex(",\\d{1,2}$").containsMatchIn(t) -> t.replace(".", "").replace(",", ".")
+                // Dots between groups of three digits are thousands ("1.200", "1.200.000").
+                Regex("[1-9]\\d{0,2}(\\.\\d{3})+").matches(t) -> t.replace(".", "")
                 else -> t.replace(",", "")
             }
             val value = t.toBigDecimalOrNull() ?: return null
-            if (value <= BigDecimal.ZERO) return null
-            return value.setScale(2, RoundingMode.HALF_UP).movePointRight(2).toLong()
+            if (value <= BigDecimal.ZERO || value > BigDecimal.valueOf(MAX_CENTS, 2)) return null
+            return value.setScale(2, RoundingMode.HALF_UP).movePointRight(2).toLong().takeIf { it > 0 }
         }
 
         /** Cents as "$12.50" (or "$1,250.00"). */

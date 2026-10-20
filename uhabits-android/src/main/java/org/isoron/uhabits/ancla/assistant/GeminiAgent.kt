@@ -100,6 +100,9 @@ internal fun dispatchTool(actions: AgentActions, name: String, input: JSONObject
 class GeminiAgent(private val apiKey: String, private val actions: AgentActions) : AssistantAgent {
     private val history = JSONArray()
     private val sync = ConversationSync()
+
+    /** Voice turns and their words, from the background transcriptions; applied at the next turn. */
+    private val heard = java.util.concurrent.ConcurrentLinkedQueue<Pair<JSONObject, String>>()
     private var lowThinking = true
 
     private fun prop(type: String, description: String? = null, nullable: Boolean = false) = JSONObject().apply {
@@ -436,7 +439,7 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
 
     private fun sendRawAudio(audio: ByteArray, mimeType: String, onEvent: (AgentEvent) -> Unit, afterWake: Boolean) {
         val log = actions.conversation()
-        val (_, seq) = sync.turn(log, VOICE_MESSAGE, onEvent) { context, events ->
+        val (turn, seq) = sync.turn(log, VOICE_MESSAGE, onEvent) { context, events ->
             val parts = JSONArray()
                 .put(JSONObject().put("inlineData", JSONObject().put("mimeType", mimeType).put("data", android.util.Base64.encodeToString(audio, android.util.Base64.NO_WRAP))))
                 .put(JSONObject().put("text", if (afterWake) PhoneSafety.WAKE_AUDIO_TURN else PhoneSafety.AUDIO_TURN))
@@ -445,16 +448,37 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
         // The model heard the audio, but the history needs the words: transcribe it in the background.
         if (log != null && seq != null) {
             Thread {
-                runCatching { GeminiText.transcribe(apiKey, audio, mimeType) }.getOrNull()?.takeIf { it.isNotBlank() }?.let { log.update(seq, it) }
+                val words = runCatching { GeminiText.transcribe(apiKey, audio, mimeType) }.getOrNull()?.takeIf { it.isNotBlank() } ?: return@Thread
+                log.update(seq, words)
+                heard.add(turn to words)
             }.start()
         }
     }
 
     /** One turn; [userTurnText] is only what the user said (never the history), for the confirmation gate. */
-    private fun run(userParts: JSONArray, userTurnText: String, onEvent: (AgentEvent) -> Unit) {
+    private fun run(userParts: JSONArray, userTurnText: String, onEvent: (AgentEvent) -> Unit): JSONObject {
+        // Voice messages transcribed since the last turn: their words take the place of the audio.
+        while (true) {
+            val (turn, words) = heard.poll() ?: break
+            withWords(turn, words)
+        }
         actions.userTurn(userTurnText)
-        history.put(JSONObject().put("role", "user").put("parts", userParts))
+        val turn = JSONObject().put("role", "user").put("parts", userParts)
+        history.put(turn)
+        try {
+            step(onEvent)
+        } finally {
+            // The audio was heard; sent again with every later turn it only slowed them down (up to
+            // half a megabyte each). The model keeps its answer, and the words arrive with [heard].
+            withoutAudio(turn)
+        }
+        return turn
+    }
+
+    private fun step(onEvent: (AgentEvent) -> Unit) {
+        val started = System.currentTimeMillis()
         val instructions = assistantInstructions(actions.snapshot())
+        android.util.Log.d("AnclaVoice", "snapshot ${instructions.length} chars in ${System.currentTimeMillis() - started} ms")
         // One model per turn: thought signatures from one model are not valid for another.
         var model = nextModel()
         var produced = false
@@ -553,7 +577,8 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
         }
         var reusable = false
         try {
-            conn.outputStream.use { it.write(body.toString().toByteArray()) }
+            val request = body.toString().toByteArray()
+            conn.outputStream.use { it.write(request) }
             val sent = System.currentTimeMillis()
             val code = try {
                 conn.responseCode
@@ -561,7 +586,7 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
                 android.util.Log.w("AnclaVoice", "$model gave no answer in $SLOW_MS ms")
                 throw AgentException(AgentException.Kind.RATE_LIMIT, "slow")
             }
-            android.util.Log.d("AnclaVoice", "Gemini HTTP $code after ${System.currentTimeMillis() - sent} ms")
+            android.util.Log.d("AnclaVoice", "Gemini HTTP $code after ${System.currentTimeMillis() - sent} ms (sent ${request.size / 1024} KB)")
             if (code !in 200..299) {
                 val text = conn.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
                 throw when {
@@ -600,6 +625,30 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
     companion object {
         /** Stands for a voice message in the history until its transcription arrives. */
         private const val VOICE_MESSAGE = "(mensaje de voz)"
+
+        /**
+         * The answer when every tool the model called is a quick one and worked, and the model said
+         * nothing itself: the tools' own words ("Linterna encendida. Volumen al 80 %."). Else null,
+         * and the results go back to the model for it to answer.
+         */
+        internal fun quickReply(text: String, failed: Boolean, tools: List<String>, results: List<String>): String? = quickAnswer(text, failed, tools, results)
+
+        /** Puts a placeholder in place of every recording in a finished user [turn]. */
+        internal fun withoutAudio(turn: JSONObject) {
+            val parts = turn.optJSONArray("parts") ?: return
+            for (i in 0 until parts.length()) {
+                if (parts.optJSONObject(i)?.has("inlineData") == true) parts.put(i, JSONObject().put("text", VOICE_MESSAGE))
+            }
+        }
+
+        /** Gives a voice message's placeholder in [turn] the words it was transcribed to. */
+        internal fun withWords(turn: JSONObject, words: String) {
+            val parts = turn.optJSONArray("parts") ?: return
+            for (i in 0 until parts.length()) {
+                val p = parts.optJSONObject(i) ?: continue
+                if (p.optString("text") == VOICE_MESSAGE) p.put("text", "(mensaje de voz: «${words.trim()}»)")
+            }
+        }
 
         /** Actions whose own result is the whole answer ("Linterna encendida"), so the turn ends there. */
         private val QUICK_TOOLS = setOf(

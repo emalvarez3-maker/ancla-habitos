@@ -118,8 +118,14 @@ fun FinanzasScreen(store: FinanceStore, openMenu: () -> Unit) {
         }
     }
     LaunchedEffect(month) {
+        // Dexter may add movements while this is open: reload only when the store says they changed.
+        var seen = Long.MIN_VALUE
         while (true) {
-            reload()
+            val version = withContext(Dispatchers.IO) { runCatching { store.version() }.getOrDefault(seen - 1) }
+            if (version != seen) {
+                reload()
+                seen = version
+            }
             delay(2500)
         }
     }

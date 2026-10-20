@@ -103,6 +103,72 @@ class DexterConversationTest {
     }
 
     @Test
+    fun whatWasNotMeantForDexterLeavesNoTrace() {
+        val log = log()
+        val sync = ConversationSync()
+        turn(sync, log, "hola", "Hola.")
+        // The TV, or someone talking to someone else: Dexter answers [IGNORAR].
+        val (_, seq) = sync.turn(log, "(mensaje de voz)", {}) { _, events -> events(AgentEvent.Reply(PhoneSafety.IGNORE)) }
+        assertNull("nothing to transcribe later", seq)
+        assertEquals(listOf("hola", "Hola."), log.entries().map { it.text })
+        // Streamed in pieces and with spaces around it, it is still [IGNORAR].
+        sync.turn(log, "ruido", {}) { _, events ->
+            events(AgentEvent.Reply("  [IGNO"))
+            events(AgentEvent.Reply("RAR] \n"))
+        }
+        assertEquals(2, log.entries().size)
+        // Another agent never sees it either.
+        assertFalse(turn(ConversationSync(), log, "¿qué dije?", "Hola.")!!.contains("ruido"))
+    }
+
+    @Test
+    fun ignoreInsideARealAnswerIsKept() {
+        val log = log()
+        ConversationSync().turn(log, "¿qué significa [IGNORAR]?", {}) { _, events ->
+            events(AgentEvent.Reply("Es lo que respondo cuando algo no es para mí: ${PhoneSafety.IGNORE}"))
+        }
+        assertEquals(2, log.entries().size)
+        // An action and [IGNORAR] together is not "nothing happened".
+        ConversationSync().turn(log, "algo", {}) { _, events ->
+            events(AgentEvent.Action("Linterna encendida"))
+            events(AgentEvent.Reply(PhoneSafety.IGNORE))
+        }
+        assertEquals(4, log.entries().size)
+    }
+
+    @Test
+    fun aFailedTurnStillKeepsWhatWasSaid() {
+        val log = log()
+        runCatching {
+            ConversationSync().turn(log, "llama a mamá", {}) { _, events ->
+                events(AgentEvent.Reply("Llamando…"))
+                throw AgentException(AgentException.Kind.NETWORK, "offline")
+            }
+        }
+        assertEquals(listOf("llama a mamá", "Llamando…"), log.entries().map { it.text })
+        // A turn that failed before saying anything leaves only the user's words.
+        runCatching { ConversationSync().turn(log, "otra vez", {}) { _, _ -> throw AgentException(AgentException.Kind.NETWORK, "offline") } }
+        assertEquals("otra vez", log.entries().last().text)
+    }
+
+    @Test
+    fun readsComeFromMemoryUntilTheFileChanges() {
+        val dir = Files.createTempDirectory("conv").toFile()
+        val a = DexterConversation(File(dir, "c.json"))
+        val b = DexterConversation(File(dir, "c.json"))
+        a.add(true, "uno")
+        assertEquals("the other store sees it at once", listOf("uno"), b.entries().map { it.text })
+        b.add(false, "dos")
+        assertEquals(listOf("uno", "dos"), a.entries().map { it.text })
+        a.clear()
+        assertTrue(b.entries().isEmpty())
+        // Deleted from outside: gone for both.
+        b.add(true, "tres")
+        File(dir, "c.json").delete()
+        assertTrue(a.entries().isEmpty())
+    }
+
+    @Test
     fun keepsOnlyTheLatestMessagesEncrypted() {
         val dir = Files.createTempDirectory("conv").toFile()
         val log = DexterConversation(File(dir, "c.json"))

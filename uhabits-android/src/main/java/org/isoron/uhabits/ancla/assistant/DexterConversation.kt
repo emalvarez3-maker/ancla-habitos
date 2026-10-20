@@ -22,7 +22,9 @@ package org.isoron.uhabits.ancla.assistant
 import android.content.Context
 import android.util.Log
 import org.isoron.uhabits.ancla.EncryptedStore
+import org.isoron.uhabits.ancla.StoreCache
 import org.json.JSONArray
+import org.json.JSONException
 import org.json.JSONObject
 import java.io.File
 import java.text.SimpleDateFormat
@@ -59,26 +61,37 @@ class DexterConversation(private val file: File) {
     /** Drops message [seq] (a recording nobody meant for Dexter). */
     fun remove(seq: Long) = synchronized(LOCK) { save(load().filter { it.seq != seq }) }
 
-    fun clear() = synchronized(LOCK) { file.delete() }
+    fun clear() = synchronized(LOCK) {
+        file.delete()
+        StoreCache.forget(file)
+    }
 
+    // Every turn reads the log three times (catch up, the user's words, the reply): decrypted once.
     private fun load(): List<Entry> {
-        val text = runCatching { EncryptedStore.readText(file) }.getOrElse {
+        val all = runCatching { StoreCache.read(file, ::parse) }.getOrElse {
+            if (it is JSONException) throw it // a damaged entry: fail, rather than save over the log
             Log.w(TAG, "conversation unreadable: ${it.javaClass.simpleName}")
-            null
-        } ?: return emptyList()
-        val arr = runCatching { JSONArray(text) }.getOrDefault(JSONArray())
+            emptyList()
+        }
         val cutoff = System.currentTimeMillis() - MAX_AGE_DAYS * DAY
+        return all.filter { it.time >= cutoff }
+    }
+
+    private fun parse(text: String?): List<Entry> {
+        text ?: return emptyList()
+        val arr = runCatching { JSONArray(text) }.getOrDefault(JSONArray())
         return (0 until arr.length()).map { arr.getJSONObject(it) }
             .map { Entry(it.getLong("seq"), it.getLong("time"), it.getBoolean("user"), it.getString("text")) }
-            .filter { it.time >= cutoff }
     }
 
     private fun save(list: List<Entry>) {
+        val kept = list.takeLast(MAX_ENTRIES)
         val arr = JSONArray()
-        list.takeLast(MAX_ENTRIES).forEach {
+        kept.forEach {
             arr.put(JSONObject().put("seq", it.seq).put("time", it.time).put("user", it.user).put("text", it.text))
         }
         EncryptedStore.writeText(file, arr.toString())
+        StoreCache.wrote(file, kept)
     }
 
     companion object {

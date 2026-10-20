@@ -58,7 +58,7 @@ object QuickCommands {
         // Volume
         if ("volumen" in set || "sonido" in set) {
             val number = words.firstNotNullOfOrNull { it.toIntOrNull() }
-            val rest = words.filter { it != "volumen" && it != "sonido" && it.toIntOrNull() == null && it != "al" && it != "por" && it != "ciento" && it != "porciento" }
+            val rest = words.filter { it != "volumen" && it != "sonido" && it.toIntOrNull() == null && it != "al" && it != "en" && it != "por" && it != "ciento" && it != "porciento" }
             return when {
                 number != null && number in 0..100 && rest.all { it in setOf("pon", "ponle", "deja", "dejalo", "sube", "subelo", "baja", "bajalo") } -> volume("set", number)
                 rest.size == 1 && rest[0] in setOf("sube", "subele", "subir", "aumenta", "mas") -> volume("up")
@@ -82,6 +82,13 @@ object QuickCommands {
                 "anterior" -> return media("previous")
             }
         }
+        when (rest) {
+            listOf("pon", "pausa"), listOf("ponle", "pausa"), listOf("dale", "pausa") -> return media("pause")
+            listOf("dale", "play"), listOf("ponle", "play") -> return media("play")
+            listOf("pasa", "siguiente"), listOf("pon", "siguiente"), listOf("ponme", "siguiente") -> return media("next")
+        }
+        // "Pasa la canción", but not "pasa" alone (it may mean something else entirely).
+        if (rest == listOf("pasa") && words.size > 1) return media("next")
         if (words == listOf("siguiente", "cancion") || words == listOf("cancion", "siguiente")) return media("next")
         return null
     }

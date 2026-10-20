@@ -27,7 +27,8 @@ import android.util.Log
 import org.json.JSONObject
 import org.vosk.Model
 import org.vosk.Recognizer
-import java.io.ByteArrayOutputStream
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import kotlin.math.max
 import kotlin.math.sqrt
 
@@ -240,30 +241,34 @@ class DexterWake(
         fun transcribe(model: Model, wav: ByteArray): String {
             val recognizer = Recognizer(model, RATE.toFloat())
             try {
-                val pcm = wav.copyOfRange(minOf(44, wav.size), wav.size)
-                var offset = 0
-                while (offset < pcm.size) {
-                    val n = minOf(FRAME * 2, pcm.size - offset)
-                    recognizer.acceptWaveForm(pcm.copyOfRange(offset, offset + n), n)
-                    offset += n
-                }
+                for (chunk in pcmChunks(wav)) recognizer.acceptWaveForm(chunk, chunk.size)
                 return JSONObject(recognizer.finalResult).optString("text")
             } finally {
                 recognizer.close()
             }
         }
 
+        /** The samples of a [wav] made by [wav], without its 44-byte header, in 100 ms pieces for Vosk. */
+        internal fun pcmChunks(wav: ByteArray): List<ByteArray> {
+            val start = minOf(WAV_HEADER, wav.size)
+            return (start until wav.size step FRAME * 2).map { wav.copyOfRange(it, minOf(it + FRAME * 2, wav.size)) }
+        }
+
+        private const val WAV_HEADER = 44
+
         /** 16-bit mono PCM as a WAV file, which Gemini and Whisper both take. */
         fun wav(frames: List<ShortArray>): ByteArray {
             val samples = frames.sumOf { it.size }
-            val out = ByteArrayOutputStream(44 + samples * 2)
-            fun int(v: Int) = out.write(byteArrayOf(v.toByte(), (v shr 8).toByte(), (v shr 16).toByte(), (v shr 24).toByte()))
-            fun short(v: Int) = out.write(byteArrayOf(v.toByte(), (v shr 8).toByte()))
-            out.write("RIFF".toByteArray()); int(36 + samples * 2); out.write("WAVE".toByteArray())
-            out.write("fmt ".toByteArray()); int(16); short(1); short(1); int(RATE); int(RATE * 2); short(2); short(16)
-            out.write("data".toByteArray()); int(samples * 2)
-            for (f in frames) for (s in f) short(s.toInt())
-            return out.toByteArray()
+            // One buffer filled in place: writing two bytes at a time made 200 000 small arrays for 12 s.
+            val out = ByteBuffer.allocate(WAV_HEADER + samples * 2).order(ByteOrder.LITTLE_ENDIAN)
+            out.put("RIFF".toByteArray()).putInt(36 + samples * 2).put("WAVE".toByteArray())
+            out.put("fmt ".toByteArray()).putInt(16).putShort(1).putShort(1).putInt(RATE).putInt(RATE * 2).putShort(2).putShort(16)
+            out.put("data".toByteArray()).putInt(samples * 2)
+            for (f in frames) {
+                out.asShortBuffer().put(f)
+                out.position(out.position() + f.size * 2)
+            }
+            return out.array()
         }
     }
 }

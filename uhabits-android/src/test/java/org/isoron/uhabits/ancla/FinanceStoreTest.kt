@@ -56,6 +56,66 @@ class FinanceStoreTest {
     }
 
     @Test
+    fun amountsAsPeopleWriteThem() {
+        // Thousands with dots (as in Ecuador) or commas.
+        assertEquals(120000L, FinanceStore.parseAmount("1.200"))
+        assertEquals(120000000L, FinanceStore.parseAmount("1.200.000"))
+        assertEquals(120000050L, FinanceStore.parseAmount("1.200.000,50"))
+        assertEquals(1250000L, FinanceStore.parseAmount("12,500"))
+        assertEquals(120000000L, FinanceStore.parseAmount("1,200,000"))
+        assertEquals(120000L, FinanceStore.parseAmount("$ 1 200"))
+        // Half-written decimals.
+        assertEquals(1200L, FinanceStore.parseAmount("12."))
+        assertEquals(50L, FinanceStore.parseAmount(".5"))
+        assertEquals(50L, FinanceStore.parseAmount(",5"))
+        assertEquals(1250L, FinanceStore.parseAmount("12,5"))
+        assertEquals("three digits after a dot are thousands", 1234500L, FinanceStore.parseAmount("12.345"))
+        assertEquals("rounded to the cent", 1001L, FinanceStore.parseAmount("10.0051"))
+        assertEquals("a leading zero is a decimal, not thousands", 50L, FinanceStore.parseAmount("0.500"))
+        assertEquals(1234500L, FinanceStore.parseAmount("12,345.0"))
+        assertEquals(500L, FinanceStore.parseAmount("5 USD"))
+        assertEquals(500L, FinanceStore.parseAmount("  $5  "))
+    }
+
+    @Test
+    fun whatIsNotAnAmountIsRefused() {
+        for (s in listOf("", " ", "$", ".", ",", "..", "1.2.3", "12,50,3", "0,00", "0.004", "-12", "+12", "12-3", "1e5", "1e999999999", "NaN", "Infinity", "0x10", "doce dólares", "12abc")) {
+            assertNull(s, FinanceStore.parseAmount(s))
+        }
+    }
+
+    @Test
+    fun hugeAmountsNeverWrapAround() {
+        assertEquals(FinanceStore.MAX_CENTS, FinanceStore.parseAmount("100000000"))
+        assertNull(FinanceStore.parseAmount("100000000.01"))
+        assertNull(FinanceStore.parseAmount("92233720368547758.08")) // Long.MAX_VALUE + 1 cent
+        assertNull(FinanceStore.parseAmount("9".repeat(40)))
+        assertNull(FinanceStore.parseAmount("1" + "0".repeat(5000)))
+        // Whatever parses can be saved.
+        val money = store()
+        listOf("1", "99999999.99", "100000000", "0.01").forEach { money.add(FinanceStore.parseAmount(it)!!, false, null, it) }
+        assertEquals(4, money.movements().size)
+    }
+
+    @Test
+    fun theScreenSeesDextersChangesThroughACheapVersion() {
+        val dir = Stress.tempDir()
+        val screen = FinanceStore(File(dir, "finance.json"))
+        val dexter = FinanceStore(File(dir, "finance.json"))
+        val v = screen.version()
+        assertEquals(v, screen.version())
+        val m = dexter.add(1250, false, null, "almuerzo")
+        val added = screen.version()
+        assertTrue(added != v)
+        assertEquals(listOf(m), screen.movements())
+        dexter.setBudget("Comida", 5000)
+        assertTrue(screen.version() != added)
+        assertEquals(mapOf("Comida" to 5000L), screen.budgets())
+        dexter.remove(m.id)
+        assertTrue(screen.movements().isEmpty())
+    }
+
+    @Test
     fun categoriesAreGuessedFromTheNote() {
         assertEquals("Comida", FinanceStore.categoryFor(null, "almuerzo con Ana", false))
         assertEquals("Transporte", FinanceStore.categoryFor(null, "Uber al trabajo", false))
