@@ -147,10 +147,7 @@ fun TodayScreen(
     onSaveTask: (TaskDraft) -> Unit,
     onDeleteTask: (Long) -> Unit,
     onAddHabit: () -> Unit,
-    onHabits: () -> Unit,
-    onReading: () -> Unit,
-    onNotes: () -> Unit,
-    onSettings: () -> Unit,
+    onMenu: () -> Unit,
     voice: VoiceAgentController? = null,
     onAssistant: () -> Unit = {}
 ) {
@@ -181,7 +178,7 @@ fun TodayScreen(
     ) {
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
             Column(Modifier.padding(start = 22.dp, end = 22.dp, top = 18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Header(summary)
+                Header(summary, onMenu)
                 MascotCard(summary, hopKey, onAssistant)
                 if (summary != null && summary.totalCount > 0) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -222,21 +219,23 @@ fun TodayScreen(
             DictationPill(voice, Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp))
             AgentResultCard(voice, onAssistant, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = 92.dp))
         }
-        BottomBar(onHabits, onReading, onNotes, onSettings, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(14.dp))
     }
 }
 
 @Composable
-private fun Header(summary: TodaySummary?) {
+private fun Header(summary: TodaySummary?, onMenu: () -> Unit) {
     val c = Ancla.colors
     val date = remember {
         LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE d MMM", Locale.getDefault()))
             .replace(".", "").uppercase(Locale.getDefault())
     }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(date, style = MaterialTheme.typography.labelSmall, color = c.muted)
-            Text(stringResource(R.string.today_title), style = MaterialTheme.typography.displaySmall, color = c.ink)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            MenuButton(onMenu)
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(date, style = MaterialTheme.typography.labelSmall, color = c.muted)
+                Text(stringResource(R.string.today_title), style = MaterialTheme.typography.displaySmall, color = c.ink)
+            }
         }
         if (summary != null) {
             val stage = summary.phase.toStage()
@@ -467,44 +466,6 @@ private fun AddButton(onAdd: () -> Unit, modifier: Modifier) {
             drawLine(c.onInk, Offset(s / 2, s * 0.2f), Offset(s / 2, s * 0.8f), 2.6.dp.toPx(), StrokeCap.Round)
             drawLine(c.onInk, Offset(s * 0.2f, s / 2), Offset(s * 0.8f, s / 2), 2.6.dp.toPx(), StrokeCap.Round)
         }
-    }
-}
-
-@Composable
-private fun BottomBar(onHabits: () -> Unit, onReading: () -> Unit, onNotes: () -> Unit, onSettings: () -> Unit, modifier: Modifier) {
-    val c = Ancla.colors
-    Row(
-        modifier
-            .fillMaxWidth()
-            .height(64.dp)
-            .shadow(14.dp, RoundedCornerShape(24.dp), ambientColor = Color(0x223C3278), spotColor = Color(0x223C3278))
-            .clip(RoundedCornerShape(24.dp))
-            .background(c.card),
-        horizontalArrangement = Arrangement.SpaceEvenly,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            Modifier.clip(RoundedCornerShape(16.dp)).background(c.mintSoft).padding(horizontal = 12.dp, vertical = 10.dp)
-        ) {
-            Text(stringResource(R.string.nav_today), style = MaterialTheme.typography.labelLarge, color = c.mintInk)
-        }
-        NavText(stringResource(R.string.nav_habits), onHabits)
-        NavText(stringResource(R.string.nav_reading), onReading)
-        NavText(stringResource(R.string.nav_notes), onNotes)
-        NavText(stringResource(R.string.nav_settings), onSettings)
-    }
-}
-
-@Composable
-private fun NavText(label: String, onClick: () -> Unit) {
-    val c = Ancla.colors
-    Box(
-        Modifier
-            .clip(RoundedCornerShape(16.dp))
-            .combinedClickableCompat(role = Role.Tab, onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 10.dp)
-    ) {
-        Text(label, style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight(700)), color = c.muted)
     }
 }
 

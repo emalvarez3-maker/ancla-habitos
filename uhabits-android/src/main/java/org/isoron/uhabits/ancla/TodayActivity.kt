@@ -33,6 +33,11 @@ import org.isoron.uhabits.activities.habits.list.ListHabitsActivity
 import org.isoron.uhabits.ancla.ui.AnclaTheme
 import org.isoron.uhabits.ancla.ui.TaskDraft
 import org.isoron.uhabits.ancla.ui.TodayScreen
+import org.isoron.uhabits.ancla.ui.AprenderScreen
+import org.isoron.uhabits.ancla.ui.Branch
+import org.isoron.uhabits.ancla.ui.CaminoScreen
+import org.isoron.uhabits.ancla.ui.DexterHome
+import org.isoron.uhabits.ancla.ui.Space
 import org.isoron.uhabits.core.commands.Command
 import org.isoron.uhabits.core.commands.CommandRunner
 import org.isoron.uhabits.core.commands.CreateRepetitionCommand
@@ -56,26 +61,52 @@ class TodayActivity : AppCompatActivity(), CommandRunner.Listener {
         enableDexterEdgeToEdge()
         super.onCreate(savedInstanceState)
         voice = org.isoron.uhabits.ancla.assistant.VoiceAgentController(this) { refresh() }
+        val goals = GoalStore(this)
+        val money = org.isoron.uhabits.ancla.finance.FinanceStore(this)
         setContent {
             AnclaTheme {
-                TodayScreen(
-                    summary = summary.value,
-                    hopKey = hopKey.intValue,
-                    onToggle = ::toggle,
-                    onOpen = ::openHabit,
-                    onToggleTask = ::toggleTask,
-                    onSaveTask = ::saveTask,
-                    onDeleteTask = ::deleteTask,
-                    onAddHabit = { HabitTypeDialog().show(supportFragmentManager, "habitType") },
-                    onHabits = { startActivity(Intent(this, ListHabitsActivity::class.java)) },
-                    onReading = { startActivity(Intent(this, org.isoron.uhabits.ancla.reading.LibraryActivity::class.java)) },
-                    onNotes = { startActivity(org.isoron.uhabits.ancla.reading.NotesActivity.intent(this)) },
-                    onSettings = { startActivity(component.intentFactory.startSettingsActivity(this)) },
-                    voice = voice,
-                    onAssistant = { startActivity(org.isoron.uhabits.ancla.assistant.AssistantActivity.intent(this)) }
-                )
+                DexterHome(onDexter = ::openAssistant, onBranch = ::openBranch) { space, openMenu ->
+                    when (space) {
+                        Space.HOY -> TodayScreen(
+                            summary = summary.value,
+                            hopKey = hopKey.intValue,
+                            onToggle = ::toggle,
+                            onOpen = ::openHabit,
+                            onToggleTask = ::toggleTask,
+                            onSaveTask = ::saveTask,
+                            onDeleteTask = ::deleteTask,
+                            onAddHabit = { HabitTypeDialog().show(supportFragmentManager, "habitType") },
+                            onMenu = openMenu,
+                            voice = voice,
+                            onAssistant = ::openAssistant
+                        )
+                        Space.CAMINO -> CaminoScreen(goals, openMenu)
+                        Space.FINANZAS -> org.isoron.uhabits.ancla.finance.FinanzasScreen(money, openMenu)
+                        Space.APRENDER -> AprenderScreen(openMenu, ::openBranch)
+                    }
+                }
             }
         }
+    }
+
+    private fun openAssistant() {
+        startActivity(org.isoron.uhabits.ancla.assistant.AssistantActivity.intent(this))
+    }
+
+    /** The branches of the Espacios panel and of Aprender, each on its own screen. */
+    private fun openBranch(branch: Branch) {
+        val intent = when (branch) {
+            Branch.HABITS -> Intent(this, ListHabitsActivity::class.java)
+            Branch.LIBRARY -> Intent(this, org.isoron.uhabits.ancla.reading.LibraryActivity::class.java)
+            Branch.NOTES -> org.isoron.uhabits.ancla.reading.NotesActivity.intent(this)
+            Branch.STUDY -> org.isoron.uhabits.ancla.reading.NotesActivity.intent(this, tab = "study")
+            Branch.ROBOTICS -> org.isoron.uhabits.ancla.robotics.RoboticsActivity.intent(this)
+            Branch.DEXTER -> org.isoron.uhabits.ancla.assistant.AssistantActivity.intent(this)
+            Branch.PHONE -> org.isoron.uhabits.ancla.assistant.DexterSetupActivity.intent(this, org.isoron.uhabits.ancla.assistant.DexterSetupActivity.PHONE)
+            Branch.WHATSAPP -> org.isoron.uhabits.ancla.assistant.DexterSetupActivity.intent(this, org.isoron.uhabits.ancla.assistant.DexterSetupActivity.WHATSAPP)
+            Branch.SETTINGS -> component.intentFactory.startSettingsActivity(this)
+        }
+        startActivity(intent)
     }
 
     override fun onResume() {
