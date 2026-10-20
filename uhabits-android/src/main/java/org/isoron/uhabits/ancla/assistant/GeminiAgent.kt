@@ -43,6 +43,12 @@ internal fun dispatchTool(actions: AgentActions, name: String, input: JSONObject
             opt("new_title"), opt("habit"), input.optBoolean("remove", false)
         ).also { onEvent(AgentEvent.Action(it)) }
         "list_goals" -> actions.goals()
+        "add_movement" -> actions.addMovement(
+            input.get("amount").toString(), input.optBoolean("income", false), opt("category"), input.optString("note"), opt("date")
+        ).also { onEvent(AgentEvent.Action(it)) }
+        "finance_summary" -> actions.financeSummary(opt("month"))
+        "set_budget" -> actions.setBudget(input.getString("category"), input.get("amount").toString()).also { onEvent(AgentEvent.Action(it)) }
+        "undo_movement" -> actions.undoMovement().also { onEvent(AgentEvent.Action(it)) }
         "create_task" -> actions.createTask(input.getString("title"), opt("date"), opt("time"), input.optBoolean("remind", false))
             .also { onEvent(AgentEvent.Action(it)) }
         "complete_habit" -> actions.completeHabit(input.getString("name")).also { onEvent(AgentEvent.Action(it)) }
@@ -169,6 +175,29 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
                     )
                 )
                 .put(function("list_goals", "The user's whole Camino: goals by year, progress and the habits that feed them.", JSONObject(), emptyList()))
+                .put(
+                    function(
+                        "add_movement",
+                        "Record money the user spent or received (\"gasté 12 en almuerzo\", \"pagué el Uber 4,50\", \"me pagaron 800\"). One call per movement.",
+                        JSONObject()
+                            .put("amount", prop("number", "The amount, a positive number in their currency (12.5)"))
+                            .put("income", prop("boolean", "true for money received, false for an expense"))
+                            .put("category", prop("string", "One of: Comida, Transporte, Casa, Servicios, Salud, Ocio, Compras, Educación, Suscripciones, Otros; for income: Sueldo, Freelance, Ventas, Regalos, Otros ingresos", nullable = true))
+                            .put("note", prop("string", "What it was, in their words (almuerzo, Uber, Netflix)"))
+                            .put("date", prop("string", "YYYY-MM-DD when it wasn't today (ayer, el lunes)", nullable = true)),
+                        listOf("amount", "income", "note")
+                    )
+                )
+                .put(function("finance_summary", "The month's money: spent, income, balance, by category, with budgets.", JSONObject().put("month", prop("string", "YYYY-MM, this month if null", nullable = true)), emptyList()))
+                .put(
+                    function(
+                        "set_budget",
+                        "Set the monthly budget of a spending category (0 removes it).",
+                        JSONObject().put("category", prop("string", "The category")).put("amount", prop("number", "Monthly limit")),
+                        listOf("category", "amount")
+                    )
+                )
+                .put(function("undo_movement", "Delete the movement recorded last (\"borra eso\", \"me equivoqué\").", JSONObject(), emptyList()))
                 .put(
                     function(
                         "remember",
@@ -506,7 +535,8 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
         /** Actions whose own result is the whole answer ("Linterna encendida"), so the turn ends there. */
         private val QUICK_TOOLS = setOf(
             "phone_toggle", "phone_volume", "phone_media", "phone_brightness", "phone_alarm",
-            "phone_open_app", "phone_settings_panel", "quiet_mode", "complete_habit"
+            "phone_open_app", "phone_settings_panel", "quiet_mode", "complete_habit",
+            "add_movement", "undo_movement", "set_budget"
         )
 
         /** How long a model may take to start answering before the next one is tried. */

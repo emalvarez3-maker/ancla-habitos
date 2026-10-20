@@ -192,6 +192,46 @@ class AnclaActions(private val context: Context) : AgentActions {
 
     override fun goals() = org.isoron.uhabits.ancla.GoalStore.describe(goalStore.all())
 
+    private val money by lazy { org.isoron.uhabits.ancla.finance.FinanceStore(context) }
+
+    override fun addMovement(amount: String, income: Boolean, category: String?, note: String, date: String?): String {
+        val cents = org.isoron.uhabits.ancla.finance.FinanceStore.parseAmount(amount) ?: return "No entendí el monto «$amount»."
+        val day = date?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() } ?: java.time.LocalDate.now()
+        val m = money.add(cents, income, category, note, day)
+        val fmt = org.isoron.uhabits.ancla.finance.FinanceStore::money
+        return buildString {
+            append(if (m.income) "Ingreso de ${fmt(m.cents)} en ${m.category}" else "Gasto de ${fmt(m.cents)} en ${m.category}")
+            if (m.note.isNotBlank()) append(" (${m.note})")
+            if (day != java.time.LocalDate.now()) append(", del $day")
+            // How the category's month stands against its budget, when it has one.
+            if (!m.income) {
+                val s = money.summary(java.time.YearMonth.from(day))
+                val budget = s.budgets[m.category]
+                if (budget != null) {
+                    val spent = s.byCategory.firstOrNull { it.first == m.category }?.second ?: 0L
+                    append(if (spent > budget) ". Te pasaste ${fmt(spent - budget)} del presupuesto de ${fmt(budget)}" else ". Te quedan ${fmt(budget - spent)} de ${fmt(budget)} este mes")
+                }
+            }
+        }
+    }
+
+    override fun financeSummary(month: String?): String {
+        val ym = month?.let { runCatching { java.time.YearMonth.parse(it) }.getOrNull() } ?: java.time.YearMonth.now()
+        return org.isoron.uhabits.ancla.finance.FinanceStore.describe(money.summary(ym))
+    }
+
+    override fun setBudget(category: String, amount: String): String {
+        val cents = org.isoron.uhabits.ancla.finance.FinanceStore.parseAmount(amount) ?: 0L
+        val name = money.setBudget(category, cents)
+        return if (cents == 0L) "Quité el presupuesto de $name" else "Presupuesto de $name: ${org.isoron.uhabits.ancla.finance.FinanceStore.money(cents)} al mes"
+    }
+
+    override fun undoMovement(): String {
+        val last = money.last() ?: return "No hay movimientos para borrar."
+        money.remove(last.id)
+        return "Borré ${if (last.income) "el ingreso" else "el gasto"} de ${org.isoron.uhabits.ancla.finance.FinanceStore.money(last.cents)} (${last.note.ifBlank { last.category }})"
+    }
+
     // --- Library management (network calls stay off the main thread) ---
 
     private val library by lazy { Library(context) }
