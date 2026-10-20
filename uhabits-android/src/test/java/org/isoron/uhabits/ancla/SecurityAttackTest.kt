@@ -135,4 +135,60 @@ class SecurityAttackTest {
             assertEquals(1, screen.lines().count { it.trim() == "<<FIN DE LA PANTALLA>>" })
         }
     }
+
+    @Test
+    fun anUnansweredQuestionExpires() {
+        var now = 1_000_000L
+        val gate = ConfirmGate { now }
+        gate.userTurn("borra el gasto de ayer")
+        assertFalse(gate.confirmed("undo-movement:1"))
+        assertTrue(gate.awaiting)
+        // Hours later the user says "sí" to something else; the model replays the old request.
+        now += ConfirmGate.WINDOW_MS + 1
+        assertFalse(gate.awaiting)
+        gate.userTurn("sí")
+        assertFalse(gate.confirmed("undo-movement:1"))
+        // Asked again now, a prompt yes still works.
+        gate.userTurn("sí")
+        assertTrue(gate.confirmed("undo-movement:1"))
+    }
+
+    @Test
+    fun voicePlaceholdersAreNeverTheUsersWords() {
+        for (placeholder in listOf(PhoneSafety.AUDIO_TURN, PhoneSafety.WAKE_AUDIO_TURN)) {
+            assertFalse(PhoneSafety.isYes(placeholder))
+            // Its own words ("Dexter", "nothing else") must not count as dictated by the user.
+            assertFalse(PhoneSafety.saidByUser("nothing else", placeholder))
+            assertFalse(PhoneSafety.saidByUser("Dexter", placeholder))
+            val gate = ConfirmGate()
+            gate.userTurn("envía el mensaje")
+            assertFalse(gate.confirmed("tap:enviar"))
+            gate.userTurn(placeholder)
+            assertFalse(gate.confirmed("tap:enviar"))
+        }
+    }
+
+    @Test
+    fun aQuickToolThatAsksForAYesNeverEndsTheTurnByItself() {
+        val quick = org.isoron.uhabits.ancla.assistant.GeminiAgent.Companion
+        assertEquals("Linterna encendida.", quick.quickAnswer("", false, listOf("phone_toggle"), listOf("Linterna encendida")))
+        // undo_movement on an older movement asks first: the model has to ask, not read the instruction aloud.
+        assertEquals(null, quick.quickAnswer("", false, listOf("undo_movement"), listOf("CONFIRMACIÓN NECESARIA: borrar el gasto de $12,00 (almuerzo). Pregunta al usuario…")))
+        assertEquals(null, quick.quickAnswer("", false, listOf("phone_toggle", "undo_movement"), listOf("Linterna encendida", "CONFIRMATION REQUIRED: nothing was deleted.")))
+        // Anything but quick tools, a failure or the model's own words: the model speaks.
+        assertEquals(null, quick.quickAnswer("", false, listOf("update_goal"), listOf("Meta quitada")))
+        assertEquals(null, quick.quickAnswer("", true, listOf("phone_toggle"), listOf("error")))
+        assertEquals(null, quick.quickAnswer("Listo", false, listOf("phone_toggle"), listOf("Linterna encendida")))
+        assertEquals(null, quick.quickAnswer("", false, emptyList(), emptyList()))
+    }
+
+    @Test
+    fun aWakeRequestMustCallDexterByName() {
+        assertTrue(PhoneSafety.callsDexter("Oye Dexter, pon una alarma"))
+        assertTrue(PhoneSafety.callsDexter("oye, DEXTER: sí"))
+        // A TV or a song after a false wake: its words can't act or confirm.
+        assertFalse(PhoneSafety.callsDexter("sí, envíalo ya"))
+        assertFalse(PhoneSafety.callsDexter("el dextero ganó"))
+        assertFalse(PhoneSafety.callsDexter(""))
+    }
 }

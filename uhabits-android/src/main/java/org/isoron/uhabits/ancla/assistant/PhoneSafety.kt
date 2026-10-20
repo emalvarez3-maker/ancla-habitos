@@ -62,6 +62,9 @@ object PhoneSafety {
         "call Dexter by name and ask or say something to it? If not (background talk, TV, music, a name that only sounds alike, " +
         "or just noise), reply with exactly $IGNORE and nothing else, and call no tool. Otherwise act on what they said.)"
 
+    /** Whether a transcript calls Dexter by name ("Oye, Dexter: …"), as a real wake-word request does. */
+    fun callsDexter(transcript: String) = Regex("\\bdexter\\b").containsMatchIn(norm(transcript))
+
     /** Tools that work with the phone locked: nothing that shows or changes personal data. */
     val WHILE_LOCKED = setOf("phone_volume", "phone_media", "phone_alarm", "phone_status", "phone_toggle")
 
@@ -72,7 +75,7 @@ object PhoneSafety {
      * may type it without asking. Text from a screen, a notification or a file isn't.
      */
     fun saidByUser(value: String, userText: String): Boolean {
-        if (userText == AUDIO_TURN) return false
+        if (userText == AUDIO_TURN || userText == WAKE_AUDIO_TURN) return false
         val said = words(userText).toSet()
         val wanted = words(value)
         return wanted.isNotEmpty() && wanted.all { it in said }
@@ -105,6 +108,9 @@ object PhoneSafety {
     fun isSensitiveApp(packageName: String) = SENSITIVE_PACKAGE.containsMatchIn(packageName.lowercase())
 
     fun isRisky(label: String) = RISKY.containsMatchIn(norm(label))
+
+    /** Whether a tool's result asks for the user's yes ("CONFIRMACIÓN NECESARIA: …") instead of reporting something done. */
+    fun asksConfirmation(result: String) = result.trimStart().startsWith("CONFIRMA")
 
     /** Whether the user's message is a plain yes ("sí, envíalo", "dale"). */
     fun isYes(userText: String) = YES.containsMatchIn(norm(userText))
@@ -210,11 +216,12 @@ object PhoneSafety {
  * The yes-gate for actions that reach other people or can't be undone. The first request only
  * records what was asked; it runs when the same thing is requested again in a LATER message from
  * the user that says yes. Text from screens, files, notes or messages can't create a user message,
- * so it can never confirm anything; a "no" or an unrelated reply doesn't either.
+ * so it can never confirm anything; a "no" or an unrelated reply doesn't either. A question left
+ * unanswered expires after [WINDOW_MS], so a "sí" said much later to something else can't confirm it.
  */
-class ConfirmGate {
+class ConfirmGate(private val now: () -> Long = System::currentTimeMillis) {
     private var turn = 0
-    private var pending: Pair<String, Int>? = null
+    private var pending: Triple<String, Int, Long>? = null
 
     /** What the user said in this turn ([PhoneSafety.AUDIO_TURN] when it came as audio). */
     var userText = ""
@@ -226,7 +233,7 @@ class ConfirmGate {
     }
 
     /** Whether something waits for a yes (a voice reply is then transcribed first, see GeminiAgent.sendAudio). */
-    val awaiting get() = pending != null
+    val awaiting get() = pending?.let { now() - it.third <= WINDOW_MS } == true
 
     /**
      * True when [key] was asked for in an earlier turn and this turn's message says yes. Only words
@@ -235,12 +242,17 @@ class ConfirmGate {
     fun confirmed(key: String): Boolean {
         val p = pending
         val yes = PhoneSafety.isYes(userText)
-        if (p != null && p.first == key && turn > p.second && yes) {
+        if (p != null && p.first == key && turn > p.second && now() - p.third <= WINDOW_MS && yes) {
             pending = null
             return true
         }
-        pending = key to turn
+        pending = Triple(key, turn, now())
         return false
+    }
+
+    companion object {
+        /** How long a question waits for its yes. */
+        const val WINDOW_MS = 5 * 60_000L
     }
 }
 

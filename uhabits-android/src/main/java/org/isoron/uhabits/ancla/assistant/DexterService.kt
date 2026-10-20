@@ -146,10 +146,22 @@ class DexterService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    /**
+     * The screen going off drops Dexter's last answer from the notification, which the lock screen
+     * shows in full when the user lets it show notification content.
+     */
+    private val screenOff = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            lastReply = ""
+            if (!inConversation) update(getString(if (keys.listeningPaused) R.string.dexter_service_paused else R.string.dexter_service_waiting))
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
         instance = this
         LibVosk.setLogLevel(LogLevel.WARNINGS)
+        ContextCompat.registerReceiver(this, screenOff, android.content.IntentFilter(Intent.ACTION_SCREEN_OFF), ContextCompat.RECEIVER_NOT_EXPORTED)
         DexterTile.update(this)
     }
 
@@ -184,6 +196,7 @@ class DexterService : Service() {
         interrupter.stop()
         stopWake()
         unregisterUnlock()
+        runCatching { unregisterReceiver(screenOff) }
         stopRequestListener()
         overlay.hide()
         dictation.release()
@@ -382,6 +395,12 @@ class DexterService : Service() {
                 a.sendAudio(wav, "audio/wav", onEvent, afterWake = afterWake)
             } else {
                 val text = GeminiText.transcribe(gemini, wav, "audio/wav")
+                // The recording starts at the name: without it in the words, nobody called Dexter
+                // (a TV, a song), and its words must not act or confirm anything.
+                if (afterWake && !PhoneSafety.callsDexter(text)) {
+                    onEvent(AgentEvent.Reply(PhoneSafety.IGNORE))
+                    return@runTurn
+                }
                 overlay.show(OwlState.THINKING, youSaid = text)
                 a.send(text, onEvent)
             }
@@ -627,11 +646,19 @@ class DexterService : Service() {
         val toggle = PendingIntent.getService(
             this, 2, Intent(this, DexterService::class.java).setAction(if (pausedByUser) ACTION_RESUME else ACTION_PAUSE), PendingIntent.FLAG_IMMUTABLE
         )
+        // Dexter's last answer can be personal (money, goals, messages): the lock screen only says it is there.
+        val public = NotificationCompat.Builder(this, CHANNEL)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(getString(R.string.dexter_service_title))
+            .setSilent(true)
+            .build()
         return NotificationCompat.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(getString(R.string.dexter_service_title))
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .setPublicVersion(public)
             .setOngoing(true)
             .setSilent(true)
             .setContentIntent(open)

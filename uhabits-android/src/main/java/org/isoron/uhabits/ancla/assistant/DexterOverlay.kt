@@ -166,6 +166,8 @@ class DexterOverlay(private val context: Context, private val controls: Controls
         ).apply {
             gravity = Gravity.BOTTOM
             windowAnimations = android.R.style.Animation_Toast
+            // Like the app's screens: Dexter's answers stay out of screenshots and screen recordings.
+            if (SecureKeys(context).secureScreens) flags = flags or WindowManager.LayoutParams.FLAG_SECURE
         }
         runCatching { windows.addView(compose, params) }.onFailure { owner.destroy(); this.owner = null; return }
         view = compose

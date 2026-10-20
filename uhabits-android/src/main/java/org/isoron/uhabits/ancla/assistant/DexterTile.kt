@@ -51,6 +51,17 @@ class DexterTile : TileService() {
             openDexter()
             return
         }
+        // From the lock screen anyone can tap the tile: turning the microphone off is fine, turning it
+        // on (or back on) waits until the phone is unlocked by its owner.
+        val turningOn = DexterService.instance == null || keys.listeningPaused
+        if (turningOn && isLocked && isSecure) {
+            unlockAndRun { toggle() }
+            return
+        }
+        toggle()
+    }
+
+    private fun toggle() {
         val service = DexterService.instance
         // The service starts or stops asynchronously: draw the state it is heading to.
         val listening = when {

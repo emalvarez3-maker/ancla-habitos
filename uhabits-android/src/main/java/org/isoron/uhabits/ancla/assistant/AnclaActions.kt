@@ -182,7 +182,12 @@ class AnclaActions(private val context: Context) : AgentActions {
 
     override fun updateGoal(title: String, progress: Int?, done: Boolean?, year: Int?, newTitle: String?, habit: String?, remove: Boolean): String {
         if (remove) {
-            val gone = goalStore.remove(title) ?: return "No encuentro una meta llamada «$title». " + goalStore.all().joinToString(prefix = "Metas: ") { it.title }
+            val target = goalStore.find(title) ?: return noGoal(title)
+            // Deleting a goal (with its WOOP and milestones) needs the user's own yes in a later message.
+            if (!confirmedLater("goal-remove:" + target.id)) {
+                return "CONFIRMACIÓN NECESARIA: quitar la meta «${target.title}» del Camino, con su WOOP y sus hitos. Pregunta al usuario y vuelve a pedirlo solo si dice que sí."
+            }
+            val gone = goalStore.remove(target.title) ?: return noGoal(title)
             return "Meta quitada del Camino: «${gone.title}»"
         }
         val g = goalStore.update(title, progress, done, year, newTitle, habit = habit)
@@ -215,6 +220,7 @@ class AnclaActions(private val context: Context) : AgentActions {
         val cents = org.isoron.uhabits.ancla.finance.FinanceStore.parseAmount(amount) ?: return "No entendí el monto «$amount»."
         val day = date?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() } ?: java.time.LocalDate.now()
         val m = money.add(cents, income, category, note, day)
+        recordedMovement = m.id
         val fmt = org.isoron.uhabits.ancla.finance.FinanceStore::money
         return buildString {
             append(if (m.income) "Ingreso de ${fmt(m.cents)} en ${m.category}" else "Gasto de ${fmt(m.cents)} en ${m.category}")
@@ -243,8 +249,17 @@ class AnclaActions(private val context: Context) : AgentActions {
         return if (cents == 0L) "Quité el presupuesto de $name" else "Presupuesto de $name: ${org.isoron.uhabits.ancla.finance.FinanceStore.money(cents)} al mes"
     }
 
+    /** The movement this Dexter just recorded: "borra eso" right after may undo it without asking. */
+    private var recordedMovement: String? = null
+
     override fun undoMovement(): String {
         val last = money.last() ?: return "No hay movimientos para borrar."
+        // Anything else (an older movement, one typed on screen) needs the user's yes in a later message.
+        if (last.id != recordedMovement && !confirmedLater("undo-movement:" + last.id)) {
+            return "CONFIRMACIÓN NECESARIA: borrar ${if (last.income) "el ingreso" else "el gasto"} de " +
+                "${org.isoron.uhabits.ancla.finance.FinanceStore.money(last.cents)} (${last.note.ifBlank { last.category }}). Pregunta al usuario y vuelve a pedirlo solo si dice que sí."
+        }
+        recordedMovement = null
         money.remove(last.id)
         return "Borré ${if (last.income) "el ingreso" else "el gasto"} de ${org.isoron.uhabits.ancla.finance.FinanceStore.money(last.cents)} (${last.note.ifBlank { last.category }})"
     }
