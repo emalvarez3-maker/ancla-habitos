@@ -173,6 +173,25 @@ class AnclaActions(private val context: Context) : AgentActions {
 
     override fun memories() = memory.facts
 
+    private val goalStore by lazy { org.isoron.uhabits.ancla.GoalStore(context) }
+
+    override fun addGoal(title: String, year: Int, note: String?, habit: String?): String {
+        val g = goalStore.add(title, year, note.orEmpty(), habit)
+        return "Meta en tu Camino: «${g.title}» para ${g.year}" + if (g.habits.isNotEmpty()) ", la alimenta: ${g.habits.joinToString()}" else ""
+    }
+
+    override fun updateGoal(title: String, progress: Int?, done: Boolean?, year: Int?, newTitle: String?, habit: String?, remove: Boolean): String {
+        if (remove) {
+            val gone = goalStore.remove(title) ?: return "No encuentro una meta llamada «$title». " + goalStore.all().joinToString(prefix = "Metas: ") { it.title }
+            return "Meta quitada del Camino: «${gone.title}»"
+        }
+        val g = goalStore.update(title, progress, done, year, newTitle, habit = habit)
+            ?: return "No encuentro una meta llamada «$title». " + goalStore.all().joinToString(prefix = "Metas: ") { it.title }
+        return "Meta «${g.title}» (${g.year}): " + if (g.done) "¡lograda!" else "${g.progress} %"
+    }
+
+    override fun goals() = org.isoron.uhabits.ancla.GoalStore.describe(goalStore.all())
+
     // --- Library management (network calls stay off the main thread) ---
 
     private val library by lazy { Library(context) }

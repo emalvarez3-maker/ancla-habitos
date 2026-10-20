@@ -32,7 +32,17 @@ internal fun dispatchTool(actions: AgentActions, name: String, input: JSONObject
         throw IllegalStateException("El teléfono está bloqueado: para eso hay que desbloquearlo. No reveles nada personal.")
     }
     fun opt(key: String) = input.optString(key).takeIf { it.isNotBlank() && it != "null" }
+    fun has(key: String) = input.has(key) && !input.isNull(key)
     val out = when (name) {
+        "add_goal" -> actions.addGoal(input.getString("title"), input.getInt("year"), opt("note"), opt("habit")).also { onEvent(AgentEvent.Action(it)) }
+        "update_goal" -> actions.updateGoal(
+            input.getString("title"),
+            if (has("progress")) input.getInt("progress") else null,
+            if (has("done")) input.getBoolean("done") else null,
+            if (has("year")) input.getInt("year") else null,
+            opt("new_title"), opt("habit"), input.optBoolean("remove", false)
+        ).also { onEvent(AgentEvent.Action(it)) }
+        "list_goals" -> actions.goals()
         "create_task" -> actions.createTask(input.getString("title"), opt("date"), opt("time"), input.optBoolean("remind", false))
             .also { onEvent(AgentEvent.Action(it)) }
         "complete_habit" -> actions.completeHabit(input.getString("name")).also { onEvent(AgentEvent.Action(it)) }
@@ -131,6 +141,34 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
                         emptyList()
                     )
                 )
+                .put(
+                    function(
+                        "add_goal",
+                        "Add a long-term goal to the user's Camino, their three-year roadmap (\"agrega una meta: viajar a Japón en 2028\"). Saying an existing goal again updates it.",
+                        JSONObject()
+                            .put("title", prop("string", "The goal, short, in the user's words"))
+                            .put("year", prop("integer", "Year to reach it, from this year up to three years ahead; this year + 1 if not said"))
+                            .put("note", prop("string", "Why it matters or how they'll know it's done", nullable = true))
+                            .put("habit", prop("string", "Name of a habit that feeds this goal", nullable = true)),
+                        listOf("title", "year")
+                    )
+                )
+                .put(
+                    function(
+                        "update_goal",
+                        "Change a goal on the Camino: progress 0-100, done, move it to another year, rename, add a habit that feeds it, or remove it (only after the user's explicit yes).",
+                        JSONObject()
+                            .put("title", prop("string", "The goal as the user names it"))
+                            .put("progress", prop("integer", "0 to 100", nullable = true))
+                            .put("done", prop("boolean", "true when reached", nullable = true))
+                            .put("year", prop("integer", "Move to this year", nullable = true))
+                            .put("new_title", prop("string", "New name", nullable = true))
+                            .put("habit", prop("string", "Habit that feeds it", nullable = true))
+                            .put("remove", prop("boolean", "true to delete it", nullable = true)),
+                        listOf("title")
+                    )
+                )
+                .put(function("list_goals", "The user's whole Camino: goals by year, progress and the habits that feed them.", JSONObject(), emptyList()))
                 .put(
                     function(
                         "remember",
