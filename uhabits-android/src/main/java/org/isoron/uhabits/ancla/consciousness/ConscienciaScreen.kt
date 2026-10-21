@@ -192,6 +192,10 @@ private fun Home(store: ConsciousnessStore, tick: Int, openMenu: () -> Unit, onD
             }
         }
 
+        val context = androidx.compose.ui.platform.LocalContext.current
+        Practice(stringResource(R.string.cons_meditate), stringResource(R.string.cons_meditate_sub), Modifier.fillMaxWidth()) {
+            context.startActivity(MeditationActivity.intent(context))
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Practice(stringResource(R.string.cons_pause), stringResource(R.string.cons_pause_sub), Modifier.weight(1f)) { go(View.PAUSA) }
             Practice(stringResource(R.string.cons_examen), stringResource(R.string.cons_examen_sub), Modifier.weight(1f)) { go(View.EXAMEN) }

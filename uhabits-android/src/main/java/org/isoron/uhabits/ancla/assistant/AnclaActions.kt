@@ -653,6 +653,13 @@ class AnclaActions(private val context: Context) : AgentActions {
         }
     }
 
+    override fun guidedPractice(kind: String, minutes: Int?): String {
+        val m = org.isoron.uhabits.ancla.consciousness.Meditation.of(kind)
+        val n = (minutes ?: 5).coerceIn(org.isoron.uhabits.ancla.consciousness.Meditation.MIN_MINUTES, org.isoron.uhabits.ancla.consciousness.Meditation.MAX_MINUTES)
+        context.startActivity(org.isoron.uhabits.ancla.consciousness.MeditationActivity.intent(context, m, n).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        return "Empezamos: ${m.title.lowercase()}, $n minutos"
+    }
+
     override fun openIdeaMap(): String {
         context.startActivity(NotesActivity.intent(context, tab = "graph").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         return "Abriendo tu grafo de notas"

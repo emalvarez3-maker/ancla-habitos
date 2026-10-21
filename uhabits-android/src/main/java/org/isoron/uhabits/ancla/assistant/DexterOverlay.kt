@@ -122,6 +122,9 @@ class DexterOverlay(private val context: Context, private val controls: Controls
         if (view == null && allowed) add()
     }
 
+    /** Replaces what the card says the user said, without bringing up a hidden card. */
+    fun heard(text: String) = onMain { if (text.isNotBlank()) heard.value = text }
+
     fun level(value: Float) = onMain { level.floatValue = value }
 
     fun appendReply(text: String) = onMain { reply.value += text }

@@ -53,7 +53,8 @@ internal fun dispatchTool(actions: AgentActions, name: String, input: JSONObject
         "finance_summary" -> actions.financeSummary(opt("month"))
         "save_checkin" -> actions.saveCheckIn(input.getString("emotion"), opt("body"), opt("note")).also { onEvent(AgentEvent.Action(it)) }
         "save_reflection" -> actions.saveReflection(input.getString("answer")).also { onEvent(AgentEvent.Action(it)) }
-        "save_examen" -> actions.saveExamen(opt("gratitude"), opt("went_well"), opt("reacted"), opt("tomorrow")).also { onEvent(AgentEvent.Action(it)) }
+        "guided_practice" -> actions.guidedPractice(input.optString("kind"), if (has("minutes")) input.optInt("minutes", 5) else null).also { onEvent(AgentEvent.Action(it)) }
+        "save_examen" ->actions.saveExamen(opt("gratitude"), opt("went_well"), opt("reacted"), opt("tomorrow")).also { onEvent(AgentEvent.Action(it)) }
         "consciousness_summary" -> actions.consciousness()
         "set_budget" -> actions.setBudget(input.getString("category"), input.get("amount").toString()).also { onEvent(AgentEvent.Action(it)) }
         "undo_movement" -> actions.undoMovement().also { onEvent(AgentEvent.Action(it)) }
@@ -255,6 +256,16 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
                             .put("reacted", prop("string", "Where they reacted instead of choosing", nullable = true))
                             .put("tomorrow", prop("string", "What they choose to do differently tomorrow", nullable = true)),
                         emptyList()
+                    )
+                )
+                .put(
+                    function(
+                        "guided_practice",
+                        "Start a guided meditation on screen, in your voice with timed pauses and a soft bell.",
+                        JSONObject()
+                            .put("kind", prop("string", "breathing (calm down), body_scan (arrive in the body), noting (busy mind) or kindness (hard feelings)"))
+                            .put("minutes", prop("integer", "Length in minutes (1-30); 5 if they didn't say", nullable = true)),
+                        listOf("kind")
                     )
                 )
                 .put(function("consciousness_summary", "The user's Consciencia: today's question, their wheel, last pause, streak, examen and the patterns in their own records.", JSONObject(), emptyList()))
@@ -654,7 +665,7 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
         private val QUICK_TOOLS = setOf(
             "phone_toggle", "phone_volume", "phone_media", "phone_brightness", "phone_alarm",
             "phone_open_app", "phone_settings_panel", "quiet_mode", "complete_habit",
-            "add_movement", "undo_movement", "set_budget"
+            "add_movement", "undo_movement", "set_budget", "guided_practice"
         )
 
         /**

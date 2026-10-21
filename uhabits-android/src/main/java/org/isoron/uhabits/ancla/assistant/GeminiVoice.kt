@@ -272,6 +272,10 @@ internal class GeminiVoice(
             "deadpan comic timing on the sarcastic lines, brisk and fluent pace, quicker than everyday conversation, " +
             "with short pauses. Never robotic, never flat, never cheerful-salesman."
 
+        /** Guided meditation: no wit here, only calm. */
+        const val GUIDE_STYLE = "Meditation guide: soft, warm, deep male voice, slow and unhurried, gentle and grounded, " +
+            "close to a whisper but clear, long natural pauses between phrases. Never dramatic, never sarcastic."
+
         /** Audiobook narration. */
         const val NARRATOR_STYLE = "Audiobook narrator: warm, deep and expressive male voice, measured storytelling pace, " +
             "clear diction, subtle shifts of tone for dialogue and characters, natural pauses between sentences."

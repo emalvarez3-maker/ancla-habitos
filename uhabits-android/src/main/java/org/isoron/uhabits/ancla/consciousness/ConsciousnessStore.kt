@@ -59,6 +59,9 @@ data class CheckIn(val id: String, val time: Long, val emotion: String, val quad
 data class Reflection(val day: LocalDate, val question: String, val answer: String)
 data class Examen(val day: LocalDate, val gratitude: String, val wentWell: String, val reacted: String, val tomorrow: String)
 
+/** A guided practice the user finished (or stopped), with the minutes they actually sat. */
+data class Sit(val time: Long, val kind: String, val minutes: Int)
+
 /**
  * Consciencia: the user's pauses (an emotion named precisely and where it is felt), their weekly
  * wheel of six dimensions as they see themselves, the answer to the day's question and the night
@@ -71,7 +74,8 @@ class ConsciousnessStore(private val file: File) {
         val checkIns: List<CheckIn> = emptyList(),
         val wheels: Map<LocalDate, Map<Dimension, Int>> = emptyMap(),
         val reflections: List<Reflection> = emptyList(),
-        val examens: List<Examen> = emptyList()
+        val examens: List<Examen> = emptyList(),
+        val sits: List<Sit> = emptyList()
     )
 
     fun checkIns(): List<CheckIn> = synchronized(LOCK) { load().checkIns }.sortedByDescending { it.time }
@@ -128,6 +132,24 @@ class ConsciousnessStore(private val file: File) {
         e
     }
 
+    fun sits(): List<Sit> = synchronized(LOCK) { load().sits }.sortedByDescending { it.time }
+
+    /** Logs a guided practice; under a minute isn't a sit, so it isn't kept. */
+    fun addSit(kind: String, minutes: Int, time: Long = System.currentTimeMillis()): Sit? = synchronized(LOCK) {
+        if (minutes < 1) return@synchronized null
+        val s = Sit(time, kind.trim().take(40), minutes.coerceAtMost(180))
+        val d = load()
+        save(d.copy(sits = (d.sits + s).takeLast(MAX_ITEMS)))
+        s
+    }
+
+    /** Minutes of guided practice in the 7 days up to [today]. */
+    fun sitMinutesThisWeek(today: LocalDate = LocalDate.now()): Int {
+        val zone = java.time.ZoneId.systemDefault()
+        val since = today.minusDays(6)
+        return sits().filter { java.time.Instant.ofEpochMilli(it.time).atZone(zone).toLocalDate() in since..today }.sumOf { it.minutes }
+    }
+
     /** Days in a row, up to today, with at least one pause. */
     fun pauseStreak(today: LocalDate = LocalDate.now()): Int {
         val days = checkIns().map { java.time.Instant.ofEpochMilli(it.time).atZone(java.time.ZoneId.systemDefault()).toLocalDate() }.toSet()
@@ -171,6 +193,10 @@ class ConsciousnessStore(private val file: File) {
         checkIns().firstOrNull()?.let { appendLine("Última pausa: ${it.emotion}" + (if (it.body.isNotEmpty()) ", en ${it.body.joinToString()}" else "")) }
         appendLine("Racha de pausas: ${pauseStreak(today)} días")
         examen(today)?.let { appendLine("Examen de hoy hecho") } ?: appendLine("Examen de hoy pendiente")
+        sits().firstOrNull()?.let { s ->
+            val day = java.time.Instant.ofEpochMilli(s.time).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+            appendLine("Meditación: última el $day (${s.kind}, ${s.minutes} min); ${sitMinutesThisWeek(today)} min en los últimos 7 días")
+        }
         patterns(today).forEach { appendLine("Patrón: $it") }
     }.trim()
 
@@ -192,7 +218,8 @@ class ConsciousnessStore(private val file: File) {
         val examens = json.optJSONArray("examens").objects().map {
             Examen(LocalDate.parse(it.getString("day")), it.optString("gratitude"), it.optString("wentWell"), it.optString("reacted"), it.optString("tomorrow"))
         }
-        return Data(checkIns, wheels, reflections, examens)
+        val sits = json.optJSONArray("sits").objects().map { Sit(it.getLong("time"), it.getString("kind"), it.getInt("minutes")) }
+        return Data(checkIns, wheels, reflections, examens, sits)
     }
 
     private fun save(d: Data) {
@@ -201,6 +228,7 @@ class ConsciousnessStore(private val file: File) {
             .put("wheels", JSONObject().apply { d.wheels.forEach { (week, r) -> put(week.toString(), JSONObject(r.mapKeys { it.key.name })) } })
             .put("reflections", JSONArray(d.reflections.map { JSONObject().put("day", it.day.toString()).put("question", it.question).put("answer", it.answer) }))
             .put("examens", JSONArray(d.examens.map { JSONObject().put("day", it.day.toString()).put("gratitude", it.gratitude).put("wentWell", it.wentWell).put("reacted", it.reacted).put("tomorrow", it.tomorrow) }))
+            .put("sits", JSONArray(d.sits.map { JSONObject().put("time", it.time).put("kind", it.kind).put("minutes", it.minutes) }))
         EncryptedStore.writeText(file, json.toString())
     }
 

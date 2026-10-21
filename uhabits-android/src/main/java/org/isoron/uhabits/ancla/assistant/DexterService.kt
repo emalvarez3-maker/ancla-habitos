@@ -387,6 +387,8 @@ class DexterService : Service() {
             Log.d(TAG, "offline: ${if (quick != null) quick.tool else "no quick command"} in ${System.currentTimeMillis() - started} ms")
             main.post {
                 if (token != turn || !inConversation) return@post
+                // A pass over the whole recording reads better than the words shown live.
+                if (quick == null) overlay.heard(heard)
                 if (quick != null) runQuick(heard, quick) else sendRecording(wav, afterWake, nameInAudio)
             }
         }.start()
@@ -396,6 +398,7 @@ class DexterService : Service() {
         val gemini = keys.geminiKey
         runTurn(verifyFirst = afterWake) { a, onEvent ->
             if (a is GeminiAgent) {
+                showWhatGeminiHeard(gemini, wav)
                 a.sendAudio(wav, "audio/wav", onEvent, afterWake = afterWake, nameInAudio = nameInAudio)
             } else {
                 val text = GeminiText.transcribe(gemini, wav, "audio/wav")
@@ -409,6 +412,20 @@ class DexterService : Service() {
                 a.send(text, onEvent)
             }
         }
+    }
+
+    /**
+     * Gemini answers from the audio itself; in parallel its transcript replaces the offline one on
+     * the card, so the user sees what Dexter understood. Off the answer's path: a failure only
+     * leaves the offline words.
+     */
+    private fun showWhatGeminiHeard(key: String, wav: ByteArray) {
+        if (key.isBlank()) return
+        val token = turn
+        Thread {
+            val text = runCatching { GeminiText.caption(key, wav) }.getOrNull().orEmpty()
+            if (text.isNotBlank()) main.post { if (token == turn && inConversation) overlay.heard(text) }
+        }.start()
     }
 
     /** Runs an everyday command without the AI, says what it did and keeps listening. */

@@ -149,6 +149,10 @@
             android:excludeFromRecents="true" />
 
         <activity
+            android:name=".ancla.consciousness.MeditationActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".ancla.assistant.DexterSetupActivity"
             android:exported="false"
             android:excludeFromRecents="true" />
