@@ -233,7 +233,9 @@ class DexterService : Service() {
             main.postDelayed(pauseEnd, (keys.listeningPausedUntil - System.currentTimeMillis()).coerceAtLeast(1000) + 500)
             return
         }
-        if (paused || appInForeground || inConversation || wakeListener != null) return
+        // The app being open no longer stops it: "Oye Dexter" works on every tab, with the card. [paused]
+        // is set only while the app itself uses the microphone (its dictation, or Dexter's chat screen).
+        if (paused || inConversation || wakeListener != null) return
         if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) return
         val listener = DexterWake(
             m,
@@ -347,6 +349,8 @@ class DexterService : Service() {
         overlay.quiet(keys.quietMode)
         overlay.show(OwlState.LISTENING)
         runCatching { ToneGenerator(AudioManager.STREAM_MUSIC, 70).startTone(ToneGenerator.TONE_PROP_ACK, 160) }
+        // What comes after the tone may be a TV after a false wake: the AI checks it was for Dexter.
+        checkNextRequest = true
         main.postDelayed({ listenForRequest() }, 300)
     }
 
@@ -371,7 +375,7 @@ class DexterService : Service() {
      * phone by Vosk; anything else goes to the AI. [afterWake]: recorded with the name, so the AI
      * first checks that someone really called Dexter.
      */
-    private fun handleRequest(wav: ByteArray, afterWake: Boolean) {
+    private fun handleRequest(wav: ByteArray, afterWake: Boolean, nameInAudio: Boolean = true) {
         if (!inConversation) return
         val m = model
         val token = turn
@@ -383,21 +387,21 @@ class DexterService : Service() {
             Log.d(TAG, "offline: ${if (quick != null) quick.tool else "no quick command"} in ${System.currentTimeMillis() - started} ms")
             main.post {
                 if (token != turn || !inConversation) return@post
-                if (quick != null) runQuick(heard, quick) else sendRecording(wav, afterWake)
+                if (quick != null) runQuick(heard, quick) else sendRecording(wav, afterWake, nameInAudio)
             }
         }.start()
     }
 
-    private fun sendRecording(wav: ByteArray, afterWake: Boolean) {
+    private fun sendRecording(wav: ByteArray, afterWake: Boolean, nameInAudio: Boolean = true) {
         val gemini = keys.geminiKey
         runTurn(verifyFirst = afterWake) { a, onEvent ->
             if (a is GeminiAgent) {
-                a.sendAudio(wav, "audio/wav", onEvent, afterWake = afterWake)
+                a.sendAudio(wav, "audio/wav", onEvent, afterWake = afterWake, nameInAudio = nameInAudio)
             } else {
                 val text = GeminiText.transcribe(gemini, wav, "audio/wav")
                 // The recording starts at the name: without it in the words, nobody called Dexter
                 // (a TV, a song), and its words must not act or confirm anything.
-                if (afterWake && !PhoneSafety.callsDexter(text)) {
+                if (afterWake && nameInAudio && !PhoneSafety.callsDexter(text)) {
                     onEvent(AgentEvent.Reply(PhoneSafety.IGNORE))
                     return@runTurn
                 }
@@ -438,6 +442,9 @@ class DexterService : Service() {
     /** Records the next request with the fast listener when Gemini can understand it, else with dictation. */
     private var requestListener: DexterWake? = null
 
+    /** The next recorded request follows a bare "Oye Dexter": the AI first checks it was meant for Dexter. */
+    private var checkNextRequest = false
+
     private fun stopRequestListener() {
         requestListener?.stop()
         requestListener = null
@@ -461,8 +468,15 @@ class DexterService : Service() {
         update(getString(R.string.dexter_service_listening))
         val listener = DexterWake(
             m,
-            onRequest = { wav -> main.post { requestListener = null; handleRequest(wav, afterWake = false) } },
-            onWakeOnly = { main.post { requestListener = null; if (inConversation) endConversation() } },
+            onRequest = { wav ->
+                main.post {
+                    requestListener = null
+                    val check = checkNextRequest
+                    checkNextRequest = false
+                    handleRequest(wav, afterWake = check, nameInAudio = false)
+                }
+            },
+            onWakeOnly = { main.post { requestListener = null; checkNextRequest = false; if (inConversation) endConversation() } },
             onLevel = { overlay.level(it) },
             onSilenced = { main.post { regainMicrophone() } },
             listenOnly = true

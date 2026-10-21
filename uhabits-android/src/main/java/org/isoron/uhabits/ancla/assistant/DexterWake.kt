@@ -76,7 +76,7 @@ class DexterWake(
     private fun loop() {
         val minBuffer = AudioRecord.getMinBufferSize(RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
         val record = AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, max(minBuffer, FRAME * 4))
-        val recognizer = Recognizer(model, RATE.toFloat(), GRAMMAR)
+        val recognizer = Recognizer(model, RATE.toFloat(), GRAMMAR).apply { setWords(true) }
         try {
             if (record.state != AudioRecord.STATE_INITIALIZED) {
                 // No microphone at all for a background service: same remedy as a silenced one.
@@ -116,23 +116,45 @@ class DexterWake(
                 // The room's noise, learned only from quiet frames.
                 if (rms < noise * 2) noise = noise * 0.95 + rms * 0.05
                 val final = recognizer.acceptWaveForm(frame, frame.size)
-                val heard = JSONObject(if (final) recognizer.result else recognizer.partialResult)
-                    .let { it.optString("text").ifEmpty { it.optString("partial") } }
+                val heardJson = if (final) recognizer.result else recognizer.partialResult
+                val heard = JSONObject(heardJson).let { it.optString("text").ifEmpty { it.optString("partial") } }
                 // Only the whole phrase counts ("oye/hey/ey dexter", never "dexter" alone), and only
                 // once Vosk keeps it in two guesses in a row or a final result: a passing sound
                 // that merely resembles the name is dropped.
+                var nameConf = if (final) nameConfidence(heardJson) else null
                 hits = if (WAKE_PHRASES.any { it in heard }) hits + 1 else 0
                 if (hits < 2 && !(final && hits == 1)) continue
 
+                // Someone calling Dexter talks toward the phone: the name must stand out of the room's
+                // noise. A TV or voices across the room that merely resemble it don't.
+                val peak = ring.takeLast(NAME_FRAMES).maxOf { rms(it) }
+                if (!loudEnough(peak, noise)) {
+                    Log.d(TAG, "wake word too quiet (peak ${peak.toInt()}, noise ${noise.toInt()}): ignored")
+                    recognizer.reset()
+                    hits = 0
+                    continue
+                }
                 Log.d(TAG, "wake word heard")
-                val request = capture(record, ring.toList(), noise)
+                val request = capture(record, ring.toList(), noise) { f ->
+                    if (recognizer.acceptWaveForm(f, f.size)) nameConf = maxOf(nameConf ?: 0.0, nameConfidence(recognizer.result) ?: 0.0)
+                }
+                if (running) nameConfidence(recognizer.finalResult)?.let { nameConf = maxOf(nameConf ?: 0.0, it) }
+                // How sure Vosk is that the word was "dexter": a sound forced onto the name by the small
+                // grammar comes back with a low confidence. Then it keeps listening, with no tone or card.
+                if (running && !nameAccepted(nameConf)) {
+                    Log.d(TAG, "wake word unsure (confidence ${"%.2f".format(nameConf)}): ignored")
+                    recognizer.reset()
+                    hits = 0
+                    ring.clear()
+                    continue
+                }
                 val stopped = !running // stop() was called meanwhile: nobody wants the result
                 running = false
                 record.stop()
                 record.release()
                 recognizer.close()
                 if (stopped) return
-                Log.d(TAG, if (request != null) "request said with the name: ${request.size * 100} ms" else "name only")
+                Log.d(TAG, (if (request != null) "request said with the name: ${request.size * 100} ms" else "name only") + ", confidence " + (nameConf?.let { "%.2f".format(it) } ?: "?"))
                 if (request != null) onRequest(wav(request)) else onWakeOnly()
                 return
             }
@@ -153,7 +175,8 @@ class DexterWake(
         buffered: List<ShortArray>,
         noise: Double,
         graceMs: Long = GRACE_MS,
-        waitMs: Long = WAIT_MS
+        waitMs: Long = WAIT_MS,
+        feed: (ShortArray) -> Unit = {}
     ): List<ShortArray>? {
         val frames = buffered.toMutableList()
         val threshold = max(noise * 3.0, MIN_SPEECH_RMS)
@@ -166,6 +189,7 @@ class DexterWake(
         while (running) {
             val frame = read(record) ?: return if (spoke) frames else null
             frames += frame
+            feed(frame)
             val now = System.currentTimeMillis()
             val loud = rms(frame) > threshold
             onLevel((rms(frame) / 4000.0).coerceIn(0.0, 1.0).toFloat())
@@ -222,6 +246,28 @@ class DexterWake(
 
         /** Two seconds of exact zeros: the microphone is silenced. */
         private const val SILENCED_FRAMES = 20
+
+        /** The last 1.5 s before the name was recognized: where "Oye Dexter" was said. */
+        private const val NAME_FRAMES = 15
+
+        /** Below this Vosk was guessing: the sound was forced onto "dexter" by the small grammar. */
+        const val MIN_NAME_CONFIDENCE = 0.75
+
+        /** A voice toward the phone, well above the room: at least this loud, and 3.5× the noise. */
+        const val MIN_NAME_RMS = 650.0
+
+        /** How sure a Vosk result (with words) is of "dexter", or null when it doesn't contain it. */
+        fun nameConfidence(json: String?): Double? {
+            val words = runCatching { JSONObject(json ?: return null).optJSONArray("result") }.getOrNull() ?: return null
+            return (0 until words.length()).map { words.getJSONObject(it) }
+                .filter { it.optString("word") == "dexter" }
+                .maxOfOrNull { it.optDouble("conf", 0.0) }
+        }
+
+        /** An unknown confidence (no final result reached us) doesn't block; a low one does. */
+        fun nameAccepted(confidence: Double?) = confidence == null || confidence >= MIN_NAME_CONFIDENCE
+
+        fun loudEnough(peakRms: Double, noise: Double) = peakRms >= max(MIN_NAME_RMS, noise * 3.5)
 
         private const val MIN_SPEECH_RMS = 350.0
         private const val GRACE_MS = 250L

@@ -62,6 +62,15 @@ object PhoneSafety {
         "call Dexter by name and ask or say something to it? If not (background talk, TV, music, a name that only sounds alike, " +
         "or just noise), reply with exactly $IGNORE and nothing else, and call no tool. Otherwise act on what they said.)"
 
+    /**
+     * What came right after the tone of a possible "Oye Dexter" (the name isn't in the recording).
+     * The model double-checks it was a request for an assistant, so a TV or people talking to each
+     * other after a false wake never make Dexter act or talk.
+     */
+    const val WAKE_FOLLOW_TURN = "(Recorded right after the phone thought it heard \"Oye Dexter\" and played its tone. First check: is " +
+        "someone clearly speaking to an assistant, asking or telling it something? If not (background talk, TV, a video, music, " +
+        "people talking to each other, or noise), reply with exactly $IGNORE and nothing else, and call no tool. Otherwise act on what they said.)"
+
     /** Whether a transcript calls Dexter by name ("Oye, Dexter: …"), as a real wake-word request does. */
     fun callsDexter(transcript: String) = Regex("\\bdexter\\b").containsMatchIn(norm(transcript))
 
@@ -75,7 +84,7 @@ object PhoneSafety {
      * may type it without asking. Text from a screen, a notification or a file isn't.
      */
     fun saidByUser(value: String, userText: String): Boolean {
-        if (userText == AUDIO_TURN || userText == WAKE_AUDIO_TURN) return false
+        if (userText == AUDIO_TURN || userText == WAKE_AUDIO_TURN || userText == WAKE_FOLLOW_TURN) return false
         val said = words(userText).toSet()
         val wanted = words(value)
         return wanted.isNotEmpty() && wanted.all { it in said }

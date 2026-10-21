@@ -162,11 +162,29 @@ class VoiceAgentController(private val activity: ComponentActivity, private val 
     private val micGranted
         get() = ContextCompat.checkSelfPermission(activity, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
 
-    /** Keeps the wake word listening only while nothing else uses the microphone or the speaker. */
+    /**
+     * Dexter's chat screen listens for "Oye Dexter" itself and shows the answer there. Everywhere else
+     * in the app (Hoy, Camino, Finanzas, Consciencia, Aprender) the always-listening service does it,
+     * with the same floating card as outside the app, so it works the same on every tab.
+     */
+    private val chatScreen = activity is AssistantActivity
+
+    /** The service hears "Oye Dexter" here: always-listening is on and this isn't the chat screen. */
+    private val serviceListens get() = !chatScreen && keys.alwaysListening && DexterService.instance != null
+
+    /** Keeps one wake word listening, only while nothing else in the app uses the microphone or the speaker. */
     private val wakeCheck = object : Runnable {
         override fun run() {
             val idle = dictation.value == DictationState.Idle && !thinking.value && !speaking.value
-            if (resumed && wakeWord.value && idle && micGranted && hasAssistantKey) wake.start() else wake.stop()
+            if (serviceListens) {
+                wake.stop()
+                // Hand the microphone back to the service as soon as the app's own talk is over.
+                if (resumed && idle) DexterService.instance?.resume() else DexterService.instance?.pause()
+            } else if (resumed && wakeWord.value && idle && micGranted && hasAssistantKey) {
+                wake.start()
+            } else {
+                wake.stop()
+            }
             if (resumed) handler.postDelayed(this, WAKE_CHECK_MS)
         }
     }
@@ -197,6 +215,7 @@ class VoiceAgentController(private val activity: ComponentActivity, private val 
         interrupter.stop() // frees the microphone for dictation
         speaker.stop() // talking over Dexter interrupts it
         wake.stop()
+        DexterService.instance?.pause() // the app's own dictation takes the microphone for a moment
         if (!resumed) return
         if (ContextCompat.checkSelfPermission(activity, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
             engine.start(mode)
@@ -277,9 +296,9 @@ class VoiceAgentController(private val activity: ComponentActivity, private val 
     fun onResume() {
         resumed = true
         quiet.value = keys.quietMode
-        // The app takes the microphone while it is open; the service waits.
         DexterService.appInForeground = true
-        DexterService.instance?.pause()
+        // Only Dexter's chat screen takes the microphone while open; elsewhere the service keeps listening.
+        if (chatScreen) DexterService.instance?.pause()
         if (keys.alwaysListening && micGranted && DexterService.instance == null) DexterService.start(activity)
         handler.removeCallbacks(wakeCheck)
         handler.postDelayed(wakeCheck, WAKE_CHECK_MS)
