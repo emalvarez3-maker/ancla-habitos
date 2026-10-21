@@ -58,12 +58,23 @@ class DexterMemory(context: Context) {
     private fun key(s: String) = Normalizer.normalize(s.lowercase(), Normalizer.Form.NFD)
         .replace(Regex("\\p{M}"), "").replace(Regex("[^a-z0-9 ]"), " ").replace(Regex("\\s+"), " ").trim()
 
-    /** Saves [fact], replacing an identical one; the oldest facts drop off past [MAX_FACTS]. */
-    fun remember(fact: String): String {
-        val clean = fact.trim().take(MAX_LENGTH)
+    /**
+     * Saves [fact] under [topic] ("[Personas] Su hermana se llama Ana"), replacing an identical
+     * one and the one it [replaces]; the oldest facts drop off past [MAX_FACTS].
+     */
+    fun remember(fact: String, topic: String? = null, replaces: String? = null): String {
+        val body = fact.trim().let { f -> if (topic.isNullOrBlank() || f.startsWith("[")) f else "[${topic.trim().replaceFirstChar { it.uppercase() }}] $f" }
+        val clean = body.take(MAX_LENGTH)
         require(clean.isNotEmpty()) { "Nothing to remember" }
-        save(stored().filter { key(it) != key(clean) } + clean)
+        val old = replaces?.takeIf { it.isNotBlank() }?.let(::key)
+        save(stored().filter { key(it) != key(clean) && (old == null || !key(it).contains(old)) } + clean)
         return "Recordado: $clean"
+    }
+
+    /** The facts sharing words with [query], best first. */
+    fun search(query: String, limit: Int = 15): List<String> {
+        val wanted = DexterArchive.words(query)
+        return facts.map { it to (DexterArchive.words(it) intersect wanted).size }.filter { it.second > 0 }.sortedByDescending { it.second }.take(limit).map { it.first }
     }
 
     /** Removes facts that match [fact] loosely. */
@@ -79,8 +90,8 @@ class DexterMemory(context: Context) {
     fun clear() = prefs.edit().remove(ENCRYPTED).remove(PLAIN).apply()
 
     companion object {
-        private const val MAX_FACTS = 80
-        private const val MAX_LENGTH = 200
+        private const val MAX_FACTS = 500
+        private const val MAX_LENGTH = 300
         private const val PLAIN = "facts"
         private const val ENCRYPTED = "facts_enc"
         private const val LABEL = "ancla_memory/facts"

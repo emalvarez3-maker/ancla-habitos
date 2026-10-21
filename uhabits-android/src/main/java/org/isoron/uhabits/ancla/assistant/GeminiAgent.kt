@@ -73,7 +73,8 @@ internal fun dispatchTool(actions: AgentActions, name: String, input: JSONObject
         "today_summary" -> actions.todaySummary()
         "reading_summary" -> actions.readingSummary()
         "read_book_aloud" -> actions.readBookAloud(opt("title")).also { onEvent(AgentEvent.Action(it)) }
-        "remember" -> actions.remember(input.getString("fact"))
+        "remember" -> actions.remember(input.getString("fact"), opt("topic"), opt("replaces"))
+        "recall" -> actions.recall(input.getString("query"))
         "forget" -> actions.forget(input.getString("fact"))
         "read_book_text" -> actions.readBookText(opt("title"), input.optInt("chapter", 0).takeIf { it > 0 })
         "save_idea" -> actions.saveIdea(input.getString("title"), input.optString("note"), opt("source"), opt("kind") ?: "idea").also { onEvent(AgentEvent.Action(it)) }
@@ -374,9 +375,20 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
                 .put(
                     function(
                         "remember",
-                        "Save a short, lasting fact about the user to your memory (preferences, goals, people, routines, tastes, what annoys them).",
-                        JSONObject().put("fact", prop("string", "One short fact in Spanish, written in third person")),
+                        "Save a short, lasting fact about the user to your memory (people, preferences, goals, studies, work, health, routines, tastes, what annoys them).",
+                        JSONObject()
+                            .put("fact", prop("string", "One short fact in Spanish, written in third person, with names and dates when known"))
+                            .put("topic", prop("string", "Personas, Gustos, Metas, Estudios, Trabajo, Salud, Rutinas, Dinero, Forma de ser or Otros", nullable = true))
+                            .put("replaces", prop("string", "Words of an older fact this one corrects or updates, to drop it", nullable = true)),
                         listOf("fact")
+                    )
+                )
+                .put(
+                    function(
+                        "recall",
+                        "Search everything the user has told you before (past conversations of up to two years, your journal and memory) when they mention something from the past or you need a detail you don't have.",
+                        JSONObject().put("query", prop("string", "What to look for: names, topics, words they would have used")),
+                        listOf("query")
                     )
                 )
                 .put(

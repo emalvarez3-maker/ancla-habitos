@@ -80,6 +80,14 @@ object GeminiText {
         listOf("gemini-3.5-flash-lite", "gemini-3.6-flash")
     )
 
+    /** Blocking. One day of conversation → its journal lines and lasting facts (see [DexterJournal.PROMPT]). */
+    fun journal(apiKey: String, day: String): String = call(
+        apiKey,
+        JSONArray().put(JSONObject().put("text", day)),
+        DexterJournal.PROMPT,
+        listOf("gemini-3.5-flash-lite", "gemini-3.6-flash")
+    )
+
     private fun call(apiKey: String, parts: JSONArray, system: String, models: List<String> = MODELS): String {
         var last: AgentException? = null
         for (model in models) {

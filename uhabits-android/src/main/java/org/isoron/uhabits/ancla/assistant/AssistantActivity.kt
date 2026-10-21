@@ -417,7 +417,10 @@ private fun KeysSheet(
                     color = c.amberInk,
                     modifier = Modifier.clip(CircleShape).background(c.ground)
                         .combinedClickableCompat(Role.Button, {
+                            // Erasing the conversation erases everything said: the archive and the journal too.
                             conversation.clear()
+                            runCatching { DexterArchive(context).clear() }
+                            runCatching { DexterJournal(context).clear() }
                             talked = 0
                         }).padding(horizontal = 14.dp, vertical = 10.dp)
                 )

@@ -37,8 +37,8 @@ import java.util.Locale
  * said before. Only the words are kept (the user's and Dexter's, plus what it did), encrypted on
  * the phone in no-backup storage. Never read or written while the phone is locked.
  */
-class DexterConversation(private val file: File) {
-    constructor(context: Context) : this(File(context.noBackupFilesDir, "dexter_conversation.json"))
+class DexterConversation(private val file: File, private val archive: DexterArchive? = null) {
+    constructor(context: Context) : this(File(context.noBackupFilesDir, "dexter_conversation.json"), DexterArchive(context))
 
     class Entry(val seq: Long, val time: Long, val user: Boolean, val text: String)
 
@@ -48,23 +48,42 @@ class DexterConversation(private val file: File) {
     /** Adds a message and returns its number. */
     fun add(user: Boolean, text: String): Long = synchronized(LOCK) {
         val all = load()
-        val seq = (all.lastOrNull()?.seq ?: 0L) + 1
-        save(all + Entry(seq, System.currentTimeMillis(), user, text.trim().take(MAX_LENGTH)))
+        // Numbers keep growing past what the running log still holds, so the archive's never repeat.
+        val seq = maxOf(all.lastOrNull()?.seq ?: 0L, lastSeq) + 1
+        lastSeq = seq
+        val e = Entry(seq, System.currentTimeMillis(), user, text.trim().take(MAX_LENGTH))
+        save(all + e)
+        // The long-term copy must never cost the conversation itself.
+        archive?.let { a -> runCatching { a.add(e.seq, e.time, e.user, e.text) } }
         seq
     }
 
     /** Replaces the text of message [seq] (a voice message, once it has been transcribed). */
     fun update(seq: Long, text: String) = synchronized(LOCK) {
         save(load().map { if (it.seq == seq) Entry(it.seq, it.time, it.user, text.trim().take(MAX_LENGTH)) else it })
+        archive?.let { a -> runCatching { a.update(seq, text) } }
     }
 
     /** Drops message [seq] (a recording nobody meant for Dexter). */
-    fun remove(seq: Long) = synchronized(LOCK) { save(load().filter { it.seq != seq }) }
+    fun remove(seq: Long) = synchronized(LOCK) {
+        save(load().filter { it.seq != seq })
+        archive?.let { a -> runCatching { a.remove(seq) } }
+    }
 
+    /** Clears the running conversation; the archive (what Dexter remembers long-term) stays. */
     fun clear() = synchronized(LOCK) {
         file.delete()
         StoreCache.forget(file)
     }
+
+    /** The highest number ever given, kept beside the log: cleared or trimmed, it never repeats one. */
+    private var lastSeq: Long
+        get() = runCatching { seqFile.readText().trim().toLong() }.getOrDefault(0L)
+        set(v) {
+            runCatching { seqFile.writeText(v.toString()) }
+        }
+
+    private val seqFile get() = File(file.parentFile, file.name + ".seq")
 
     // Every turn reads the log three times (catch up, the user's words, the reply): decrypted once.
     private fun load(): List<Entry> {
