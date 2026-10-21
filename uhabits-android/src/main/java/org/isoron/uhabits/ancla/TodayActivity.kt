@@ -62,6 +62,7 @@ class TodayActivity : AppCompatActivity(), CommandRunner.Listener {
         super.onCreate(savedInstanceState)
         voice = org.isoron.uhabits.ancla.assistant.VoiceAgentController(this) { refresh() }
         Wisdom.schedule(this)
+        Nudges.schedule(this)
         val goals = GoalStore(this)
         val money = org.isoron.uhabits.ancla.finance.FinanceStore(this)
         val consciousness = org.isoron.uhabits.ancla.consciousness.ConsciousnessStore(this)

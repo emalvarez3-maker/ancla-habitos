@@ -66,6 +66,10 @@
     <string name="row_done">%1$s, done</string>
     <string name="row_pending">%1$s, to do</string>
     <string name="task_badge">Task</string>
+    <string name="nudge_channel">Dexter’s reminders</string>
+    <string name="nudge_public">Dexter has something for you</string>
+    <string name="nudge_done">Done ✓</string>
+    <string name="nudge_snooze">In 1 hour</string>
     <string name="habit_badge">Habit</string>
     <string name="section_habits">Habits you are building</string>
     <string name="section_habits_sub">Every day, until they run on their own</string>

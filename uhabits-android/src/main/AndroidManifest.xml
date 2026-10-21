@@ -386,6 +386,10 @@
         </receiver>
 
         <receiver
+            android:name=".ancla.NudgeReceiver"
+            android:exported="false" />
+
+        <receiver
             android:name=".ancla.WisdomReceiver"
             android:exported="false" />
 

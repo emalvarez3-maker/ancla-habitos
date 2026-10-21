@@ -46,6 +46,20 @@ class HabitsApplication : Application() {
         super.onCreate()
         context = this
         org.isoron.uhabits.ancla.AppLock.install(this) // fingerprint/PIN lock and FLAG_SECURE for every screen
+        // Dexter speaks Spanish: the app starts in Spanish once, whatever the phone's language. A
+        // language the user picks later in Android's app settings is never overridden.
+        val locale = getSharedPreferences("ancla_locale", MODE_PRIVATE)
+        if (!locale.getBoolean("spanish_set", false)) {
+            // Android 13+ keeps the app's language itself; AppCompat's call needs an open screen, so the
+            // system service is used directly here.
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                val manager = getSystemService(android.app.LocaleManager::class.java)
+                if (manager.applicationLocales.isEmpty) manager.applicationLocales = android.os.LocaleList.forLanguageTags("es-ES")
+            } else if (androidx.appcompat.app.AppCompatDelegate.getApplicationLocales().isEmpty) {
+                androidx.appcompat.app.AppCompatDelegate.setApplicationLocales(androidx.core.os.LocaleListCompat.forLanguageTags("es-ES"))
+            }
+            locale.edit().putBoolean("spanish_set", true).apply()
+        }
 
         if (isTestMode()) {
             val db = DatabaseUtils.getDatabaseFile(context)
