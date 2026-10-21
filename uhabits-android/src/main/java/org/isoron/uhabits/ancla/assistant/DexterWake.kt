@@ -51,6 +51,8 @@ class DexterWake(
     private val onWakeOnly: () -> Unit,
     private val onLevel: (Float) -> Unit = {},
     private val onSilenced: () -> Unit = {},
+    /** What the user has said so far, live, while a request is being recorded. */
+    private val onPartial: (String) -> Unit = {},
     private val listenOnly: Boolean = false
 ) {
     @Volatile private var running = false
@@ -186,25 +188,46 @@ class DexterWake(
         var speechFrames = 0
         var lastLoud = start
         var firstLoud = -1
-        while (running) {
-            val frame = read(record) ?: return if (spoke) frames else null
-            frames += frame
-            feed(frame)
-            val now = System.currentTimeMillis()
-            val loud = rms(frame) > threshold
-            onLevel((rms(frame) / 4000.0).coerceIn(0.0, 1.0).toFloat())
-            if (loud) {
-                lastLoud = now
-                if (firstLoud < 0) firstLoud = frames.size - 1
-                if (now - start > graceMs && ++speechFrames >= MIN_SPEECH_FRAMES) spoke = true
+        // What the user is saying, transcribed offline as they speak: shown live, and used to tell a
+        // pause to think ("quiero que... eh...") from the end of what they wanted to say.
+        val words = runCatching { Recognizer(model, RATE.toFloat()) }.getOrNull()
+        val said = StringBuilder()
+        var live = ""
+        try {
+            while (running) {
+                val frame = read(record) ?: return if (spoke) frames else null
+                frames += frame
+                feed(frame)
+                if (words != null) {
+                    val text = if (words.acceptWaveForm(frame, frame.size)) {
+                        said.append(' ').append(JSONObject(words.result).optString("text"))
+                        said.toString()
+                    } else {
+                        said.toString() + " " + JSONObject(words.partialResult).optString("partial")
+                    }.trim().replace(Regex("\\s+"), " ")
+                    if (text != live) {
+                        live = text
+                        onPartial(text)
+                    }
+                }
+                val now = System.currentTimeMillis()
+                val loud = rms(frame) > threshold
+                onLevel((rms(frame) / 4000.0).coerceIn(0.0, 1.0).toFloat())
+                if (loud) {
+                    lastLoud = now
+                    if (firstLoud < 0) firstLoud = frames.size - 1
+                    if (now - start > graceMs && ++speechFrames >= MIN_SPEECH_FRAMES) spoke = true
+                }
+                when {
+                    !spoke && now - start > waitMs -> return null
+                    spoke && now - lastLoud > endSilence(live) -> return trimmed(frames, firstLoud)
+                    now - start > MAX_MS -> return if (spoke) trimmed(frames, firstLoud) else null
+                }
             }
-            when {
-                !spoke && now - start > waitMs -> return null
-                spoke && now - lastLoud > END_SILENCE_MS -> return trimmed(frames, firstLoud)
-                now - start > MAX_MS -> return if (spoke) trimmed(frames, firstLoud) else null
-            }
+            return null
+        } finally {
+            words?.close()
         }
-        return null
     }
 
     /**
@@ -278,8 +301,30 @@ class DexterWake(
         private const val GRACE_MS = 250L
         private const val MIN_SPEECH_FRAMES = 3
         private const val WAIT_MS = 1400L
-        private const val END_SILENCE_MS = 900L
-        private const val MAX_MS = 12_000L
+        /** A finished sentence ends the turn after this much silence: quick, like Claude's voice mode. */
+        const val END_SILENCE_MS = 1100L
+
+        /** A sentence left hanging ("y...", "quiero que...", "eh...") gets this long to go on. */
+        const val UNFINISHED_SILENCE_MS = 2500L
+
+        private val CONTINUATIONS = setOf(
+            "y", "o", "u", "e", "pero", "que", "de", "del", "la", "el", "los", "las", "un", "una", "unos", "unas", "en", "con", "sin", "para",
+            "por", "porque", "como", "cuando", "donde", "si", "entonces", "pues", "eh", "em", "mm", "este", "esto", "osea", "a", "al", "mi",
+            "tu", "su", "mis", "tus", "sus", "se", "me", "te", "le", "les", "lo", "nos", "mas", "muy", "tambien", "luego", "sobre", "hasta",
+            "desde", "entre", "hacia", "cual", "quien", "es", "ser", "estar", "quiero", "puedes", "podrias", "dime"
+        )
+
+        /** Whether what was said so far sounds unfinished: it ends on a word a sentence can't end on. */
+        fun soundsUnfinished(text: String): Boolean {
+            val last = java.text.Normalizer.normalize(text.lowercase(), java.text.Normalizer.Form.NFD)
+                .replace(Regex("\\p{M}"), "").replace(Regex("[^a-z0-9 ]"), " ").trim().substringAfterLast(" ")
+            return last.isNotEmpty() && last in CONTINUATIONS
+        }
+
+        /** The silence that ends the user's turn, given what they have said so far. */
+        fun endSilence(text: String) = if (soundsUnfinished(text)) UNFINISHED_SILENCE_MS else END_SILENCE_MS
+        /** The longest turn: plenty to explain something, as in a real conversation. */
+        private const val MAX_MS = 45_000L
 
         /** After the tone, how long to wait for the user to start talking. */
         private const val LISTEN_WAIT_MS = 6000L

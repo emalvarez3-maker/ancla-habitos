@@ -478,6 +478,8 @@ class DexterService : Service() {
             },
             onWakeOnly = { main.post { requestListener = null; checkNextRequest = false; if (inConversation) endConversation() } },
             onLevel = { overlay.level(it) },
+            // Your words appear on the card as you say them, like Claude's voice mode.
+            onPartial = { text -> if (text.isNotBlank()) overlay.show(OwlState.LISTENING, youSaid = text) },
             onSilenced = { main.post { regainMicrophone() } },
             listenOnly = true
         )
