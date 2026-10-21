@@ -149,6 +149,11 @@
             android:excludeFromRecents="true" />
 
         <activity
+            android:name=".ancla.mail.MailActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
             android:name=".ancla.consciousness.MeditationActivity"
             android:exported="false" />
 

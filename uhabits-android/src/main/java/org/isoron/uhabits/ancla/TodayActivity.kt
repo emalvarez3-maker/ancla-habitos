@@ -108,6 +108,7 @@ class TodayActivity : AppCompatActivity(), CommandRunner.Listener {
             Branch.DEXTER -> org.isoron.uhabits.ancla.assistant.AssistantActivity.intent(this)
             Branch.PHONE -> org.isoron.uhabits.ancla.assistant.DexterSetupActivity.intent(this, org.isoron.uhabits.ancla.assistant.DexterSetupActivity.PHONE)
             Branch.WHATSAPP -> org.isoron.uhabits.ancla.assistant.DexterSetupActivity.intent(this, org.isoron.uhabits.ancla.assistant.DexterSetupActivity.WHATSAPP)
+            Branch.MAIL -> org.isoron.uhabits.ancla.mail.MailActivity.intent(this)
             Branch.SETTINGS -> component.intentFactory.startSettingsActivity(this)
         }
         startActivity(intent)

@@ -86,7 +86,7 @@ import org.isoron.uhabits.R
 enum class Space { HOY, CAMINO, FINANZAS, APRENDER, CONSCIENCIA }
 
 /** Every branch the "Espacios" panel opens, beyond the bar's places. */
-enum class Branch { HABITS, LIBRARY, NOTES, STUDY, ROBOTICS, DEXTER, PHONE, WHATSAPP, SETTINGS }
+enum class Branch { HABITS, LIBRARY, NOTES, STUDY, ROBOTICS, DEXTER, PHONE, WHATSAPP, MAIL, SETTINGS }
 
 /**
  * Dexter's home: the bottom bar (Hoy · Camino · Dexter · Finanzas · Aprender) for what is used every
@@ -271,7 +271,7 @@ private fun SpacesPanel(current: Space, onSpace: (Space) -> Unit, onBranch: (Bra
             )
             Area(
                 R.string.nav_tu, false, { onBranch(Branch.DEXTER) },
-                listOf(R.string.branch_dexter to Branch.DEXTER, R.string.branch_phone to Branch.PHONE, R.string.branch_whatsapp to Branch.WHATSAPP, R.string.branch_settings to Branch.SETTINGS),
+                listOf(R.string.branch_dexter to Branch.DEXTER, R.string.branch_phone to Branch.PHONE, R.string.branch_whatsapp to Branch.WHATSAPP, R.string.branch_mail to Branch.MAIL, R.string.branch_settings to Branch.SETTINGS),
                 onBranch
             )
         }

@@ -145,6 +145,8 @@ dependencies {
     implementation(libs.anthropic.java)
     // Offline "Oye Dexter" detection (Apache 2.0)
     implementation("com.alphacephei:vosk-android:0.3.47")
+    // Google sign-in for Gmail: the app gets a revocable token, never the password.
+    implementation("com.google.android.gms:play-services-auth:21.3.0")
     implementation("net.java.dev.jna:jna:5.13.0@aar")
     ksp(libs.kotlin.inject.compiler)
 
