@@ -50,7 +50,10 @@ class FalseWakeTest {
     @Test
     fun theNameMustStandOutOfTheRoom() {
         assertTrue("someone talking to the phone in a quiet room", DexterWake.loudEnough(2400.0, 200.0))
-        assertFalse("a voice across the room", DexterWake.loudEnough(450.0, 120.0))
+        // Measured on the user's Pixel: the voice recognition mic is quiet. This was them, and must wake it.
+        assertTrue("the user at arm's length (peak 602, room 36)", DexterWake.loudEnough(602.0, 36.0))
+        assertFalse("a faint sound in a silent room", DexterWake.loudEnough(125.0, 33.0))
+        assertFalse("a voice across the room, hardly above it", DexterWake.loudEnough(300.0, 120.0))
         assertFalse("a loud TV that is only a little louder than itself", DexterWake.loudEnough(3000.0, 1200.0))
         assertTrue(DexterWake.loudEnough(4500.0, 1200.0))
     }

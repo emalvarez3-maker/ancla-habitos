@@ -87,7 +87,7 @@ class DexterWake(
             if (listenOnly) {
                 // The room's noise from the first 200 ms, then straight to the request.
                 val first = listOfNotNull(read(record), read(record))
-                val noise = max(150.0, first.map { rms(it) }.average().takeIf { !it.isNaN() } ?: 300.0)
+                val noise = max(30.0, first.map { rms(it) }.average().takeIf { !it.isNaN() } ?: 60.0)
                 if (first.isNotEmpty() && first.all { rms(it) == 0.0 }) onSilenced()
                 val request = capture(record, first, noise, graceMs = 0, waitMs = LISTEN_WAIT_MS)
                 val stopped = !running
@@ -253,8 +253,12 @@ class DexterWake(
         /** Below this Vosk was guessing: the sound was forced onto "dexter" by the small grammar. */
         const val MIN_NAME_CONFIDENCE = 0.75
 
-        /** A voice toward the phone, well above the room: at least this loud, and 3.5× the noise. */
-        const val MIN_NAME_RMS = 650.0
+        /**
+         * A voice toward the phone, above the room: 3.5× the noise and at least this loud. The voice
+         * recognition microphone gives low levels (a quiet room is ~35, a voice at arm's length ~600),
+         * so the floor only keeps out faint sounds; the room ratio does the real work.
+         */
+        const val MIN_NAME_RMS = 220.0
 
         /** How sure a Vosk result (with words) is of "dexter", or null when it doesn't contain it. */
         fun nameConfidence(json: String?): Double? {
@@ -269,7 +273,8 @@ class DexterWake(
 
         fun loudEnough(peakRms: Double, noise: Double) = peakRms >= max(MIN_NAME_RMS, noise * 3.5)
 
-        private const val MIN_SPEECH_RMS = 350.0
+        /** The quietest a voice can be to count as speech, whatever the room (see [MIN_NAME_RMS]). */
+        private const val MIN_SPEECH_RMS = 120.0
         private const val GRACE_MS = 250L
         private const val MIN_SPEECH_FRAMES = 3
         private const val WAIT_MS = 1400L
