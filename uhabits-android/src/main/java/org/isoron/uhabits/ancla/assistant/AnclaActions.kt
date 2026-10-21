@@ -130,19 +130,144 @@ class AnclaActions(private val context: Context) : AgentActions {
         "Hábito «${habit.name}» marcado como hecho hoy"
     }
 
+    // --- Tasks (one-off to-dos) and habits (what the user repeats to make automatic) ---
+
+    /** The last task Dexter deleted, so "deshaz eso" can bring it back. */
+    private var lastDeletedTask: DayTask? = null
+
+    private fun dayText(d: LocalDate) = "%04d-%02d-%02d".format(d.year, d.month, d.day)
+
+    override fun updateTask(title: String, action: String, newTitle: String?, date: String?, time: String?): String = onMain {
+        if (action == "restore") {
+            val gone = lastDeletedTask ?: return@onMain "No borré ninguna tarea en esta conversación."
+            val back = gone.copy(id = tasks.insert(gone.copy(id = null)))
+            TaskReminders.sync(context, back)
+            lastDeletedTask = null
+            return@onMain "Tarea recuperada: «${back.title}»"
+        }
+        val today = getToday()
+        val all = (tasks.findForToday(today) + tasks.findPending()).distinctBy { it.id }
+        val task = when (val m = NameMatch.pick(all, title) { it.title }) {
+            is NameMatch.Result.Found -> m.item
+            is NameMatch.Result.Several -> return@onMain "Hay varias tareas parecidas: ${m.items.joinToString { "«${it.title}» (${dayText(it.day)})" }}. Pregunta cuál."
+            NameMatch.Result.None -> {
+                val habit = component.habitList.filter { !it.isArchived }.let { NameMatch.pick(it, title) { h -> h.name } }
+                return@onMain if (habit is NameMatch.Result.Found) "«${habit.item.name}» no es una tarea: es un hábito. Usa update_habit."
+                else "No encuentro una tarea «$title». Tareas: " + all.joinToString { it.title }.ifEmpty { "ninguna" }
+            }
+        }
+        when (action) {
+            "complete", "reopen" -> {
+                val done = action == "complete"
+                val updated = task.copy(isDone = done)
+                tasks.update(updated)
+                if (done) TaskReminders.cancel(context, task.id!!) else TaskReminders.sync(context, updated)
+                if (done) "Tarea hecha: «${task.title}»" else "Tarea pendiente otra vez: «${task.title}»"
+            }
+            "delete" -> {
+                tasks.delete(task.id!!)
+                TaskReminders.cancel(context, task.id!!)
+                lastDeletedTask = task
+                "Tarea borrada: «${task.title}» (se puede deshacer con restore)"
+            }
+            "edit" -> {
+                val day = date?.split("-")?.mapNotNull { it.toIntOrNull() }?.takeIf { it.size == 3 }?.let { LocalDate(it[0], it[1], it[2]) } ?: task.day
+                val minute = when {
+                    time == null -> task.minuteOfDay
+                    time == "none" -> null
+                    else -> time.split(":").mapNotNull { it.toIntOrNull() }.takeIf { it.size == 2 && it[0] in 0..23 && it[1] in 0..59 }?.let { it[0] * 60 + it[1] }
+                        ?: return@onMain "No entendí la hora «$time» (usa HH:MM)."
+                }
+                val updated = task.copy(title = newTitle?.trim()?.takeIf { it.isNotEmpty() } ?: task.title, day = day, minuteOfDay = minute, remind = task.remind && minute != null)
+                tasks.update(updated)
+                TaskReminders.sync(context, updated)
+                "Tarea actualizada: «${updated.title}» el ${dayText(updated.day)}" + (minute?.let { " a las %02d:%02d".format(it / 60, it % 60) } ?: "")
+            }
+            else -> "Acción desconocida: $action"
+        }
+    }
+
+    override fun createHabit(name: String, anchor: String?, tinyVersion: String?, reminder: String?, timesPerWeek: Int?): String = onMain {
+        val clean = name.trim()
+        require(clean.isNotEmpty()) { "Falta el nombre del hábito" }
+        val existing = component.habitList.filter { !it.isArchived }.firstOrNull { normalize(it.name) == normalize(clean) }
+        if (existing != null) return@onMain "Ya existe el hábito «${existing.name}»."
+        val habit = component.modelFactory.buildHabit()
+        habit.name = clean
+        habit.anchor = anchor.orEmpty().trim().replace(Regex("^(después de|despues de|after)\\s+", RegexOption.IGNORE_CASE), "")
+        habit.tinyVersion = tinyVersion.orEmpty().trim()
+        val times = (timesPerWeek ?: 7).coerceIn(1, 7)
+        habit.frequency = if (times == 7) org.isoron.uhabits.core.models.Frequency.DAILY else org.isoron.uhabits.core.models.Frequency(times, 7)
+        val at = reminder?.split(":")?.mapNotNull { it.toIntOrNull() }?.takeIf { it.size == 2 && it[0] in 0..23 && it[1] in 0..59 }
+        if (at != null) habit.reminder = org.isoron.uhabits.core.models.Reminder(at[0], at[1], org.isoron.uhabits.core.models.WeekdayList.EVERY_DAY)
+        component.commandRunner.run(org.isoron.uhabits.core.commands.CreateHabitCommand(component.modelFactory, component.habitList, habit))
+        if (at != null) component.reminderScheduler.scheduleAll()
+        buildString {
+            append("Hábito creado: «$clean», ")
+            append(if (times == 7) "todos los días" else "$times veces por semana")
+            if (habit.anchor.isNotEmpty()) append(", después de ${habit.anchor}")
+            if (at != null) append(", recordatorio a las %02d:%02d".format(at[0], at[1]))
+        }
+    }
+
+    override fun updateHabit(name: String, action: String, newName: String?): String = onMain {
+        val habits = component.habitList.filter { if (action == "unarchive") it.isArchived else !it.isArchived }
+        val habit = when (val m = NameMatch.pick(habits, name) { it.name }) {
+            is NameMatch.Result.Found -> m.item
+            is NameMatch.Result.Several -> return@onMain "Hay varios hábitos parecidos: ${m.items.joinToString { "«${it.name}»" }}. Pregunta cuál."
+            NameMatch.Result.None -> {
+                val today = getToday()
+                val task = NameMatch.pick((tasks.findForToday(today) + tasks.findPending()).distinctBy { it.id }, name) { it.title }
+                return@onMain if (task is NameMatch.Result.Found) "«${task.item.title}» no es un hábito: es una tarea. Usa update_task."
+                else "No encuentro un hábito «$name». Hábitos: " + habits.joinToString { it.name }.ifEmpty { "ninguno" }
+            }
+        }
+        when (action) {
+            "archive" -> {
+                component.commandRunner.run(org.isoron.uhabits.core.commands.ArchiveHabitsCommand(component.habitList, listOf(habit)))
+                "Hábito archivado: «${habit.name}» (su historial se guarda; se puede recuperar con unarchive)"
+            }
+            "unarchive" -> {
+                component.commandRunner.run(org.isoron.uhabits.core.commands.UnarchiveHabitsCommand(component.habitList, listOf(habit)))
+                "Hábito activo otra vez: «${habit.name}»"
+            }
+            "delete" -> {
+                // Deleting erases the whole history of the habit: the user's own yes, in a later message.
+                if (!confirmedLater("habit-delete:" + habit.id)) {
+                    return@onMain "CONFIRMACIÓN NECESARIA: borrar para siempre el hábito «${habit.name}» con todo su historial. Ofrece archivarlo en su lugar (se guarda el historial); bórralo solo si el usuario dice que sí a borrarlo."
+                }
+                component.commandRunner.run(org.isoron.uhabits.core.commands.DeleteHabitsCommand(component.habitList, listOf(habit)))
+                "Hábito borrado: «${habit.name}»"
+            }
+            "rename" -> {
+                val n = newName?.trim()?.takeIf { it.isNotEmpty() } ?: return@onMain "¿Cómo se va a llamar?"
+                val edited = component.modelFactory.buildHabit()
+                edited.copyFrom(habit)
+                edited.name = n
+                component.commandRunner.run(org.isoron.uhabits.core.commands.EditHabitCommand(component.habitList, habit.id!!, edited))
+                "Hábito renombrado: «${habit.name}» → «$n»"
+            }
+            "undo_today" -> {
+                component.commandRunner.run(CreateRepetitionCommand(component.habitList, habit, getToday(), Entry.NO, ""))
+                "Hábito «${habit.name}» desmarcado hoy"
+            }
+            else -> "Acción desconocida: $action"
+        }
+    }
+
     override fun todaySummary(): String = onMain {
         val today = getToday()
         val s = TodaySummary.build(component.habitList, today, tasks.findForToday(today))
         buildString {
             appendLine("Hoy: ${s.doneCount} de ${s.totalCount} hechos. Mascota en fase ${s.phase}, nivel ${s.level}.")
-            appendLine("Hábitos:")
+            appendLine("Hábitos (se repiten para volverlos automáticos):")
             s.items.forEach { h ->
                 append("- ${h.name}: ${if (h.isDone) "hecho" else "pendiente"}")
                 if (h.isKeyDay && !h.isDone) append(" (DÍA CLAVE: ayer no se hizo)")
                 if (h.anchor.isNotBlank()) append(", después de ${h.anchor}")
                 appendLine()
             }
-            appendLine("Tareas:")
+            appendLine("Tareas (pendientes de una sola vez):")
             if (s.tasks.isEmpty()) appendLine("- ninguna")
             s.tasks.forEach { t ->
                 append("- ${t.title}: ${if (t.isDone) "hecha" else "pendiente"}")

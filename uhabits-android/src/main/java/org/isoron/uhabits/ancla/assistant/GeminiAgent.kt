@@ -66,6 +66,10 @@ internal fun dispatchTool(actions: AgentActions, name: String, input: JSONObject
         "create_task" -> actions.createTask(input.getString("title"), opt("date"), opt("time"), input.optBoolean("remind", false))
             .also { onEvent(AgentEvent.Action(it)) }
         "complete_habit" -> actions.completeHabit(input.getString("name")).also { onEvent(AgentEvent.Action(it)) }
+        "update_task" -> actions.updateTask(input.optString("title"), input.getString("action"), opt("new_title"), opt("date"), opt("time")).also { onEvent(AgentEvent.Action(it)) }
+        "create_habit" -> actions.createHabit(input.getString("name"), opt("anchor"), opt("tiny_version"), opt("reminder"), input.optInt("times_per_week", 0).takeIf { it > 0 })
+            .also { onEvent(AgentEvent.Action(it)) }
+        "update_habit" -> actions.updateHabit(input.getString("name"), input.getString("action"), opt("new_name")).also { onEvent(AgentEvent.Action(it)) }
         "today_summary" -> actions.todaySummary()
         "reading_summary" -> actions.readingSummary()
         "read_book_aloud" -> actions.readBookAloud(opt("title")).also { onEvent(AgentEvent.Action(it)) }
@@ -137,7 +141,7 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
                 .put(
                     function(
                         "create_task",
-                        "Add a one-off task to the user's to-do list. Use it only when the user asks to note something they have to do, buy, pay or send. Resolve relative dates against the current date.",
+                        "Add a one-off task (done once, then gone) to the user's to-do list. Use it only when the user asks to note something they have to do, buy, pay or send; something to repeat every day is a habit (create_habit). Resolve relative dates against the current date.",
                         JSONObject()
                             .put("title", prop("string", "Short task title in the user's language, cleaned of filler words"))
                             .put("date", prop("string", "Due date as YYYY-MM-DD, or null for today", nullable = true))
@@ -152,6 +156,43 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
                         "Mark one of the user's habits as done for today. Use the habit name as the user says it; it is matched loosely.",
                         JSONObject().put("name", prop("string")),
                         listOf("name")
+                    )
+                )
+                .put(
+                    function(
+                        "update_task",
+                        "Change a one-off task: complete, reopen, delete (\"borra la tarea…\"), edit its title, date or time, or restore the task deleted last (\"deshaz eso\").",
+                        JSONObject()
+                            .put("title", prop("string", "The task as the user names it; matched loosely (empty for restore)"))
+                            .put("action", prop("string", "complete, reopen, delete, edit or restore"))
+                            .put("new_title", prop("string", "For edit: the new title", nullable = true))
+                            .put("date", prop("string", "For edit: new date YYYY-MM-DD", nullable = true))
+                            .put("time", prop("string", "For edit: new time HH:MM, or none to remove it", nullable = true)),
+                        listOf("title", "action")
+                    )
+                )
+                .put(
+                    function(
+                        "create_habit",
+                        "Start a new habit the user wants to repeat until it is automatic (not a one-off task): its name, the routine it follows, a two-minute version and a reminder.",
+                        JSONObject()
+                            .put("name", prop("string", "Short habit name (Meditar, Leer 10 páginas)"))
+                            .put("anchor", prop("string", "Existing routine it follows: \"después de…\" (implementation intention)", nullable = true))
+                            .put("tiny_version", prop("string", "Two-minute version that still counts on hard days", nullable = true))
+                            .put("reminder", prop("string", "Daily reminder time HH:MM", nullable = true))
+                            .put("times_per_week", prop("integer", "1-7, 7 (every day) if null", nullable = true)),
+                        listOf("name")
+                    )
+                )
+                .put(
+                    function(
+                        "update_habit",
+                        "Change a habit: archive it (stops showing, history kept), unarchive, delete for good (asks the user first), rename, or undo_today (unmark today).",
+                        JSONObject()
+                            .put("name", prop("string", "The habit as the user names it; matched loosely"))
+                            .put("action", prop("string", "archive, unarchive, delete, rename or undo_today"))
+                            .put("new_name", prop("string", "For rename", nullable = true)),
+                        listOf("name", "action")
                     )
                 )
                 .put(function("today_summary", "Get today's habits (done/pending, key days), today's tasks and the mascot's growth stage.", JSONObject(), emptyList()))

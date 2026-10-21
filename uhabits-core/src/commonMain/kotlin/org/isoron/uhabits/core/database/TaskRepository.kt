@@ -43,6 +43,11 @@ class TaskRepository(private val db: Database) {
         "SELECT $columns FROM DayTasks WHERE reminder = 1 AND done = 0 AND minute IS NOT NULL AND day >= ?"
     ) { bindInt(1, from.daysSince2000) }
 
+    /** Every task not done yet, whatever its day, ordered by day and time. */
+    fun findPending(): List<DayTask> = query(
+        "SELECT $columns FROM DayTasks WHERE done = 0 ORDER BY day, CASE WHEN minute IS NULL THEN 1 ELSE 0 END, minute, id"
+    ) {}
+
     fun findById(id: Long): DayTask? = query("SELECT $columns FROM DayTasks WHERE id = ?") { bindLong(1, id) }.firstOrNull()
 
     fun insert(task: DayTask): Long {

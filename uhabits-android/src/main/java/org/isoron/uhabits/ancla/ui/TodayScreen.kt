@@ -199,18 +199,34 @@ fun TodayScreen(
                     contentPadding = PaddingValues(start = 22.dp, end = 22.dp, top = 14.dp, bottom = 132.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    items(rows, key = { it.key }) { row ->
-                        when (row) {
-                            is TodayRow.HabitRowData -> HabitRow(row.item, Modifier.animateItem(), onToggle, onOpen)
-                            is TodayRow.TaskRowData -> TaskRow(
-                                row.item,
-                                Modifier.animateItem(),
-                                onToggleTask,
-                                onEdit = {
-                                    editing = TaskDraft(it.taskId, it.title, it.notes, it.minuteOfDay, it.remind)
-                                }
-                            )
-                        }
+                    // Habits and tasks apart: what the user is building every day, then what is done once.
+                    val habitRows = rows.filterIsInstance<TodayRow.HabitRowData>()
+                    val taskRows = rows.filterIsInstance<TodayRow.TaskRowData>()
+                    val s = summary
+                    item(key = "habits-header") {
+                        SectionHeader(
+                            stringResource(R.string.section_habits), stringResource(R.string.section_habits_sub), c.mint,
+                            s?.items?.count { it.isDone } ?: 0, s?.items?.size ?: 0, Modifier.animateItem()
+                        )
+                    }
+                    if (habitRows.isEmpty() && s?.items.isNullOrEmpty()) item(key = "habits-empty") { SectionEmpty(stringResource(R.string.section_habits_empty), Modifier.animateItem()) }
+                    items(habitRows, key = { it.key }) { row -> HabitRow(row.item, Modifier.animateItem(), onToggle, onOpen) }
+                    item(key = "tasks-header") {
+                        SectionHeader(
+                            stringResource(R.string.section_tasks), stringResource(R.string.section_tasks_sub), c.lilac,
+                            s?.tasks?.count { it.isDone } ?: 0, s?.tasks?.size ?: 0, Modifier.animateItem().padding(top = 14.dp)
+                        )
+                    }
+                    if (taskRows.isEmpty() && s?.tasks.isNullOrEmpty()) item(key = "tasks-empty") { SectionEmpty(stringResource(R.string.section_tasks_empty), Modifier.animateItem()) }
+                    items(taskRows, key = { it.key }) { row ->
+                        TaskRow(
+                            row.item,
+                            Modifier.animateItem(),
+                            onToggleTask,
+                            onEdit = {
+                                editing = TaskDraft(it.taskId, it.title, it.notes, it.minuteOfDay, it.remind)
+                            }
+                        )
                     }
                 }
             }
@@ -437,15 +453,46 @@ private fun HabitRow(item: TodayHabitItem, modifier: Modifier, onToggle: (TodayH
                 Text(subtitle, style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.5.sp), color = c.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
-        if (item.isKeyDay && !item.isDone) {
+        val (chip, fg, bg) = if (item.isKeyDay && !item.isDone) {
+            Triple(stringResource(R.string.key_day_badge), c.amberInk, c.amberSoft)
+        } else {
+            Triple(stringResource(R.string.habit_badge), c.mintInk, c.mintSoft)
+        }
+        Text(
+            chip,
+            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.sp),
+            color = fg,
+            modifier = Modifier.clip(CircleShape).background(bg).padding(horizontal = 9.dp, vertical = 5.dp)
+        )
+    }
+}
+
+/** A section of Hoy: a colored mark (mint for habits, lilac for tasks), what it is, and how many are done. */
+@Composable
+private fun SectionHeader(title: String, sub: String, accent: Color, done: Int, total: Int, modifier: Modifier) {
+    val c = Ancla.colors
+    Row(modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Box(Modifier.width(4.dp).height(34.dp).clip(RoundedCornerShape(2.dp)).background(accent))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleMedium, color = c.ink)
+            Text(sub, style = MaterialTheme.typography.labelMedium, color = c.muted)
+        }
+        if (total > 0) {
             Text(
-                stringResource(R.string.key_day_badge),
-                style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.sp),
-                color = c.amberInk,
-                modifier = Modifier.clip(CircleShape).background(c.amberSoft).padding(horizontal = 9.dp, vertical = 5.dp)
+                stringResource(R.string.section_count, done, total), style = MaterialTheme.typography.labelLarge, color = accent,
+                modifier = Modifier.clip(CircleShape).background(accent.copy(alpha = 0.14f)).padding(horizontal = 10.dp, vertical = 4.dp)
             )
         }
     }
+}
+
+@Composable
+private fun SectionEmpty(text: String, modifier: Modifier) {
+    val c = Ancla.colors
+    Text(
+        text, style = MaterialTheme.typography.bodyMedium, color = c.muted,
+        modifier = modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).border(1.dp, c.track, RoundedCornerShape(18.dp)).padding(14.dp)
+    )
 }
 
 private fun formatAmount(v: Double): String = if (v == Math.rint(v)) v.toLong().toString() else String.format(Locale.getDefault(), "%.1f", v)

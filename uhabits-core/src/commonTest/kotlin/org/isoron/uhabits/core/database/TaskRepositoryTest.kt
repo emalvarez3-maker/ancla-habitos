@@ -60,4 +60,15 @@ class TaskRepositoryTest {
         assertEquals(listOf("Con aviso"), repo.findUpcomingReminders(today).map { it.title })
         db.close()
     }
+
+    @Test
+    fun testFindPendingFindsFutureTasksToo() = runTest {
+        val db = TestDatabaseHelper.createEmptyDatabase()
+        val repo = TaskRepository(db)
+        repo.insert(DayTask(title = "Mañana", day = today.plus(1)))
+        repo.insert(DayTask(title = "Hecha", day = today, isDone = true))
+        repo.insert(DayTask(title = "Atrasada", day = today.minus(3)))
+        assertEquals(listOf("Atrasada", "Mañana"), repo.findPending().map { it.title })
+        db.close()
+    }
 }

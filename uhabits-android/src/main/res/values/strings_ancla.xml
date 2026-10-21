@@ -66,6 +66,14 @@
     <string name="row_done">%1$s, done</string>
     <string name="row_pending">%1$s, to do</string>
     <string name="task_badge">Task</string>
+    <string name="habit_badge">Habit</string>
+    <string name="section_habits">Habits you are building</string>
+    <string name="section_habits_sub">Every day, until they run on their own</string>
+    <string name="section_habits_empty">No habits yet: tap + and choose Habit, or tell Dexter «I want to meditate every day».</string>
+    <string name="section_tasks">To-do</string>
+    <string name="section_tasks_sub">Once: done and gone</string>
+    <string name="section_tasks_empty">Nothing pending. Tell Dexter «remind me to pay the rent tomorrow».</string>
+    <string name="section_count">%1$d/%2$d</string>
     <string name="task_overdue">Overdue</string>
     <string name="task_reminder_at">Reminder at %1$s</string>
     <string name="add_what">What do you want to add?</string>
