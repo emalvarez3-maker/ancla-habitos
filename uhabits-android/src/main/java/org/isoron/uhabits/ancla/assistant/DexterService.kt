@@ -483,7 +483,10 @@ class DexterService : Service() {
         Thread {
             val started = System.currentTimeMillis()
             val heard = m?.let { runCatching { DexterWake.transcribe(it, wav) }.getOrNull() }.orEmpty()
-            val quick = QuickCommands.match(heard)
+            // A reminder never waits for the AI: understood here, it works with no internet or quota.
+            val quick = QuickCommands.match(heard) ?: OfflineReminder.parse(heard)?.let { r ->
+                QuickCommand("create_task", mapOf("title" to r.title, "date" to r.at.toLocalDate().toString(), "time" to "%02d:%02d".format(r.at.hour, r.at.minute)))
+            }
             Log.d(TAG, "offline: ${if (quick != null) quick.tool else "no quick command"} in ${System.currentTimeMillis() - started} ms")
             main.post {
                 if (token != turn || !inConversation) return@post
@@ -534,7 +537,13 @@ class DexterService : Service() {
         overlay.show(OwlState.THINKING, youSaid = heard, answer = "")
         Thread {
             val actions = AnclaActions(this)
-            val result = runCatching { actions.phoneTool(command.tool, JSONObject(command.args)) }
+            val result = runCatching {
+                if (command.tool == "create_task") {
+                    actions.createTask(command.args["title"] as String, command.args["date"] as String, command.args["time"] as String, remind = true)
+                } else {
+                    actions.phoneTool(command.tool, JSONObject(command.args))
+                }
+            }
                 .getOrElse { it.message ?: getString(R.string.voice_failed) }
             // The AI sees it next time, like everything else said to Dexter.
             actions.conversation()?.let { log -> runCatching { log.add(true, heard); log.add(false, result) } }
