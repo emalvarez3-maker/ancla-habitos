@@ -159,7 +159,9 @@ object NudgeWriter {
  */
 object Nudges {
     private const val TAG = "Nudges"
-    private const val CHANNEL = "DEXTER_NUDGES"
+    // "_HIGH": a channel keeps the importance it was created with, so a new one pops up on screen.
+    private const val CHANNEL = "DEXTER_NUDGES_HIGH"
+    private const val OLD_CHANNEL = "DEXTER_NUDGES"
     private const val ACTION_NUDGE = "ec.ancla.habitos.ACTION_NUDGE"
     const val ACTION_DONE = "ec.ancla.habitos.ACTION_NUDGE_DONE"
     const val ACTION_SNOOZE = "ec.ancla.habitos.ACTION_NUDGE_SNOOZE"
@@ -182,7 +184,13 @@ object Nudges {
     }
 
     private fun set(context: Context, millis: Long, pi: PendingIntent) = runCatching {
-        context.getSystemService(AlarmManager::class.java).setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, millis, pi)
+        val alarms = context.getSystemService(AlarmManager::class.java)
+        // On time: an inexact alarm could arrive up to an hour late, the check-in long gone.
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.S || alarms.canScheduleExactAlarms()) {
+            alarms.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, millis, pi)
+        } else {
+            alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, millis, pi)
+        }
     }.onFailure { Log.w(TAG, "could not schedule: ${it.javaClass.simpleName}") }
 
     private fun isDone(h: Habit, daysBack: Int): Boolean {
@@ -206,7 +214,8 @@ object Nudges {
 
     private fun show(context: Context, nudge: Nudge) {
         val manager = context.getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(NotificationChannel(CHANNEL, context.getString(R.string.nudge_channel), NotificationManager.IMPORTANCE_DEFAULT))
+        manager.createNotificationChannel(NotificationChannel(CHANNEL, context.getString(R.string.nudge_channel), NotificationManager.IMPORTANCE_HIGH))
+        manager.deleteNotificationChannel(OLD_CHANNEL)
         val open = PendingIntent.getActivity(context, 0x4E56, Intent(context, TodayActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), PendingIntent.FLAG_IMMUTABLE)
         val hidden = NotificationCompat.Builder(context, CHANNEL).setSmallIcon(R.drawable.ic_notification).setContentTitle(context.getString(R.string.nudge_public)).build()
         val b = NotificationCompat.Builder(context, CHANNEL)

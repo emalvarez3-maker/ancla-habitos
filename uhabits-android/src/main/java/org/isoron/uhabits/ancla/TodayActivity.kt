@@ -63,6 +63,7 @@ class TodayActivity : AppCompatActivity(), CommandRunner.Listener {
         voice = org.isoron.uhabits.ancla.assistant.VoiceAgentController(this) { refresh() }
         Wisdom.schedule(this)
         Nudges.schedule(this)
+        askToSkipBatteryOptimization()
         val goals = GoalStore(this)
         val money = org.isoron.uhabits.ancla.finance.FinanceStore(this)
         val consciousness = org.isoron.uhabits.ancla.consciousness.ConsciousnessStore(this)
@@ -91,6 +92,22 @@ class TodayActivity : AppCompatActivity(), CommandRunner.Listener {
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * "Oye Dexter" from the moment the phone turns on: Android's battery saver puts the listening
+     * service to sleep unless the user exempts Dexter. Android's own dialog asks; only once, and the
+     * same switch stays in Dexter's phone settings.
+     */
+    private fun askToSkipBatteryOptimization() {
+        val keys = org.isoron.uhabits.ancla.assistant.SecureKeys(this)
+        val power = getSystemService(android.os.PowerManager::class.java)
+        val prefs = getSharedPreferences("ancla_battery", MODE_PRIVATE)
+        if (!keys.alwaysListening || power.isIgnoringBatteryOptimizations(packageName) || prefs.getBoolean("asked", false)) return
+        prefs.edit().putBoolean("asked", true).apply()
+        runCatching {
+            startActivity(Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, android.net.Uri.parse("package:$packageName")))
         }
     }
 

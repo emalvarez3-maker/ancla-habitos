@@ -81,7 +81,12 @@ object TaskReminders {
         }
         val exact = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarms.canScheduleExactAlarms()
         if (exact) {
-            alarms.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
+            // An alarm clock, like the Clock app's: the one kind Android never delays or silences to
+            // save battery, and it shows the ⏰ in the status bar.
+            val show = PendingIntent.getActivity(
+                context, notificationId(id), Intent(context, TodayActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), PendingIntent.FLAG_IMMUTABLE
+            )
+            alarms.setAlarmClock(AlarmManager.AlarmClockInfo(at, show), pi)
         } else {
             alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
         }
@@ -144,6 +149,8 @@ object TaskReminders {
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setContentIntent(open)
+            // With the screen off, it lights the screen up like an alarm instead of waiting to be seen.
+            .setFullScreenIntent(open, true)
             .setAutoCancel(true)
             .addAction(0, context.getString(R.string.task_action_done), pending(context, ACTION_DONE, id))
             .build()

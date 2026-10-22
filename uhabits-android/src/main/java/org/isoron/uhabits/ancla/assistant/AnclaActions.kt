@@ -84,18 +84,20 @@ class AnclaActions(private val context: Context) : AgentActions {
             val p = t.split(":").mapNotNull { it.toIntOrNull() }
             if (p.size == 2 && p[0] in 0..23 && p[1] in 0..59) p[0] * 60 + p[1] else null
         }
+        // A time said out loud means the user wants to hear about it then, whatever the model passed.
+        val reminder = remind || minute != null
         val today = getToday()
         var day = given ?: today
         // "A las 9:30" said after 9:30 means tomorrow: without this the alarm was dropped silently.
         var movedToTomorrow = false
-        if (given == null && minute != null && remind) {
+        if (given == null && minute != null && reminder) {
             val draft = DayTask(title = title, day = day, minuteOfDay = minute, remind = true)
             if ((TaskReminders.triggerMillis(draft) ?: 0) <= System.currentTimeMillis()) {
                 day = day.plus(1)
                 movedToTomorrow = true
             }
         }
-        val task = DayTask(title = title.trim(), day = day, minuteOfDay = minute, remind = remind && minute != null)
+        val task = DayTask(title = title.trim(), day = day, minuteOfDay = minute, remind = reminder && minute != null)
         val saved = task.copy(id = tasks.insert(task))
         val scheduled = TaskReminders.sync(context, saved)
         buildString {
