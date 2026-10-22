@@ -77,6 +77,12 @@ class DexterService : Service() {
             }
 
             override fun pauseListening() = pause(byUser = true)
+
+            // "Enviar" on the card: what the user said goes now.
+            override fun sendNow() {
+                requestListener?.sendNow()
+                wakeListener?.sendNow()
+            }
         })
     }
 
@@ -189,8 +195,27 @@ class DexterService : Service() {
 
         // Not counted: the always-on "Hey Google" detector (source HOTWORD) and recordings Android
         // itself muted, which aren't really using the microphone.
-        return audio.activeRecordingConfigurations.any {
+        val others = audio.activeRecordingConfigurations.filter {
             it.clientAudioSessionId !in OwnRecordings && it.clientAudioSource != HOTWORD_SOURCE && !it.isClientSilenced
+        }.map { it.clientAudioSessionId }
+        val now = System.currentTimeMillis()
+        firstSeen.keys.retainAll(others.toSet())
+        others.forEach { firstSeen.putIfAbsent(it, now) }
+        // With no call on, a recording that never ends is a background service (a speech recognizer
+        // left open), not a person recording a voice note: past [STALE_RECORDING_MS] it stops counting,
+        // or Dexter would wait for it forever.
+        return others.any { now - (firstSeen[it] ?: now) < STALE_RECORDING_MS }
+    }
+
+    /** When each other app's recording was first seen, by session id. */
+    private val firstSeen = HashMap<Int, Long>()
+
+    /** While Dexter steps aside, looks again now and then: a recording can go stale without any event. */
+    private val shareRecheck = object : Runnable {
+        override fun run() {
+            if (!yielding) return
+            checkMicShare()
+            if (yielding) main.postDelayed(this, 10_000)
         }
     }
 
@@ -204,6 +229,8 @@ class DexterService : Service() {
             yielding = true
             Log.d(TAG, "microphone in use elsewhere: Dexter steps aside")
             main.removeCallbacks(resumeAfterShare)
+            main.removeCallbacks(shareRecheck)
+            main.postDelayed(shareRecheck, 10_000)
             if (!inConversation) {
                 stopWake()
                 update(getString(R.string.dexter_service_yielding))
@@ -295,7 +322,11 @@ class DexterService : Service() {
         if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) return
         // A call or another app's recording: wait for it to end (checkMicShare starts again then).
         if (yielding || micBusyElsewhere()) {
-            yielding = true
+            if (!yielding) {
+                yielding = true
+                main.removeCallbacks(shareRecheck)
+                main.postDelayed(shareRecheck, 10_000)
+            }
             update(getString(R.string.dexter_service_yielding))
             return
         }
@@ -306,7 +337,8 @@ class DexterService : Service() {
             onSilenced = {
                 Log.w(TAG, "microphone silenced by Android")
                 main.post { regainMicrophone() }
-            }
+            },
+            onPause = { overlay.pause(it) }
         )
         wakeListener = listener
         listener.start()
@@ -566,7 +598,8 @@ class DexterService : Service() {
             // Your words appear on the card as you say them, like Claude's voice mode.
             onPartial = { text -> if (text.isNotBlank()) overlay.show(OwlState.LISTENING, youSaid = text) },
             onSilenced = { main.post { regainMicrophone() } },
-            listenOnly = true
+            listenOnly = true,
+            onPause = { overlay.pause(it) }
         )
         requestListener = listener
         listener.start()
@@ -783,6 +816,8 @@ class DexterService : Service() {
         const val ACTION_MIC = "mic"
         /** MediaRecorder.AudioSource.HOTWORD, hidden from apps: the system assistant's wake word. */
         private const val HOTWORD_SOURCE = 1999
+        /** A recording longer than this with no call on is a stuck background service, not a voice note. */
+        private const val STALE_RECORDING_MS = 45_000L
         private const val MODEL_URL = "https://alphacephei.com/vosk/models/vosk-model-small-es-0.42.zip"
 
         /** The running service, so the app can pause it while it uses the microphone itself. */

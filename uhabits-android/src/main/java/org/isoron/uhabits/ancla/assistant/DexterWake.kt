@@ -53,9 +53,18 @@ class DexterWake(
     private val onSilenced: () -> Unit = {},
     /** What the user has said so far, live, while a request is being recorded. */
     private val onPartial: (String) -> Unit = {},
-    private val listenOnly: Boolean = false
+    private val listenOnly: Boolean = false,
+    /** How close a pause is to sending on its own: 0 while the user talks, 1 when it sends. */
+    private val onPause: (Float) -> Unit = {}
 ) {
     @Volatile private var running = false
+
+    /** Set by the card's "Enviar" button: what was said goes now, without waiting for a pause. */
+    @Volatile private var finishNow = false
+
+    fun sendNow() {
+        finishNow = true
+    }
     private var thread: Thread? = null
 
     /** False once the listener ended by itself (microphone busy, or after the name was heard). */
@@ -192,6 +201,7 @@ class DexterWake(
         waitMs: Long = WAIT_MS,
         feed: (ShortArray) -> Unit = {}
     ): List<ShortArray>? {
+        finishNow = false
         val frames = buffered.toMutableList()
         val threshold = max(noise * 3.0, MIN_SPEECH_RMS)
         val start = System.currentTimeMillis()
@@ -230,7 +240,10 @@ class DexterWake(
                     if (firstLoud < 0) firstLoud = frames.size - 1
                     if (now - start > graceMs && ++speechFrames >= MIN_SPEECH_FRAMES) spoke = true
                 }
+                if (spoke) onPause(pauseProgress(now - lastLoud, endSilence(live)))
                 when {
+                    // "Enviar" on the card: the request goes as it is (nothing said yet means nothing to send).
+                    finishNow -> return if (spoke) trimmed(frames, firstLoud) else null
                     !spoke && now - start > waitMs -> return null
                     spoke && now - lastLoud > endSilence(live) -> return trimmed(frames, firstLoud)
                     now - start > MAX_MS -> return if (spoke) trimmed(frames, firstLoud) else null
@@ -314,10 +327,10 @@ class DexterWake(
         private const val MIN_SPEECH_FRAMES = 3
         private const val WAIT_MS = 1400L
         /** A finished sentence ends the turn after this much silence: quick, like Claude's voice mode. */
-        const val END_SILENCE_MS = 1100L
+        const val END_SILENCE_MS = 3000L
 
         /** A sentence left hanging ("y...", "quiero que...", "eh...") gets this long to go on. */
-        const val UNFINISHED_SILENCE_MS = 2500L
+        const val UNFINISHED_SILENCE_MS = 4500L
 
         private val CONTINUATIONS = setOf(
             "y", "o", "u", "e", "pero", "que", "de", "del", "la", "el", "los", "las", "un", "una", "unos", "unas", "en", "con", "sin", "para",
@@ -334,6 +347,13 @@ class DexterWake(
         }
 
         /** The silence that ends the user's turn, given what they have said so far. */
+        /** A breath between words doesn't count: the ring starts filling after this much silence. */
+        const val PAUSE_SHOWN_MS = 700L
+
+        /** 0 while talking (or a short breath), rising to 1 as the pause reaches [endMs]. */
+        fun pauseProgress(silentMs: Long, endMs: Long): Float =
+            ((silentMs - PAUSE_SHOWN_MS).toFloat() / (endMs - PAUSE_SHOWN_MS)).coerceIn(0f, 1f)
+
         fun endSilence(text: String) = if (soundsUnfinished(text)) UNFINISHED_SILENCE_MS else END_SILENCE_MS
         /** The longest turn: plenty to explain something, as in a real conversation. */
         private const val MAX_MS = 45_000L

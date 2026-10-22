@@ -43,8 +43,19 @@ class EndOfTurnTest {
     }
 
     @Test
-    fun theWaitsAreHumanSized() {
-        assertTrue("a finished sentence still answers fast", DexterWake.END_SILENCE_MS in 900L..1500L)
-        assertTrue("a pause to think is respected", DexterWake.UNFINISHED_SILENCE_MS in 2000L..3500L)
+    fun theWaitsLeaveRoomToFinish() {
+        // The user found 1.1 s cut them off mid-sentence: Dexter now waits, and "Enviar" is the fast way.
+        assertTrue("a pause to breathe never sends", DexterWake.END_SILENCE_MS in 2500L..3500L)
+        assertTrue("a sentence left hanging gets longer still", DexterWake.UNFINISHED_SILENCE_MS in 4000L..5500L)
+    }
+
+    @Test
+    fun theRingFillsOnlyDuringARealPause() {
+        assertEquals("talking", 0f, DexterWake.pauseProgress(0, DexterWake.END_SILENCE_MS), 0f)
+        assertEquals("a breath between words", 0f, DexterWake.pauseProgress(DexterWake.PAUSE_SHOWN_MS, DexterWake.END_SILENCE_MS), 0f)
+        val half = DexterWake.PAUSE_SHOWN_MS + (DexterWake.END_SILENCE_MS - DexterWake.PAUSE_SHOWN_MS) / 2
+        assertEquals(0.5f, DexterWake.pauseProgress(half, DexterWake.END_SILENCE_MS), 0.01f)
+        assertEquals("full when it sends", 1f, DexterWake.pauseProgress(DexterWake.END_SILENCE_MS, DexterWake.END_SILENCE_MS), 0f)
+        assertEquals(1f, DexterWake.pauseProgress(99_000, DexterWake.END_SILENCE_MS), 0f)
     }
 }

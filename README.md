@@ -130,7 +130,7 @@ The Dexter code lives in [`uhabits-android/src/main/java/org/isoron/uhabits/ancl
 ## Engineering highlights
 
 - **Never falsely awake.** The wake word must pass four gates: a grammar-restricted recognizer, word confidence ≥ 0.75, a loudness gate fitted to the real microphone (measured on a Pixel 7), and an AI check of the recording. False wakes are dropped silently, and what follows them can never confirm an action.
-- **Answers only when you're done.** End-of-turn detection reads the live transcript: a finished sentence ends after 1.1 s of silence; one left hanging (“pon una alarma para…”) gets 2.5 s.
+- **Answers only when you're done.** A big "Send" button on the floating card ends the turn at once; without it, Dexter waits 3 s of silence (4.5 s when a sentence is left hanging, "pon una alarma para…"), and a ring on the button fills during the pause so you can see it coming and keep talking.
 - **Shares the microphone politely.** It watches Android's active recordings and the audio mode, and steps aside during calls and voice notes instead of fighting for the mic.
 - **Fast by default.** Everyday commands run offline in milliseconds; tool results that need no wording end the turn without a second model call; speech starts at the first sentence.
 - **Tested where it matters**: wake-word gates, end of turn, the yes-gate, mail parsing and header injection, name matching, memory search, nudges, budgets, the WOOP model and more.

@@ -725,6 +725,7 @@ Asunto: %2$s</string>
     <string name="overlay_quiet">Silencio</string>
     <string name="overlay_voice_on">Con voz</string>
     <string name="overlay_pause">Pausar 30 min</string>
+    <string name="overlay_send">Enviar</string>
     <string name="dexter_service_paused">«Oye Dexter» está en pausa 30 minutos. Toca Reanudar, o el mosaico de Ajustes rápidos, para que escuche antes.</string>
     <string name="dexter_service_resume">Reanudar</string>
     <string name="dexter_service_silenced">Android silenció el micrófono de Dexter. Toca dos veces el mosaico «Oye Dexter» para reactivarlo.</string>

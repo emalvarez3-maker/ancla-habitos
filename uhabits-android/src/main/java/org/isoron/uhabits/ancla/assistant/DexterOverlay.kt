@@ -57,6 +57,12 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -92,6 +98,9 @@ class DexterOverlay(private val context: Context, private val controls: Controls
         fun close()
         fun setQuiet(on: Boolean)
         fun pauseListening()
+
+        /** "Enviar": the user is done talking. */
+        fun sendNow()
     }
 
     private val main = Handler(Looper.getMainLooper())
@@ -106,6 +115,11 @@ class DexterOverlay(private val context: Context, private val controls: Controls
     private val quiet = mutableStateOf(false)
     private val compact = mutableStateOf(false)
 
+    /** How close the user's pause is to sending on its own (0 to 1). */
+    private val pausing = mutableFloatStateOf(0f)
+
+    fun pause(progress: Float) = onMain { if (pausing.floatValue != progress) pausing.floatValue = progress }
+
     /** Whether the silence button shows as on. */
     fun quiet(on: Boolean) = onMain { quiet.value = on }
 
@@ -116,6 +130,7 @@ class DexterOverlay(private val context: Context, private val controls: Controls
     /** Shows the card (if allowed) in [owl] state; [youSaid] and [answer] replace the texts when given. */
     fun show(owl: OwlState, youSaid: String? = null, answer: String? = null) = onMain {
         main.removeCallbacks(hideLater)
+        if (owl != OwlState.LISTENING || youSaid == "") pausing.floatValue = 0f // a new request starts with an empty ring
         state.value = owl
         youSaid?.let { heard.value = it }
         answer?.let { reply.value = it }
@@ -257,6 +272,9 @@ class DexterOverlay(private val context: Context, private val controls: Controls
                                 Text(status, style = MaterialTheme.typography.bodyLarge, color = Color.White)
                             }
                         }
+                        // While the user talks: "Enviar" sends at once, and its ring fills during a
+                        // pause, so they see when Dexter would send on its own (and keep talking to stop it).
+                        if (owl == OwlState.LISTENING && you.isNotBlank()) SendButton(pausing.floatValue)
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.align(Alignment.End)) {
                         Chip(stringResource(if (silent) R.string.overlay_voice_on else R.string.overlay_quiet), active = silent) { controls.setQuiet(!silent) }
@@ -264,6 +282,30 @@ class DexterOverlay(private val context: Context, private val controls: Controls
                         Chip("✕") { controls.close() }
                     }
                 }
+            }
+        }
+    }
+
+    @Composable
+    private fun SendButton(progress: Float) {
+        val ring by animateFloatAsState(progress, tween(120), label = "pauseRing")
+        val label = stringResource(R.string.overlay_send)
+        Box(
+            Modifier.size(64.dp).clip(CircleShape).background(Color(0xFFFFB627))
+                .combinedClickableCompat(Role.Button, { controls.sendNow() })
+                .semantics { contentDescription = label },
+            contentAlignment = Alignment.Center
+        ) {
+            Canvas(Modifier.size(64.dp)) {
+                val stroke = 4.dp.toPx()
+                drawArc(Color(0x33141226), 0f, 360f, false, topLeft = Offset(stroke / 2, stroke / 2), size = Size(size.width - stroke, size.height - stroke), style = Stroke(stroke))
+                if (ring > 0f) {
+                    drawArc(Color(0xFF141226), -90f, 360f * ring, false, topLeft = Offset(stroke / 2, stroke / 2), size = Size(size.width - stroke, size.height - stroke), style = Stroke(stroke, cap = StrokeCap.Round))
+                }
+            }
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("➤", style = MaterialTheme.typography.titleMedium, color = Color(0xFF141226))
+                Text(label, style = MaterialTheme.typography.labelSmall, color = Color(0xFF141226), maxLines = 1)
             }
         }
     }
