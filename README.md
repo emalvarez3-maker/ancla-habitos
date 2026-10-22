@@ -142,7 +142,7 @@ The Dexter code lives in [`uhabits-android/src/main/java/org/isoron/uhabits/ancl
 Requirements: JDK 17 and the Android SDK (API 36).
 
 ```bash
-git clone https://github.com/emalvarez3-maker/ancla-habitos.git
+git clone https://github.com/tebl22/ancla-habitos.git
 cd ancla-habitos
 ./gradlew :uhabits-android:installDebug     # build and install on a connected phone
 ./gradlew :uhabits-android:testDebugUnitTest --tests "org.isoron.uhabits.ancla.*"   # Dexter's tests
@@ -162,5 +162,5 @@ Dexter is built on **[Loop Habit Tracker](https://github.com/iSoron/uhabits)** b
 
 <p align="center">
   <img src="docs/images/dexter.png" width="120" alt="Dexter the owl"/><br/>
-  <sub>Made by <a href="https://github.com/emalvarez3-maker">Esteban</a></sub>
+  <sub>Made by <a href="https://github.com/tebl22">Esteban</a></sub>
 </p>
