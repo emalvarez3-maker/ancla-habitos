@@ -44,6 +44,10 @@ kotlin {
 android {
     testOptions {
         unitTests.isIncludeAndroidResources = true
+        // The README renders (Robolectric) run only on demand: DEXTER_SCREENSHOTS=1.
+        unitTests.all { test ->
+            if (System.getenv("DEXTER_SCREENSHOTS") != "1") test.exclude("**/ScreenshotsTest*")
+        }
     }
 
     namespace = "org.isoron.uhabits"
