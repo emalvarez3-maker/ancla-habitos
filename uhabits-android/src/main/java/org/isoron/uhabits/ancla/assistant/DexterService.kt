@@ -163,7 +163,60 @@ class DexterService : Service() {
         LibVosk.setLogLevel(LogLevel.WARNINGS)
         ContextCompat.registerReceiver(this, screenOff, android.content.IntentFilter(Intent.ACTION_SCREEN_OFF), ContextCompat.RECEIVER_NOT_EXPORTED)
         DexterTile.update(this)
+        audio.registerAudioRecordingCallback(recordingWatch, main)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) audio.addOnModeChangedListener(mainExecutor, modeWatch)
     }
+
+    // --- Sharing the microphone: a voice note, a call or another app's recording comes first ---
+
+    private val audio by lazy { getSystemService(android.media.AudioManager::class.java) }
+
+    /** True while Dexter stepped aside for a call or another app's recording. */
+    private var yielding = false
+
+    private val recordingWatch = object : android.media.AudioManager.AudioRecordingCallback() {
+        override fun onRecordingConfigChanged(configs: MutableList<android.media.AudioRecordingConfiguration>?) = checkMicShare()
+    }
+
+    private val modeWatch = android.media.AudioManager.OnModeChangedListener { checkMicShare() }
+
+    /** A call (or ringing), or a recording that isn't Dexter's own. */
+    private fun micBusyElsewhere(): Boolean {
+        val mode = audio.mode
+        if (mode == android.media.AudioManager.MODE_IN_CALL || mode == android.media.AudioManager.MODE_IN_COMMUNICATION ||
+            mode == android.media.AudioManager.MODE_RINGTONE || mode == android.media.AudioManager.MODE_CALL_SCREENING
+        ) return true
+        val ours = setOfNotNull(wakeListener?.sessionId, requestListener?.sessionId)
+        // Not counted: the always-on "Hey Google" detector (source HOTWORD) and recordings Android
+        // itself muted, which aren't really using the microphone.
+        return audio.activeRecordingConfigurations.any {
+            it.clientAudioSessionId !in ours && it.clientAudioSource != HOTWORD_SOURCE && !it.isClientSilenced
+        }
+    }
+
+    /**
+     * Another app started recording (a WhatsApp voice note, a call): Dexter lets go of the microphone
+     * at once, so it never cuts them off, and listens again a moment after they're done.
+     */
+    private fun checkMicShare() {
+        val busy = micBusyElsewhere()
+        if (busy && !yielding) {
+            yielding = true
+            Log.d(TAG, "microphone in use elsewhere: Dexter steps aside")
+            main.removeCallbacks(resumeAfterShare)
+            if (!inConversation) {
+                stopWake()
+                update(getString(R.string.dexter_service_yielding))
+            }
+        } else if (!busy && yielding) {
+            yielding = false
+            Log.d(TAG, "microphone free again")
+            main.removeCallbacks(resumeAfterShare)
+            main.postDelayed(resumeAfterShare, 1500)
+        }
+    }
+
+    private val resumeAfterShare = Runnable { if (!yielding) startWake() }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
@@ -193,6 +246,9 @@ class DexterService : Service() {
 
     override fun onDestroy() {
         instance = null
+        runCatching { audio.unregisterAudioRecordingCallback(recordingWatch) }
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) runCatching { audio.removeOnModeChangedListener(modeWatch) }
+        main.removeCallbacks(resumeAfterShare)
         interrupter.stop()
         stopWake()
         unregisterUnlock()
@@ -237,6 +293,12 @@ class DexterService : Service() {
         // is set only while the app itself uses the microphone (its dictation, or Dexter's chat screen).
         if (paused || inConversation || wakeListener != null) return
         if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) return
+        // A call or another app's recording: wait for it to end (checkMicShare starts again then).
+        if (yielding || micBusyElsewhere()) {
+            yielding = true
+            update(getString(R.string.dexter_service_yielding))
+            return
+        }
         val listener = DexterWake(
             m,
             onRequest = { wav -> main.post { wakeEnded(); onRequestWithName(wav) } },
@@ -277,6 +339,12 @@ class DexterService : Service() {
      * invisible screen gets it back: now if the phone is in use, or right after it's unlocked.
      */
     private fun regainMicrophone() {
+        // Silenced because someone else is using it (a voice note, a call): never take it from them.
+        // Dexter's screen coming to the front is what paused WhatsApp's recordings and calls.
+        if (micBusyElsewhere()) {
+            checkMicShare()
+            return
+        }
         if (micLost) return
         micLost = true
         val power = getSystemService(android.os.PowerManager::class.java)
@@ -713,6 +781,8 @@ class DexterService : Service() {
         private const val ACTION_PAUSE = "pause"
         const val ACTION_RESUME = "resume"
         const val ACTION_MIC = "mic"
+        /** MediaRecorder.AudioSource.HOTWORD, hidden from apps: the system assistant's wake word. */
+        private const val HOTWORD_SOURCE = 1999
         private const val MODEL_URL = "https://alphacephei.com/vosk/models/vosk-model-small-es-0.42.zip"
 
         /** The running service, so the app can pause it while it uses the microphone itself. */

@@ -61,6 +61,10 @@ class DexterWake(
     /** False once the listener ended by itself (microphone busy, or after the name was heard). */
     val alive get() = thread?.isAlive == true
 
+    /** Android's id for this listener's recording while it runs, to tell it apart from other apps' recordings. */
+    @Volatile var sessionId: Int? = null
+        private set
+
     @SuppressLint("MissingPermission") // the caller checks RECORD_AUDIO
     fun start() {
         if (running) return
@@ -78,6 +82,7 @@ class DexterWake(
     private fun loop() {
         val minBuffer = AudioRecord.getMinBufferSize(RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
         val record = AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, max(minBuffer, FRAME * 4))
+        sessionId = record.audioSessionId
         val recognizer = Recognizer(model, RATE.toFloat(), GRAMMAR).apply { setWords(true) }
         try {
             if (record.state != AudioRecord.STATE_INITIALIZED) {
@@ -96,6 +101,7 @@ class DexterWake(
                 running = false
                 record.stop()
                 record.release()
+                sessionId = null
                 recognizer.close()
                 if (stopped) return
                 Log.d(TAG, if (request != null) "request heard: ${request.size * 100} ms" else "nobody spoke")
@@ -154,6 +160,7 @@ class DexterWake(
                 running = false
                 record.stop()
                 record.release()
+                sessionId = null
                 recognizer.close()
                 if (stopped) return
                 Log.d(TAG, (if (request != null) "request said with the name: ${request.size * 100} ms" else "name only") + ", confidence " + (nameConf?.let { "%.2f".format(it) } ?: "?"))
@@ -165,6 +172,7 @@ class DexterWake(
         }
         runCatching { record.stop() }
         record.release()
+        sessionId = null
         recognizer.close()
     }
 

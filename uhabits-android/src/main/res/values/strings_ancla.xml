@@ -729,6 +729,7 @@ Subject: %2$s</string>
     <string name="dexter_service_paused">“Hey Dexter” is paused for 30 minutes. Tap Resume, or the Quick Settings tile, to listen sooner.</string>
     <string name="dexter_service_resume">Resume</string>
     <string name="dexter_service_silenced">Android has muted Dexter\'s microphone. Tap the “Hey Dexter” tile twice to turn it back on.</string>
+    <string name="dexter_service_yielding">Another app is using the microphone: Dexter waits for it to finish.</string>
     <string name="dexter_tile_paused">Paused</string>
     <string name="phone_grant_battery">Always on</string>
     <string name="phone_grant_battery_detail">No battery limits, so Android doesn\'t switch off “Hey Dexter” while the phone sleeps.</string>
