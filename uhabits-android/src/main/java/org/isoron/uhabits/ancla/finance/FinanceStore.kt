@@ -73,9 +73,12 @@ class FinanceStore(private val file: File) {
         require(cents > 0) { "El monto debe ser mayor que cero" }
         require(cents <= MAX_CENTS) { "Ese monto es demasiado grande" }
         val data = load()
+        // Strictly after the newest one, so "borra eso" always finds this entry even when two are
+        // added within the same millisecond.
+        val created = maxOf(System.currentTimeMillis(), (data.movements.maxOfOrNull { it.created } ?: 0L) + 1)
         val m = Movement(
             UUID.randomUUID().toString(), cents, income,
-            categoryFor(category, note, income), note.trim().take(200), day, System.currentTimeMillis()
+            categoryFor(category, note, income), note.trim().take(200), day, created
         )
         save(data.copy(movements = data.movements + m))
         m
