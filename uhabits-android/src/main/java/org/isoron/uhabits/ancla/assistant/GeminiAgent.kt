@@ -605,6 +605,7 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
             var result: Pair<JSONArray, String>? = null
             var attempts = 0
             var retries = 0
+            var cleaned = false
             while (result == null) {
                 // Thinking adds seconds before the first word; the lowest level is plenty for a voice assistant.
                 if (lowThinking) {
@@ -632,6 +633,13 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
                         lowThinking && e.kind == AgentException.Kind.OTHER && e.message.orEmpty().startsWith("HTTP 400") -> {
                             android.util.Log.w("AnclaVoice", "thinkingLevel rejected")
                             lowThinking = false
+                        }
+                        !cleaned && e.kind == AgentException.Kind.OTHER && e.message.orEmpty().startsWith("HTTP 400") -> {
+                            // After a switch of model, the other model's thought signatures in the
+                            // history are invalid here: drop them once and try again.
+                            android.util.Log.w("AnclaVoice", "$model rejected the request (${e.message?.substringAfter(": ")?.take(160)}), retrying without thought signatures")
+                            cleaned = true
+                            withoutThoughts(history)
                         }
                         else -> throw e
                     }
@@ -747,6 +755,25 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
          * and the results go back to the model for it to answer.
          */
         internal fun quickReply(text: String, failed: Boolean, tools: List<String>, results: List<String>): String? = quickAnswer(text, failed, tools, results)
+
+        /**
+         * Drops every model's thought signatures and thought parts from [history], in place, so a
+         * different model accepts it; a part left empty becomes a short placeholder.
+         */
+        internal fun withoutThoughts(history: JSONArray) {
+            for (i in 0 until history.length()) {
+                val turn = history.optJSONObject(i) ?: continue
+                val parts = turn.optJSONArray("parts") ?: continue
+                val kept = JSONArray()
+                for (j in 0 until parts.length()) {
+                    val p = parts.optJSONObject(j) ?: continue
+                    if (p.optBoolean("thought", false)) continue
+                    p.remove("thoughtSignature")
+                    kept.put(p)
+                }
+                turn.put("parts", if (kept.length() > 0) kept else JSONArray().put(JSONObject().put("text", "…")))
+            }
+        }
 
         /** Puts a placeholder in place of every recording in a finished user [turn]. */
         internal fun withoutAudio(turn: JSONObject) {

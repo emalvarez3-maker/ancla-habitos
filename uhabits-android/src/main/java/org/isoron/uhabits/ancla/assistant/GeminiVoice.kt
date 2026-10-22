@@ -157,10 +157,9 @@ internal class GeminiVoice(
     }
 
     private fun body(voice: String, text: String, style: String): JSONObject {
-        // The delivery and the accent go in the words the model reads: that is how Gemini's speech
-        // models are steered. Without it the accent drifted (sometimes American), and the old
-        // "speechMetadata" field was rejected, which silently dropped the style for the session.
-        val part = JSONObject().put("text", directed(style, text))
+        // Only Dexter's own words go in: a style instruction in the text was sometimes read out loud
+        // ("deep baritone voice…") instead of followed. The accent comes from the language code.
+        val part = JSONObject().put("text", text)
         val voiceConfig = if (useNewVoiceShape) {
             JSONObject().put("voice", voice)
         } else {
@@ -276,11 +275,6 @@ internal class GeminiVoice(
 
         /** Latin American Spanish: Dexter's accent, whatever the voice. */
         const val LANGUAGE = "es-US"
-
-        /** What the speech model reads: how to say it, then exactly what to say. */
-        fun directed(style: String, text: String) =
-            "$style Speak in Spanish with a natural, neutral Latin American accent, never an English or American accent. " +
-                "Read aloud exactly the following text and nothing else:\n$text"
 
         /** Guided meditation: no wit here, only calm. */
         const val GUIDE_STYLE = "Meditation guide: soft, warm, deep male voice, slow and unhurried, gentle and grounded, " +

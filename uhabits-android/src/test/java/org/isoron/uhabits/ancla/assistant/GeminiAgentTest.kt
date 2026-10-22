@@ -87,4 +87,29 @@ class GeminiAgentTest {
         assertEquals(before, turn.toString())
         GeminiAgent.withoutAudio(JSONObject()) // no parts at all
     }
+
+    @Test
+    fun anotherModelGetsTheHistoryWithoutThoughts() {
+        val history = JSONArray()
+            .put(JSONObject().put("role", "user").put("parts", JSONArray().put(JSONObject().put("text", "hola"))))
+            .put(
+                JSONObject().put("role", "model").put(
+                    "parts",
+                    JSONArray()
+                        .put(JSONObject().put("thought", true).put("text", "pensando…"))
+                        .put(JSONObject().put("text", "¡Hola!").put("thoughtSignature", "abc"))
+                        .put(JSONObject().put("functionCall", JSONObject().put("name", "today_summary")).put("thoughtSignature", "def"))
+                )
+            )
+            .put(JSONObject().put("role", "model").put("parts", JSONArray().put(JSONObject().put("thought", true).put("text", "solo pensó"))))
+        GeminiAgent.withoutThoughts(history)
+        val model = history.getJSONObject(1).getJSONArray("parts")
+        assertEquals(2, model.length())
+        assertEquals("¡Hola!", model.getJSONObject(0).getString("text"))
+        assertFalse(model.getJSONObject(0).has("thoughtSignature"))
+        assertFalse(model.getJSONObject(1).has("thoughtSignature"))
+        assertTrue(model.getJSONObject(1).has("functionCall"))
+        assertEquals("a turn never ends up with no parts", "…", history.getJSONObject(2).getJSONArray("parts").getJSONObject(0).getString("text"))
+        assertEquals("hola", history.getJSONObject(0).getJSONArray("parts").getJSONObject(0).getString("text"))
+    }
 }
