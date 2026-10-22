@@ -63,7 +63,7 @@ internal class GeminiVoice(
 
     /** Playback speed, applied when a reply starts; the pitch stays the same. */
     @Volatile var speed = 1f
-    private var useMetadata = true
+    private var useLanguage = true
     private var useNewVoiceShape = true
 
     private val track: AudioTrack = AudioTrack.Builder()
@@ -157,8 +157,10 @@ internal class GeminiVoice(
     }
 
     private fun body(voice: String, text: String, style: String): JSONObject {
-        val part = JSONObject().put("text", text)
-        if (useMetadata) part.put("speechMetadata", JSONObject().put("style", style))
+        // The delivery and the accent go in the words the model reads: that is how Gemini's speech
+        // models are steered. Without it the accent drifted (sometimes American), and the old
+        // "speechMetadata" field was rejected, which silently dropped the style for the session.
+        val part = JSONObject().put("text", directed(style, text))
         val voiceConfig = if (useNewVoiceShape) {
             JSONObject().put("voice", voice)
         } else {
@@ -170,7 +172,7 @@ internal class GeminiVoice(
                 "generationConfig",
                 JSONObject()
                     .put("responseModalities", JSONArray().put("AUDIO"))
-                    .put("speechConfig", JSONObject().put("voiceConfig", voiceConfig))
+                    .put("speechConfig", JSONObject().put("voiceConfig", voiceConfig).apply { if (useLanguage) put("languageCode", LANGUAGE) })
             )
     }
 
@@ -215,7 +217,7 @@ internal class GeminiVoice(
                     val err = conn.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
                     Log.w(TAG, "TTS HTTP 400")
                     when {
-                        useMetadata -> useMetadata = false
+                        useLanguage -> useLanguage = false
                         useNewVoiceShape -> useNewVoiceShape = false
                         else -> throw IllegalStateException("HTTP 400")
                     }
@@ -271,6 +273,14 @@ internal class GeminiVoice(
             "like a refined AI butler with a dry, sardonic wit: expressive intonation that rises and falls naturally, " +
             "deadpan comic timing on the sarcastic lines, brisk and fluent pace, quicker than everyday conversation, " +
             "with short pauses. Never robotic, never flat, never cheerful-salesman."
+
+        /** Latin American Spanish: Dexter's accent, whatever the voice. */
+        const val LANGUAGE = "es-US"
+
+        /** What the speech model reads: how to say it, then exactly what to say. */
+        fun directed(style: String, text: String) =
+            "$style Speak in Spanish with a natural, neutral Latin American accent, never an English or American accent. " +
+                "Read aloud exactly the following text and nothing else:\n$text"
 
         /** Guided meditation: no wit here, only calm. */
         const val GUIDE_STYLE = "Meditation guide: soft, warm, deep male voice, slow and unhurried, gentle and grounded, " +
