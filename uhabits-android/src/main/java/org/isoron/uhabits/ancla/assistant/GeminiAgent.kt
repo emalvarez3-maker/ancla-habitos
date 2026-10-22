@@ -606,6 +606,7 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
             var attempts = 0
             var retries = 0
             var cleaned = false
+            var rounds = 0
             while (result == null) {
                 // Thinking adds seconds before the first word; the lowest level is plenty for a voice assistant.
                 if (lowThinking) {
@@ -620,9 +621,19 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
                     when {
                         busy && it == 0 && !produced && ++attempts < MODELS.size -> {
                             // Free-tier limit or overload: switch to the next free model for this turn.
-                            limitedUntil[model] = System.currentTimeMillis() + 60_000
+                            // An overload (503, too slow) passes in seconds; a quota (429) takes longer.
+                            limitedUntil[model] = System.currentTimeMillis() + if (e.kind == AgentException.Kind.RATE_LIMIT && e.message != "slow") 60_000 else 8_000
                             model = nextModel()
                             android.util.Log.w("AnclaVoice", "chat model busy, switching to $model")
+                        }
+                        busy && it == 0 && !produced && ++rounds <= EXTRA_ROUNDS -> {
+                            // Every model said "high demand" at once: Google's spikes last seconds, so
+                            // wait a little and go round the models again before telling the user.
+                            limitedUntil[model] = System.currentTimeMillis() + 8_000
+                            Thread.sleep(2_000L * rounds)
+                            attempts = 0
+                            model = nextModel()
+                            android.util.Log.w("AnclaVoice", "all chat models busy, round ${rounds + 1} with $model")
                         }
                         busy && it > 0 && !produced && ++retries <= 2 -> {
                             // Mid-turn the model can't change (thought signatures), so a brief overload
@@ -811,7 +822,10 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
         }
 
         /** How long a model may take to start answering before the next one is tried. */
-        private const val SLOW_MS = 9_000
+        private const val SLOW_MS = 7_000
+
+        /** When every model is overloaded, how many more times they are all tried (after 2 s, then 4 s). */
+        private const val EXTRA_ROUNDS = 2
 
         /** Free models, fastest first; the next one is used when one hits its rate limit. */
         val MODELS = listOf("gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.8-flash")

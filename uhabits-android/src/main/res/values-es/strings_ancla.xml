@@ -181,6 +181,7 @@
     <string name="voice_network">Sin conexión. Revisa tu internet e intenta de nuevo.</string>
     <string name="voice_refused">El asistente no aceptó esa solicitud. Intenta decirlo de otra forma.</string>
     <string name="voice_failed">Algo falló al hablar con el asistente. Intenta de nuevo.</string>
+    <string name="voice_busy">Los servidores de Google están saturados ahora mismo. Repítemelo en un momento; te escucho.</string>
     <string name="voice_mic_desc">Micrófono: mantén para hablar, toca dos veces para manos libres</string>
     <string name="voice_pill_hold">Escuchando… suelta para enviar</string>
     <string name="voice_pill_free">Manos libres %1$d:%2$02d · toca el micrófono para terminar</string>

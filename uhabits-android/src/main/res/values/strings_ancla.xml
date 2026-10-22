@@ -182,6 +182,7 @@
     <string name="voice_network">No connection. Check your internet and try again.</string>
     <string name="voice_refused">The assistant declined that request. Try saying it differently.</string>
     <string name="voice_failed">Something went wrong talking to the assistant. Try again.</string>
+    <string name="voice_busy">Google’s servers are saturated right now. Say it again in a moment; I’m listening.</string>
     <string name="voice_mic_desc">Microphone: hold to talk, double tap for hands-free</string>
     <string name="voice_pill_hold">Listening… release to send</string>
     <string name="voice_pill_free">Hands-free %1$d:%2$02d · tap the mic to finish</string>

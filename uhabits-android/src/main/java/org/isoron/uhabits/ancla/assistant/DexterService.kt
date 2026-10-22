@@ -672,9 +672,14 @@ class DexterService : Service() {
                 lastReply = reply.toString().trim()
                 if (failure != null) {
                     Log.w(TAG, "service turn failed: ${failure.javaClass.simpleName}: ${failure.message?.take(120)}")
-                    speaker.stop()
-                    overlay.show(OwlState.IDLE, answer = getString(R.string.voice_failed))
-                    endConversation(getString(R.string.voice_failed))
+                    // Google's servers saturated (all models tried, several times): say so, and keep
+                    // listening, so the user just repeats it instead of starting over with "Oye Dexter".
+                    val busy = failure is AgentException && (failure.kind == AgentException.Kind.RATE_LIMIT || failure.message.orEmpty().startsWith("HTTP 5"))
+                    val message = getString(if (busy) R.string.voice_busy else R.string.voice_failed)
+                    overlay.show(OwlState.SPEAKING, answer = message)
+                    speaker.begin { if (gen == turn) listenForRequest() }
+                    speaker.append(message)
+                    speaker.finish()
                 } else {
                     update(lastReply.ifBlank { getString(R.string.dexter_service_waiting) })
                     if (textOnly) {
