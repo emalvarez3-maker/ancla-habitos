@@ -42,6 +42,10 @@ kotlin {
 }
 
 android {
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+    }
+
     namespace = "org.isoron.uhabits"
     compileSdk = 36
 
@@ -165,4 +169,9 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     // The real org.json for JVM tests (android.jar only has stubs of it).
     testImplementation("org.json:json:20240303")
+    // Renders the real screens with demo data for the README (ScreenshotsTest, run on demand).
+    testImplementation("org.robolectric:robolectric:4.14.1")
+    testImplementation(platform(libs.compose.bom))
+    testImplementation("androidx.compose.ui:ui-test-junit4")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
 }

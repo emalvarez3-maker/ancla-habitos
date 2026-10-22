@@ -21,4 +21,8 @@ kotlin-js-store
 *.md
 # The robotics lessons are app content, not docs
 !uhabits-android/src/main/assets/robotics/*.md
+# The project's own pages
+!/README.md
+!/README.es.md
+!/docs/*.md
 .kotlin

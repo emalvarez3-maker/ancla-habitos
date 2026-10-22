@@ -97,9 +97,10 @@ enum class Branch { HABITS, LIBRARY, NOTES, STUDY, ROBOTICS, DEXTER, PHONE, WHAT
 fun DexterHome(
     onDexter: () -> Unit,
     onBranch: (Branch) -> Unit,
+    start: Space = Space.HOY,
     content: @Composable (space: Space, openMenu: () -> Unit, go: (Space) -> Unit) -> Unit
 ) {
-    var space by rememberSaveable { mutableStateOf(Space.HOY) }
+    var space by rememberSaveable { mutableStateOf(start) }
     val drawer = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val openMenu: () -> Unit = { scope.launch { drawer.open() } }

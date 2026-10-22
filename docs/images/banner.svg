@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 420" width="1200" height="420" role="img" aria-label="Dexter: a voice-first AI companion for habits, plans and self-awareness">
+  <defs>
+    <radialGradient id="sky" cx="760" cy="120" r="900" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2E1650"/>
+      <stop offset="0.55" stop-color="#140A24"/>
+      <stop offset="1" stop-color="#07040E"/>
+    </radialGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#9D7BFF" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#9D7BFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="body" x1="54" y1="29" x2="54" y2="86" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#55358A"/>
+      <stop offset="1" stop-color="#2E1A52"/>
+    </linearGradient>
+    <clipPath id="frame"><rect width="1200" height="420" rx="28"/></clipPath>
+  </defs>
+  <g clip-path="url(#frame)">
+    <rect width="1200" height="420" fill="url(#sky)"/>
+    <!-- stars -->
+    <g fill="#C9B8FF">
+      <circle cx="90" cy="60" r="1.6"/><circle cx="210" cy="340" r="1.2"/><circle cx="520" cy="44" r="1.4"/>
+      <circle cx="640" cy="370" r="1.1"/><circle cx="1110" cy="300" r="1.5"/><circle cx="1150" cy="70" r="1.1"/>
+      <circle cx="980" cy="390" r="1.2"/><circle cx="360" cy="390" r="1"/><circle cx="830" cy="30" r="1.2"/>
+    </g>
+    <!-- crescent moon -->
+    <circle cx="1060" cy="110" r="34" fill="#E9DFFF"/>
+    <circle cx="1078" cy="98" r="31" fill="#1D0F36"/>
+    <!-- owl -->
+    <circle cx="905" cy="235" r="170" fill="url(#glow)"/>
+    <g transform="translate(775,105) scale(2.4)">
+      <path fill="#1C0D33" d="M31,44 C29,34 31,24 35,17 C39,25 44,31 48.5,35 Z"/>
+      <path fill="#1C0D33" d="M77,44 C79,34 77,24 73,17 C69,25 64,31 59.5,35 Z"/>
+      <path fill="url(#body)" d="M54,29 C72,29 82.5,41 82.5,57 C82.5,74 70.5,86 54,86 C37.5,86 25.5,74 25.5,57 C25.5,41 36,29 54,29 Z"/>
+      <path fill="#24133F" d="M27,60 C24,70 28,80 37,85 C35,77 34,69 35,61 Z"/>
+      <path fill="#24133F" d="M81,60 C84,70 80,80 71,85 C73,77 74,69 73,61 Z"/>
+      <path fill="#4A3373" d="M54,63 C64,63 70,70 70,78.5 C66,83 60,86 54,86 C48,86 42,83 38,78.5 C38,70 44,63 54,63 Z"/>
+      <path fill="none" stroke="#7A62B3" stroke-width="1.2" stroke-linecap="round" d="M46,73 q3,3 6,0 M56,73 q3,3 6,0 M51,79 q3,3 6,0"/>
+      <circle cx="43.5" cy="52" r="12.8" fill="#2A1A46"/><circle cx="64.5" cy="52" r="12.8" fill="#2A1A46"/>
+      <circle cx="43.5" cy="52" r="11" fill="#FFB627" fill-opacity="0.18"/><circle cx="64.5" cy="52" r="11" fill="#FFB627" fill-opacity="0.18"/>
+      <circle cx="43.5" cy="52" r="9" fill="#FFB627"/><circle cx="64.5" cy="52" r="9" fill="#FFB627"/>
+      <circle cx="43.5" cy="52.6" r="5.4" fill="#0B0614"/><circle cx="64.5" cy="52.6" r="5.4" fill="#0B0614"/>
+      <circle cx="46.2" cy="50" r="1.9" fill="#FFFFFF"/><circle cx="67.2" cy="50" r="1.9" fill="#FFFFFF"/>
+      <path fill="none" stroke="#C9B8FF" stroke-width="2" stroke-linecap="round" d="M35.5,39.5 Q42,35.5 48,38.5"/>
+      <path fill="none" stroke="#C9B8FF" stroke-width="2" stroke-linecap="round" d="M72.5,39.5 Q66,35.5 60,38.5"/>
+      <path fill="#E8B04A" d="M50.5,58.2 Q54,56.8 57.5,58.2 L54,64.5 Z"/>
+      <path fill="#B8862E" d="M54,57.5 Q55.8,57.6 57.5,58.2 L54,64.5 Z"/>
+    </g>
+    <!-- words -->
+    <g font-family="'Segoe UI', 'Helvetica Neue', Roboto, Arial, sans-serif">
+      <text x="80" y="140" fill="#FFB627" font-size="20" font-weight="700" letter-spacing="4">ANDROID · KOTLIN · JETPACK COMPOSE · AI</text>
+      <text x="76" y="232" fill="#F3EEFF" font-size="104" font-weight="800" letter-spacing="-2">Dexter</text>
+      <text x="80" y="290" fill="#C9B8FF" font-size="28" font-weight="500">A voice-first AI companion that helps you</text>
+      <text x="80" y="328" fill="#C9B8FF" font-size="28" font-weight="500">build habits, plan your life and know yourself.</text>
+      <text x="80" y="372" fill="#8C7AB8" font-size="19">“Oye Dexter” · habits that turn automatic · a mentor with memory</text>
+    </g>
+  </g>
+</svg>
