@@ -186,11 +186,11 @@ class DexterService : Service() {
         if (mode == android.media.AudioManager.MODE_IN_CALL || mode == android.media.AudioManager.MODE_IN_COMMUNICATION ||
             mode == android.media.AudioManager.MODE_RINGTONE || mode == android.media.AudioManager.MODE_CALL_SCREENING
         ) return true
-        val ours = setOfNotNull(wakeListener?.sessionId, requestListener?.sessionId)
+
         // Not counted: the always-on "Hey Google" detector (source HOTWORD) and recordings Android
         // itself muted, which aren't really using the microphone.
         return audio.activeRecordingConfigurations.any {
-            it.clientAudioSessionId !in ours && it.clientAudioSource != HOTWORD_SOURCE && !it.isClientSilenced
+            it.clientAudioSessionId !in OwnRecordings && it.clientAudioSource != HOTWORD_SOURCE && !it.isClientSilenced
         }
     }
 

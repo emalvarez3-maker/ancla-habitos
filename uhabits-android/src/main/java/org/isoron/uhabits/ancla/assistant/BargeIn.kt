@@ -38,6 +38,24 @@ import kotlin.math.sqrt
  * Whatever of Dexter's own voice leaks past the echo canceller is tracked as a moving baseline,
  * so only a voice clearly louder than that, held for a moment, counts as the user cutting in.
  */
+/**
+ * Dexter's own recordings (the wake word, the request, the barge-in listener), by Android's session
+ * id, so the service never mistakes itself for another app using the microphone.
+ */
+object OwnRecordings {
+    private val ids = java.util.concurrent.ConcurrentHashMap.newKeySet<Int>()
+
+    fun add(id: Int) {
+        ids += id
+    }
+
+    fun remove(id: Int) {
+        ids -= id
+    }
+
+    operator fun contains(id: Int) = id in ids
+}
+
 class BargeIn(private val onInterrupt: () -> Unit) {
     private val main = Handler(Looper.getMainLooper())
 
@@ -60,6 +78,8 @@ class BargeIn(private val onInterrupt: () -> Unit) {
                 running = false
                 return@Thread
             }
+            val session = record.audioSessionId
+            OwnRecordings.add(session)
             val aec = if (AcousticEchoCanceler.isAvailable()) runCatching { AcousticEchoCanceler.create(record.audioSessionId)?.apply { enabled = true } }.getOrNull() else null
             val ns = if (NoiseSuppressor.isAvailable()) runCatching { NoiseSuppressor.create(record.audioSessionId)?.apply { enabled = true } }.getOrNull() else null
             try {
@@ -92,6 +112,7 @@ class BargeIn(private val onInterrupt: () -> Unit) {
             } finally {
                 runCatching { record.stop() }
                 record.release()
+                OwnRecordings.remove(session)
                 aec?.release()
                 ns?.release()
             }

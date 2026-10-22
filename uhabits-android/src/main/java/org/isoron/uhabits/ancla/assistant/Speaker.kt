@@ -130,11 +130,20 @@ class Speaker(
             .filter { v -> v.locale.language == "es" && !v.isNetworkConnectionRequired && MALE_VOICES.any { it in v.name } && "notInstalled" !in v.features.orEmpty() }
             .map { it.name }.sorted()
 
+    private val connectivity = context.applicationContext.getSystemService(android.net.ConnectivityManager::class.java)
+
+    private fun online() = runCatching {
+        connectivity.getNetworkCapabilities(connectivity.activeNetwork)?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
+    }.getOrDefault(false)
+
     /** Uses the voice named [name], or the default pick: the deep male es-US voice ("esd"). */
     private fun applyPhoneVoice(name: String) {
         if (!ready) return
         val voices = tts.voices.orEmpty().filter { it.locale.language == "es" && "legacySetLanguageVoice" !in it.features.orEmpty() }
         val pick = voices.firstOrNull { it.name == name }
+            // Online, the same voice from Google's servers sounds far less robotic (and the engine
+            // falls back to the local one by itself if the network drops mid-sentence).
+            ?: voices.firstOrNull { it.name == "es-us-x-esd-network" && "notInstalled" !in it.features.orEmpty() }?.takeIf { online() }
             ?: voices.firstOrNull { it.name == "es-us-x-esd-local" }
             ?: voices.firstOrNull { v -> MALE_VOICES.any { it in v.name } }
             ?: voices.maxByOrNull { (if (it.locale.country == "US") 100 else 0) + it.quality / 100 }

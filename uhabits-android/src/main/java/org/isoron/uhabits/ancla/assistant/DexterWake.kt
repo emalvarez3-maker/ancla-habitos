@@ -83,6 +83,7 @@ class DexterWake(
         val minBuffer = AudioRecord.getMinBufferSize(RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
         val record = AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, max(minBuffer, FRAME * 4))
         sessionId = record.audioSessionId
+        OwnRecordings.add(record.audioSessionId)
         val recognizer = Recognizer(model, RATE.toFloat(), GRAMMAR).apply { setWords(true) }
         try {
             if (record.state != AudioRecord.STATE_INITIALIZED) {
@@ -101,6 +102,7 @@ class DexterWake(
                 running = false
                 record.stop()
                 record.release()
+                sessionId?.let { OwnRecordings.remove(it) }
                 sessionId = null
                 recognizer.close()
                 if (stopped) return
@@ -160,6 +162,7 @@ class DexterWake(
                 running = false
                 record.stop()
                 record.release()
+                sessionId?.let { OwnRecordings.remove(it) }
                 sessionId = null
                 recognizer.close()
                 if (stopped) return
@@ -172,6 +175,7 @@ class DexterWake(
         }
         runCatching { record.stop() }
         record.release()
+        sessionId?.let { OwnRecordings.remove(it) }
         sessionId = null
         recognizer.close()
     }
