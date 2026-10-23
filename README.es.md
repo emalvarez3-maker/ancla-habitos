@@ -11,7 +11,18 @@
   <img alt="Licencia" src="https://img.shields.io/badge/licencia-GPLv3-C9B8FF?style=for-the-badge&labelColor=0E0817"/>
 </p>
 
+<h3 align="center">Tu Jarvis de bolsillo. Di <i>«Oye Dexter»</i> y tu vida se ordena.</h3>
+
 <p align="center">
+  <a href="../../releases/tag/dexter-ultima"><img alt="Descargar el APK" src="https://img.shields.io/badge/Descargar-APK%20para%20Android-9D7BFF?style=for-the-badge&logo=android&logoColor=white&labelColor=0E0817"/></a>
+</p>
+
+<p align="center">
+  <a href="#qué-hace">Funciones</a> ·
+  <a href="#seguridad-y-privacidad-desde-el-diseño">Privacidad</a> ·
+  <a href="#cómo-funciona">Cómo funciona</a> ·
+  <a href="#compilar-y-ejecutar">Compilar</a>
+  <br/>
   <a href="README.md">English</a> · <b>Español</b>
 </p>
 
@@ -138,8 +149,8 @@ El código de Dexter está en [`uhabits-android/src/main/java/org/isoron/uhabits
 Necesitas JDK 17 y el Android SDK (API 36).
 
 ```bash
-git clone https://github.com/tebl22/ancla-habitos.git
-cd ancla-habitos
+git clone https://github.com/tebl22/dexter-ai.git
+cd dexter-ai
 ./gradlew :uhabits-android:installDebug     # compila e instala en un teléfono conectado
 ./gradlew :uhabits-android:testDebugUnitTest --tests "org.isoron.uhabits.ancla.*"   # pruebas de Dexter
 ```
