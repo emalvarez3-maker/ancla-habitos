@@ -597,6 +597,7 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
         // One model per turn: thought signatures from one model are not valid for another.
         var model = nextModel()
         var produced = false
+        var emptyRetried = false
         repeat(MAX_STEPS) {
             val body = JSONObject()
                 .put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", instructions))))
@@ -668,6 +669,21 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
             android.util.Log.d("AnclaVoice", "step ${it + 1}: ${calls.map { c -> c.optString("name") }} finish=$finishReason")
             if (calls.isEmpty()) {
                 if (finishReason == "SAFETY" && text.isEmpty()) throw AgentException(AgentException.Kind.REFUSED, "safety")
+                if (text.isEmpty() && !produced) {
+                    // An empty answer (a model that only "thought") left the user in silence: try the
+                    // next model once, then at least ask them to say it again.
+                    history.remove(history.length() - 1)
+                    if (!emptyRetried) {
+                        emptyRetried = true
+                        model = MODELS[(MODELS.indexOf(model) + 1) % MODELS.size]
+                        withoutThoughts(history)
+                        android.util.Log.w("AnclaVoice", "empty answer, asking $model instead")
+                        return@repeat
+                    }
+                    android.util.Log.w("AnclaVoice", "empty answer again: asking the user to repeat")
+                    onEvent(AgentEvent.Reply(EMPTY_REPLY))
+                    history.put(JSONObject().put("role", "model").put("parts", JSONArray().put(JSONObject().put("text", EMPTY_REPLY))))
+                }
                 return
             }
             val responses = JSONArray()
@@ -826,6 +842,9 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
 
         /** When every model is overloaded, how many more times they are all tried (after 2 s, then 4 s). */
         private const val EXTRA_ROUNDS = 2
+
+        /** Said when the model answered nothing at all, twice. */
+        private const val EMPTY_REPLY = "No te escuché bien, ¿me lo repites?"
 
         /** Free models, fastest first; the next one is used when one hits its rate limit. */
         val MODELS = listOf("gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.8-flash")
