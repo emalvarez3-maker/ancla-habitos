@@ -105,9 +105,10 @@ object AppLock : Application.ActivityLifecycleCallbacks {
         unlocked = true
     }
 
-    // DexterMicActivity shows nothing at all (it only hands the microphone back), so it needs no unlock.
+    // DexterMicActivity shows nothing at all (it only hands the microphone back), and the reminder alarm
+    // keeps its task hidden while the phone is locked: neither needs the app's unlock.
     private fun locked(activity: Activity) =
-        activity !is LockActivity && activity !is org.isoron.uhabits.ancla.assistant.DexterMicActivity && required(activity) && !unlocked
+        activity !is LockActivity && activity !is org.isoron.uhabits.ancla.assistant.DexterMicActivity && activity !is ReminderAlarmActivity && required(activity) && !unlocked
 
     override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {
         if (SecureKeys(activity).secureScreens) {
@@ -117,7 +118,7 @@ object AppLock : Application.ActivityLifecycleCallbacks {
 
     // DexterMicActivity flashes by while the user is in other apps: it must not count as the app
     // coming back, or each microphone hand-back would restart the grace period and keep it unlocked.
-    private fun counts(activity: Activity) = activity !is org.isoron.uhabits.ancla.assistant.DexterMicActivity
+    private fun counts(activity: Activity) = activity !is org.isoron.uhabits.ancla.assistant.DexterMicActivity && activity !is ReminderAlarmActivity
 
     override fun onActivityStarted(activity: Activity) {
         if (!counts(activity)) return

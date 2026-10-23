@@ -51,6 +51,9 @@ data class PendingHabit(val id: Long, val name: String, val anchor: String, val 
 /** A to-do still open: today's or one left from an earlier day. */
 data class PendingTask(val title: String, val minute: Int?, val overdue: Boolean)
 
+/** A task due on a later day: a deadline, [daysLeft] from today (1 is tomorrow). */
+data class Deadline(val title: String, val daysLeft: Int)
+
 data class Nudge(val title: String, val text: String, val habitId: Long?)
 
 /**
@@ -84,10 +87,20 @@ object NudgeWriter {
         return (if (overdue.isNotEmpty()) "Pendientes, ${overdue.size} atrasada${if (overdue.size > 1) "s" else ""}: " else "Pendientes: ") + shown + more + "."
     }
 
+    /** "Fechas límite: Informe de física (mañana), Matrícula (en 3 días)." — the next three days. */
+    fun deadlinesLine(deadlines: List<Deadline>): String? {
+        val soon = deadlines.filter { it.daysLeft in 1..3 }.sortedBy { it.daysLeft }
+        if (soon.isEmpty()) return null
+        return "Fechas límite: " + soon.take(4).joinToString(", ") { d -> d.title + if (d.daysLeft == 1) " (mañana)" else " (en ${d.daysLeft} días)" } + "."
+    }
+
     /** The message for [slot], or null when there is nothing worth interrupting the user for. */
-    fun write(slot: NudgeSlot, habits: List<PendingHabit>, tasks: List<PendingTask>, doneHabits: Int, totalHabits: Int, seed: Int): Nudge? {
+    fun write(slot: NudgeSlot, habits: List<PendingHabit>, tasks: List<PendingTask>, doneHabits: Int, totalHabits: Int, seed: Int, deadlines: List<Deadline> = emptyList()): Nudge? {
         val question = pick(QUESTIONS, seed + slot.ordinal)
-        val taskLine = tasksLine(tasks)
+        // Deadlines come up the morning they are due (as today's tasks) and, ahead of time, in the
+        // morning and evening check-ins of the days before.
+        val dueLine = if (slot == NudgeSlot.MORNING || slot == NudgeSlot.EVENING) deadlinesLine(deadlines) else null
+        val taskLine = listOfNotNull(tasksLine(tasks), dueLine).joinToString(" ").ifEmpty { null }
         // The one that matters most now: a key day first (twice in a row is what breaks a habit), then the longest streak.
         val first = habits.sortedWith(compareByDescending<PendingHabit> { it.keyDay }.thenByDescending { it.streak }).firstOrNull()
         if (first == null) {
@@ -208,7 +221,9 @@ object Nudges {
             PendingHabit(item.habitId, item.name, item.anchor, item.tinyVersion, item.isKeyDay, h?.let { NudgeWriter.streak({ d -> isDone(it, d) }) } ?: 0)
         }
         val tasks = summary.tasks.filter { !it.isDone }.map { PendingTask(it.title, it.minuteOfDay, it.isOverdue) }
-        val nudge = NudgeWriter.write(slot, habits, tasks, summary.items.count { it.isDone }, summary.items.size, (today.daysSince2000 * 7 + slot.ordinal)) ?: return
+        val deadlines = TaskRepository(component.db).findPending().filter { it.day.daysSince2000 > today.daysSince2000 }
+            .map { Deadline(it.title, it.day.daysSince2000 - today.daysSince2000) }
+        val nudge = NudgeWriter.write(slot, habits, tasks, summary.items.count { it.isDone }, summary.items.size, (today.daysSince2000 * 7 + slot.ordinal), deadlines) ?: return
         show(context, nudge)
     }
 

@@ -83,7 +83,7 @@ import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 
-private enum class FinTab { RESUMEN, MOVIMIENTOS, PRESUPUESTOS }
+private enum class FinTab { RESUMEN, MOVIMIENTOS, AHORRO, PRESUPUESTOS }
 
 /** Colors for the categories, in the night palette; repeated past ten. */
 private val CATEGORY_COLORS = listOf(
@@ -96,28 +96,43 @@ private fun colorOf(category: String): Color {
     return CATEGORY_COLORS[i % CATEGORY_COLORS.size]
 }
 
+/** Everything the screen shows, loaded together off the main thread. */
+private class FinView(
+    val summary: PeriodSummary,
+    val movements: List<Movement>,
+    val month: MonthSummary,
+    val savings: List<Pair<YearMonth, Long>>,
+    val goals: List<SavingsGoal>,
+    val projection: Long?
+)
+
 /**
  * Finanzas: every expense and income, told to Dexter ("gasté 12 en almuerzo") or added here, sorted
- * by category. Three tabs: the month at a glance with a ring by category, the movements by day, and
- * the monthly budgets. Picks up what Dexter adds while it is open.
+ * by category, for a day, a week, a month or a year. Four tabs: the period at a glance, its
+ * movements, savings (what was kept each month and the goals being saved for) and the monthly
+ * budgets. Picks up what Dexter adds while it is open.
  */
 @Composable
 fun FinanzasScreen(store: FinanceStore, openMenu: () -> Unit) {
     val c = Ancla.colors
     val scope = rememberCoroutineScope()
     var tab by rememberSaveable { mutableStateOf(FinTab.RESUMEN) }
-    var month by remember { mutableStateOf(YearMonth.now()) }
-    var summary by remember { mutableStateOf<MonthSummary?>(null) }
-    var movements by remember { mutableStateOf(emptyList<Movement>()) }
+    var period by rememberSaveable { mutableStateOf(Period.MONTH) }
+    var anchor by remember { mutableStateOf(LocalDate.now()) }
+    var view by remember { mutableStateOf<FinView?>(null) }
     suspend fun reload() {
         withContext(Dispatchers.IO) {
-            runCatching { store.summary(month) to store.movements(month) }.getOrNull()
-        }?.let { (s, m) ->
-            summary = s
-            movements = m
-        }
+            runCatching {
+                val range = period.range(anchor)
+                FinView(
+                    store.summary(period, anchor), store.movements(range), store.summary(YearMonth.from(anchor)),
+                    store.monthlySavings(6, YearMonth.from(anchor)), store.goals(),
+                    if (YearMonth.from(anchor) == YearMonth.now()) store.monthProjection() else null
+                )
+            }.getOrNull()
+        }?.let { view = it }
     }
-    LaunchedEffect(month) {
+    LaunchedEffect(period, anchor) {
         // Dexter may add movements while this is open: reload only when the store says they changed.
         var seen = Long.MIN_VALUE
         while (true) {
@@ -132,6 +147,8 @@ fun FinanzasScreen(store: FinanceStore, openMenu: () -> Unit) {
     var editing by remember { mutableStateOf<Movement?>(null) }
     var adding by remember { mutableStateOf(false) }
     var budgetFor by remember { mutableStateOf<String?>(null) }
+    var newGoal by remember { mutableStateOf(false) }
+    var goalFor by remember { mutableStateOf<SavingsGoal?>(null) }
 
     Box(Modifier.fillMaxSize()) {
         Column(
@@ -141,24 +158,34 @@ fun FinanzasScreen(store: FinanceStore, openMenu: () -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.weight(1f)) { PlaceHeader(R.string.fin_caption, R.string.nav_finanzas, openMenu) }
                 Text(
-                    stringResource(R.string.fin_add), style = MaterialTheme.typography.labelLarge, color = c.onInk,
-                    modifier = Modifier.clip(CircleShape).background(c.lilac).combinedClickableCompat(Role.Button, { adding = true }).padding(horizontal = 16.dp, vertical = 11.dp)
+                    stringResource(if (tab == FinTab.AHORRO) R.string.fin_goal_add else R.string.fin_add), style = MaterialTheme.typography.labelLarge, color = c.onInk,
+                    modifier = Modifier.clip(CircleShape).background(c.lilac)
+                        .combinedClickableCompat(Role.Button, { if (tab == FinTab.AHORRO) newGoal = true else adding = true }).padding(horizontal = 16.dp, vertical = 11.dp)
                 )
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
                 Chip(stringResource(R.string.fin_tab_summary), tab == FinTab.RESUMEN) { tab = FinTab.RESUMEN }
                 Chip(stringResource(R.string.fin_tab_movements), tab == FinTab.MOVIMIENTOS) { tab = FinTab.MOVIMIENTOS }
+                Chip(stringResource(R.string.fin_tab_savings), tab == FinTab.AHORRO) { tab = FinTab.AHORRO }
                 Chip(stringResource(R.string.fin_tab_budgets), tab == FinTab.PRESUPUESTOS) { tab = FinTab.PRESUPUESTOS }
             }
-            MonthPicker(month, onChange = { month = it })
-            val s = summary
-            when (tab) {
-                FinTab.RESUMEN -> if (s != null) Overview(s) { budgetFor = it }
-                FinTab.MOVIMIENTOS -> MovementList(movements) { editing = it }
-                FinTab.PRESUPUESTOS -> if (s != null) Budgets(s) { budgetFor = it }
+            // Savings and budgets are monthly; the summary and the movements take any period.
+            val periodic = tab == FinTab.RESUMEN || tab == FinTab.MOVIMIENTOS
+            if (periodic) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Period.entries.forEach { p -> SmallChip(stringResource(periodName(p)), period == p) { period = p } }
+                }
+            }
+            PeriodPicker(if (periodic) period else Period.MONTH, anchor) { anchor = it }
+            val v = view
+            if (v != null) when (tab) {
+                FinTab.RESUMEN -> Overview(v.summary, if (period == Period.MONTH) v.month.budgets else emptyMap(), if (period == Period.MONTH) v.projection else null) { budgetFor = it }
+                FinTab.MOVIMIENTOS -> MovementList(v.movements) { editing = it }
+                FinTab.AHORRO -> Savings(v.savings, v.goals) { goalFor = it }
+                FinTab.PRESUPUESTOS -> Budgets(v.month) { budgetFor = it }
             }
             Text(
-                stringResource(R.string.fin_hint), style = MaterialTheme.typography.bodyMedium, color = c.inkSoft,
+                stringResource(if (tab == FinTab.AHORRO) R.string.fin_savings_hint else R.string.fin_hint), style = MaterialTheme.typography.bodyMedium, color = c.inkSoft,
                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.card).padding(14.dp)
             )
         }
@@ -191,7 +218,7 @@ fun FinanzasScreen(store: FinanceStore, openMenu: () -> Unit) {
         )
     }
     budgetFor?.let { category ->
-        BudgetSheet(category, summary?.budgets?.get(category), onDismiss = { budgetFor = null }) { cents ->
+        BudgetSheet(category, view?.month?.budgets?.get(category), onDismiss = { budgetFor = null }) { cents ->
             scope.launch {
                 withContext(Dispatchers.IO) { runCatching { store.setBudget(category, cents) } }
                 reload()
@@ -199,6 +226,37 @@ fun FinanzasScreen(store: FinanceStore, openMenu: () -> Unit) {
             budgetFor = null
         }
     }
+    if (newGoal) {
+        GoalSheet(onDismiss = { newGoal = false }) { name, cents, by ->
+            scope.launch {
+                withContext(Dispatchers.IO) { runCatching { store.addGoal(name, cents, by) } }
+                reload()
+            }
+            newGoal = false
+        }
+    }
+    goalFor?.let { goal ->
+        ContributeSheet(goal, onDismiss = { goalFor = null }, onRemove = {
+            scope.launch {
+                withContext(Dispatchers.IO) { runCatching { store.removeGoal(goal.name) } }
+                reload()
+            }
+            goalFor = null
+        }) { cents ->
+            scope.launch {
+                withContext(Dispatchers.IO) { runCatching { store.contribute(goal.name, cents) } }
+                reload()
+            }
+            goalFor = null
+        }
+    }
+}
+
+private fun periodName(p: Period) = when (p) {
+    Period.DAY -> R.string.fin_period_day
+    Period.WEEK -> R.string.fin_period_week
+    Period.MONTH -> R.string.fin_period_month
+    Period.YEAR -> R.string.fin_period_year
 }
 
 @Composable
@@ -211,23 +269,44 @@ private fun Chip(label: String, on: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun MonthPicker(month: YearMonth, onChange: (YearMonth) -> Unit) {
+private fun SmallChip(label: String, on: Boolean, onClick: () -> Unit) {
     val c = Ancla.colors
-    val name = month.month.getDisplayName(TextStyle.FULL, Locale.getDefault()).replaceFirstChar { it.uppercase() } + " " + month.year
+    Text(
+        label, style = MaterialTheme.typography.labelMedium, color = if (on) c.onInk else c.inkSoft,
+        modifier = Modifier.clip(CircleShape).background(if (on) c.amber else c.cardMuted).combinedClickableCompat(Role.Tab, onClick).padding(horizontal = 14.dp, vertical = 7.dp)
+    )
+}
+
+/** "Hoy", "Semana del 19 oct", "Octubre 2026", "2026", with arrows to move one period back or forward. */
+@Composable
+private fun PeriodPicker(period: Period, anchor: LocalDate, onChange: (LocalDate) -> Unit) {
+    val c = Ancla.colors
+    val today = LocalDate.now()
+    val range = period.range(anchor)
+    val name = when (period) {
+        Period.DAY -> when (anchor) {
+            today -> stringResource(R.string.fin_today)
+            today.minusDays(1) -> stringResource(R.string.fin_yesterday)
+            else -> anchor.format(DateTimeFormatter.ofPattern("EEEE d MMM", Locale.getDefault())).replaceFirstChar { it.uppercase() }
+        }
+        Period.WEEK -> stringResource(R.string.fin_week_of, range.start.format(DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())))
+        Period.MONTH -> anchor.month.getDisplayName(TextStyle.FULL, Locale.getDefault()).replaceFirstChar { it.uppercase() } + " " + anchor.year
+        Period.YEAR -> anchor.year.toString()
+    }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("‹", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.clip(CircleShape).combinedClickableCompat(Role.Button, { onChange(month.minusMonths(1)) }).padding(horizontal = 14.dp, vertical = 2.dp))
+        Text("‹", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.clip(CircleShape).combinedClickableCompat(Role.Button, { onChange(period.shift(anchor, -1)) }).padding(horizontal = 14.dp, vertical = 2.dp))
         Text(name, style = MaterialTheme.typography.titleLarge, color = c.ink)
-        if (month < YearMonth.now()) {
-            Text("›", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.clip(CircleShape).combinedClickableCompat(Role.Button, { onChange(month.plusMonths(1)) }).padding(horizontal = 14.dp, vertical = 2.dp))
+        if (range.endInclusive < today) {
+            Text("›", style = MaterialTheme.typography.headlineSmall, color = c.ink, modifier = Modifier.clip(CircleShape).combinedClickableCompat(Role.Button, { onChange(minOf(period.shift(anchor, 1), today)) }).padding(horizontal = 14.dp, vertical = 2.dp))
         }
     }
 }
 
 @Composable
-private fun Overview(s: MonthSummary, onBudget: (String) -> Unit) {
+private fun Overview(s: PeriodSummary, budgets: Map<String, Long>, projection: Long?, onBudget: (String) -> Unit) {
     val c = Ancla.colors
-    val grow = remember(s.month) { Animatable(0f) }
-    LaunchedEffect(s.month) { grow.animateTo(1f, tween(900, easing = FastOutSlowInEasing)) }
+    val grow = remember(s.from, s.period) { Animatable(0f) }
+    LaunchedEffect(s.from, s.period) { grow.animateTo(1f, tween(900, easing = FastOutSlowInEasing)) }
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(26.dp)).background(c.card).padding(18.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp)
@@ -257,15 +336,89 @@ private fun Overview(s: MonthSummary, onBudget: (String) -> Unit) {
                 Text(FinanceStore.money(s.incomeCents), style = MaterialTheme.typography.titleLarge, color = c.mint)
             }
             Column {
-                Text(stringResource(R.string.fin_balance), style = MaterialTheme.typography.labelSmall, color = c.muted)
-                Text(FinanceStore.money(s.balanceCents), style = MaterialTheme.typography.titleLarge, color = if (s.balanceCents >= 0) c.amber else Color(0xFFFF7AA8))
+                Text(stringResource(R.string.fin_saved), style = MaterialTheme.typography.labelSmall, color = c.muted)
+                Text(FinanceStore.money(s.savedCents), style = MaterialTheme.typography.titleLarge, color = if (s.savedCents >= 0) c.amber else Color(0xFFFF7AA8))
+                s.savingsRate?.let { Text(stringResource(R.string.fin_savings_rate, it), style = MaterialTheme.typography.labelSmall, color = c.muted) }
             }
         }
+    }
+    // Days and weeks are short: an average per day says more than the total.
+    val days = (java.time.temporal.ChronoUnit.DAYS.between(s.from, minOf(s.to, LocalDate.now())) + 1).coerceAtLeast(1)
+    if (s.period != Period.DAY && s.spentCents > 0) {
+        Text(
+            stringResource(R.string.fin_per_day, FinanceStore.money(s.spentCents / days)), style = MaterialTheme.typography.bodyMedium, color = c.inkSoft,
+            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.card).padding(14.dp)
+        )
+    }
+    projection?.let {
+        Text(
+            stringResource(R.string.fin_projection, FinanceStore.money(it)), style = MaterialTheme.typography.bodyMedium, color = c.inkSoft,
+            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.card).padding(14.dp)
+        )
     }
     if (s.byCategory.isEmpty()) {
         Text(stringResource(R.string.fin_empty), style = MaterialTheme.typography.bodyLarge, color = c.muted)
     }
-    s.byCategory.forEach { (cat, cents) -> CategoryRow(cat, cents, s.budgets[cat], s.spentCents) { onBudget(cat) } }
+    s.byCategory.forEach { (cat, cents) -> CategoryRow(cat, cents, budgets[cat], s.spentCents) { onBudget(cat) } }
+}
+
+/** What was kept each of the last six months, as bars, and the goals being saved for. */
+@Composable
+private fun Savings(savings: List<Pair<YearMonth, Long>>, goals: List<SavingsGoal>, onGoal: (SavingsGoal) -> Unit) {
+    val c = Ancla.colors
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(26.dp)).background(c.card).padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text(stringResource(R.string.fin_savings_months), style = MaterialTheme.typography.titleMedium, color = c.ink)
+        val top = savings.maxOfOrNull { kotlin.math.abs(it.second) }?.coerceAtLeast(1) ?: 1
+        Row(Modifier.fillMaxWidth().height(150.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Bottom) {
+            savings.forEach { (month, cents) ->
+                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(shortMoney(cents), style = MaterialTheme.typography.labelSmall, color = if (cents >= 0) c.amber else Color(0xFFFF7AA8), maxLines = 1)
+                    Box(
+                        Modifier.fillMaxWidth().height((100f * kotlin.math.abs(cents) / top).coerceAtLeast(3f).dp)
+                            .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp)).background(if (cents >= 0) c.amber else Color(0xFFFF7AA8))
+                    )
+                    Text(month.month.getDisplayName(TextStyle.SHORT, Locale.getDefault()), style = MaterialTheme.typography.labelSmall, color = c.muted, maxLines = 1)
+                }
+            }
+        }
+        val kept = savings.map { it.second }
+        Text(
+            stringResource(R.string.fin_savings_average, FinanceStore.money(kept.sum() / kept.size.coerceAtLeast(1))),
+            style = MaterialTheme.typography.bodyMedium, color = c.inkSoft
+        )
+    }
+    Text(stringResource(R.string.fin_goals), style = MaterialTheme.typography.titleMedium, color = c.ink, modifier = Modifier.padding(top = 4.dp))
+    if (goals.isEmpty()) Text(stringResource(R.string.fin_goals_empty), style = MaterialTheme.typography.bodyMedium, color = c.muted)
+    goals.forEach { g ->
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(c.card).combinedClickableCompat(Role.Button, { onGoal(g) }).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(if (g.done) "🏆 " + g.name else g.name, style = MaterialTheme.typography.titleMedium, color = c.ink, modifier = Modifier.weight(1f))
+                Text("${(g.progress * 100).toInt()} %", style = MaterialTheme.typography.titleMedium, color = if (g.done) c.mint else c.amber)
+            }
+            Box(Modifier.fillMaxWidth().height(10.dp).clip(CircleShape).background(c.track)) {
+                Box(Modifier.fillMaxWidth(g.progress.coerceAtLeast(0.02f)).height(10.dp).clip(CircleShape).background(if (g.done) c.mint else c.amber))
+            }
+            Text(
+                FinanceStore.money(g.savedCents) + " / " + FinanceStore.money(g.targetCents) +
+                    (g.by?.let { " · " + it.month.getDisplayName(TextStyle.SHORT, Locale.getDefault()) + " " + it.year } ?: ""),
+                style = MaterialTheme.typography.labelMedium, color = c.muted
+            )
+            g.monthlyNeeded()?.let { Text(stringResource(R.string.fin_goal_monthly, FinanceStore.money(it)), style = MaterialTheme.typography.labelMedium, color = c.lilacInk) }
+        }
+    }
+}
+
+/** "$1.2k", "-$80": short enough for a bar's label. */
+private fun shortMoney(cents: Long): String {
+    val sign = if (cents < 0) "-" else ""
+    val d = kotlin.math.abs(cents) / 100
+    return sign + "$" + if (d >= 1000) String.format(Locale.US, "%.1fk", d / 1000.0) else d.toString()
 }
 
 @Composable
@@ -444,6 +597,89 @@ private fun BudgetSheet(category: String, current: Long?, onDismiss: () -> Unit,
                         modifier = Modifier.clip(CircleShape).background(c.ground).combinedClickableCompat(Role.Button, { onSave(0L) }).padding(horizontal = 16.dp, vertical = 12.dp)
                     )
                 }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun GoalSheet(onDismiss: () -> Unit, onSave: (name: String, cents: Long, by: YearMonth?) -> Unit) {
+    val c = Ancla.colors
+    var name by remember { mutableStateOf("") }
+    var amount by remember { mutableStateOf("") }
+    var months by remember { mutableStateOf<Long?>(6) }
+    val cents = FinanceStore.parseAmount(amount)
+    val fieldColors = OutlinedTextFieldDefaults.colors(
+        focusedBorderColor = c.lilac, unfocusedBorderColor = c.track, focusedLabelColor = c.lilacInk,
+        cursorColor = c.lilac, focusedTextColor = c.ink, unfocusedTextColor = c.ink
+    )
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = c.card) {
+        Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 20.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Text(stringResource(R.string.fin_goal_new), style = MaterialTheme.typography.headlineSmall, color = c.ink)
+            OutlinedTextField(
+                value = name, onValueChange = { name = it }, singleLine = true,
+                label = { Text(stringResource(R.string.fin_goal_name)) }, placeholder = { Text(stringResource(R.string.fin_goal_name_hint)) },
+                shape = RoundedCornerShape(16.dp), colors = fieldColors, textStyle = MaterialTheme.typography.bodyLarge, modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = amount, onValueChange = { amount = it }, singleLine = true,
+                label = { Text(stringResource(R.string.fin_goal_target)) }, prefix = { Text("$") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                shape = RoundedCornerShape(16.dp), colors = fieldColors, textStyle = MaterialTheme.typography.headlineSmall, modifier = Modifier.fillMaxWidth()
+            )
+            Text(stringResource(R.string.fin_goal_by), style = MaterialTheme.typography.labelLarge, color = c.muted)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
+                listOf(3L, 6L, 12L, 24L).forEach { m -> Chip(stringResource(R.string.fin_goal_months, m.toInt()), months == m) { months = m } }
+                Chip(stringResource(R.string.fin_goal_no_date), months == null) { months = null }
+            }
+            Text(
+                stringResource(R.string.fin_save), style = MaterialTheme.typography.labelLarge, color = c.onInk,
+                modifier = Modifier.clip(CircleShape).background(if (cents == null || name.isBlank()) c.track else c.lilac)
+                    .combinedClickableCompat(Role.Button, { if (cents != null && name.isNotBlank()) onSave(name, cents, months?.let { YearMonth.now().plusMonths(it) }) })
+                    .padding(horizontal = 22.dp, vertical = 12.dp)
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ContributeSheet(goal: SavingsGoal, onDismiss: () -> Unit, onRemove: () -> Unit, onSave: (Long) -> Unit) {
+    val c = Ancla.colors
+    var amount by remember { mutableStateOf("") }
+    var confirmDelete by remember { mutableStateOf(false) }
+    val cents = FinanceStore.parseAmount(amount)
+    val fieldColors = OutlinedTextFieldDefaults.colors(
+        focusedBorderColor = c.lilac, unfocusedBorderColor = c.track, focusedLabelColor = c.lilacInk,
+        cursorColor = c.lilac, focusedTextColor = c.ink, unfocusedTextColor = c.ink
+    )
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = c.card) {
+        Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 20.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Text(goal.name, style = MaterialTheme.typography.headlineSmall, color = c.ink)
+            Text(FinanceStore.money(goal.savedCents) + " / " + FinanceStore.money(goal.targetCents), style = MaterialTheme.typography.titleMedium, color = c.amber)
+            OutlinedTextField(
+                value = amount, onValueChange = { amount = it }, singleLine = true,
+                label = { Text(stringResource(R.string.fin_goal_amount)) }, prefix = { Text("$") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                shape = RoundedCornerShape(16.dp), colors = fieldColors, textStyle = MaterialTheme.typography.headlineSmall, modifier = Modifier.fillMaxWidth()
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    stringResource(R.string.fin_goal_put), style = MaterialTheme.typography.labelLarge, color = c.onInk,
+                    modifier = Modifier.clip(CircleShape).background(if (cents == null) c.track else c.amber)
+                        .combinedClickableCompat(Role.Button, { cents?.let(onSave) }).padding(horizontal = 20.dp, vertical = 12.dp)
+                )
+                Text(
+                    stringResource(R.string.fin_goal_take), style = MaterialTheme.typography.labelLarge, color = c.ink,
+                    modifier = Modifier.clip(CircleShape).background(c.ground)
+                        .combinedClickableCompat(Role.Button, { cents?.let { onSave(-it) } }).padding(horizontal = 16.dp, vertical = 12.dp)
+                )
+                Text(
+                    stringResource(if (confirmDelete) R.string.camino_delete_confirm else R.string.camino_delete), style = MaterialTheme.typography.labelLarge, color = c.amberInk,
+                    modifier = Modifier.clip(CircleShape).background(c.ground).combinedClickableCompat(Role.Button, { if (confirmDelete) onRemove() else confirmDelete = true })
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                )
             }
         }
     }

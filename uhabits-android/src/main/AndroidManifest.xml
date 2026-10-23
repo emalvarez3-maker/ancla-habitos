@@ -28,6 +28,7 @@
     <!-- Asks once to lift battery limits, so the "Hey Dexter" microphone service isn't stopped. -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.SET_WALLPAPER" />
     <!-- Dexter's card over other apps while you talk to it with "Oye Dexter" (never over the lock screen). -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.INTERNET" />
@@ -153,6 +154,14 @@
             android:name=".ancla.mail.MailActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name=".ancla.ReminderAlarmActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTop"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true" />
 
         <activity
             android:name=".ancla.consciousness.MeditationActivity"

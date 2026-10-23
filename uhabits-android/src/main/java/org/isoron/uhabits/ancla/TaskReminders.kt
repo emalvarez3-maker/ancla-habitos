@@ -111,6 +111,26 @@ object TaskReminders {
         repo.findUpcomingReminders(getToday()).forEach { sync(context, it) }
     }
 
+    /** "Hecho": the task is done, its reminder and notification go. */
+    fun markDone(context: Context, taskId: Long) {
+        val component = (context.applicationContext as HabitsApplication).component
+        val repo = TaskRepository(component.db)
+        val task = repo.findById(taskId) ?: return
+        repo.update(task.copy(isDone = true))
+        cancel(context, taskId)
+        component.widgetUpdater.updateWidgets()
+    }
+
+    /** "En 10 min": the same reminder again, [minutes] from now. */
+    fun snooze(context: Context, taskId: Long, minutes: Int) {
+        val at = System.currentTimeMillis() + minutes * 60_000L
+        val show = PendingIntent.getActivity(
+            context, notificationId(taskId), Intent(context, TodayActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), PendingIntent.FLAG_IMMUTABLE
+        )
+        runCatching { context.getSystemService(AlarmManager::class.java).setAlarmClock(AlarmManager.AlarmClockInfo(at, show), pending(context, ACTION_SHOW, taskId)) }
+        NotificationManagerCompat.from(context).cancel(notificationId(taskId))
+    }
+
     private fun notificationId(taskId: Long) = 0x7A5C0000 + (taskId % 0xFFFF).toInt()
 
     private fun ensureChannel(context: Context) {
@@ -140,6 +160,12 @@ object TaskReminders {
             Intent(context, TodayActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
+        val alarmScreen = PendingIntent.getActivity(
+            context, notificationId(id) + 1, ReminderAlarmActivity.intent(context, id), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        // With the phone in use the full-screen intent only shows a banner: the alarm opens anyway
+        // (allowed by "Display over other apps"), so a reminder is never just a quiet notification.
+        runCatching { context.startActivity(ReminderAlarmActivity.intent(context, id)) }
         val text = task.notes.ifBlank { context.getString(R.string.task_notification_text) }
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
@@ -149,8 +175,8 @@ object TaskReminders {
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setContentIntent(open)
-            // With the screen off, it lights the screen up like an alarm instead of waiting to be seen.
-            .setFullScreenIntent(open, true)
+            // With the screen off, it lights the screen up and rings like an alarm clock.
+            .setFullScreenIntent(alarmScreen, true)
             .setAutoCancel(true)
             .addAction(0, context.getString(R.string.task_action_done), pending(context, ACTION_DONE, id))
             .build()

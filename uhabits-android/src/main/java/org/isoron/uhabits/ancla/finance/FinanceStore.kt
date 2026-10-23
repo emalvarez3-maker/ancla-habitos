@@ -54,6 +54,67 @@ data class MonthSummary(
     val balanceCents get() = incomeCents - spentCents
 }
 
+/** How long a stretch of money is looked at: one day, a week (from Monday), a month or a year. */
+enum class Period(val label: String) {
+    DAY("Día"), WEEK("Semana"), MONTH("Mes"), YEAR("Año");
+
+    /** The stretch of this kind that contains [day], first and last day included. */
+    fun range(day: LocalDate): ClosedRange<LocalDate> = when (this) {
+        DAY -> day..day
+        WEEK -> day.with(java.time.DayOfWeek.MONDAY).let { it..it.plusDays(6) }
+        MONTH -> day.withDayOfMonth(1).let { it..it.plusMonths(1).minusDays(1) }
+        YEAR -> day.withDayOfYear(1).let { it..it.plusYears(1).minusDays(1) }
+    }
+
+    /** The same stretch, [n] steps later (or earlier, with a negative [n]). */
+    fun shift(day: LocalDate, n: Long): LocalDate = when (this) {
+        DAY -> day.plusDays(n)
+        WEEK -> day.plusWeeks(n)
+        MONTH -> day.plusMonths(n)
+        YEAR -> day.plusYears(n)
+    }
+
+    companion object {
+        fun of(name: String?): Period = when (FinanceStore.normalize(name.orEmpty())) {
+            "day", "dia", "hoy" -> DAY
+            "week", "semana" -> WEEK
+            "year", "ano", "anual" -> YEAR
+            else -> MONTH
+        }
+    }
+}
+
+/** Any stretch of time at a glance: what came in, what went out, where it went and what was saved. */
+data class PeriodSummary(
+    val period: Period,
+    val from: LocalDate,
+    val to: LocalDate,
+    val spentCents: Long,
+    val incomeCents: Long,
+    val byCategory: List<Pair<String, Long>>
+) {
+    /** What was left: income minus spending (negative when more went out than came in). */
+    val savedCents get() = incomeCents - spentCents
+
+    /** The share of income that was kept, 0 to 100 (null with no income). */
+    val savingsRate get() = if (incomeCents > 0) (savedCents * 100 / incomeCents).toInt() else null
+}
+
+/** Something the user is saving for: how much, how much is already set aside, and by when. */
+data class SavingsGoal(val id: String, val name: String, val targetCents: Long, val savedCents: Long, val by: YearMonth?) {
+    val done get() = savedCents >= targetCents
+    val progress get() = (savedCents.toFloat() / targetCents.coerceAtLeast(1)).coerceIn(0f, 1f)
+
+    /** What to set aside each month from [now] to reach it in time (null without a date, or when done). */
+    fun monthlyNeeded(now: YearMonth = YearMonth.now()): Long? {
+        val end = by ?: return null
+        if (done) return null
+        val months = (java.time.temporal.ChronoUnit.MONTHS.between(now, end) + 1).coerceAtLeast(1)
+        val left = targetCents - savedCents
+        return (left + months - 1) / months
+    }
+}
+
 /**
  * Dexter's money manager: every expense and income the user tells Dexter or types in, sorted into
  * categories, with monthly budgets per category. Kept encrypted on the phone like notes and goals.
@@ -131,9 +192,79 @@ class FinanceStore(private val file: File) {
         )
     }
 
+    /** Any day, week, month or year: the one of [period] that contains [day]. */
+    fun summary(period: Period, day: LocalDate = LocalDate.now()): PeriodSummary {
+        val range = period.range(day)
+        val list = movements().filter { it.day in range }
+        val spent = list.filter { !it.income }
+        return PeriodSummary(
+            period, range.start, range.endInclusive,
+            spent.sumOf { it.cents },
+            list.filter { it.income }.sumOf { it.cents },
+            spent.groupBy { it.category }.map { (k, v) -> k to v.sumOf { it.cents } }.sortedByDescending { it.second }
+        )
+    }
+
+    fun movements(range: ClosedRange<LocalDate>): List<Movement> = movements().filter { it.day in range }
+
+    /** What was saved each of the last [months] months, oldest first (income minus spending). */
+    fun monthlySavings(months: Int = 6, until: YearMonth = YearMonth.now()): List<Pair<YearMonth, Long>> {
+        val all = movements()
+        return (months - 1 downTo 0).map { back ->
+            val m = until.minusMonths(back.toLong())
+            m to all.filter { YearMonth.from(it.day) == m }.sumOf { if (it.income) it.cents else -it.cents }
+        }
+    }
+
+    /**
+     * At this month's pace, what will have been spent by its end ([today] counted as a full day).
+     * Null early in the month, when the pace says little.
+     */
+    fun monthProjection(today: LocalDate = LocalDate.now()): Long? {
+        if (today.dayOfMonth < 5) return null
+        val spent = summary(Period.MONTH, today).spentCents
+        return spent * today.lengthOfMonth() / today.dayOfMonth
+    }
+
+    // --- Savings goals ---
+
+    fun goals(): List<SavingsGoal> = synchronized(LOCK) { load().goals }
+
+    /** A new goal ("un viaje a Galápagos, $1.200, para diciembre"). */
+    fun addGoal(name: String, targetCents: Long, by: YearMonth? = null): SavingsGoal = synchronized(LOCK) {
+        val clean = name.trim().take(80)
+        require(clean.isNotEmpty()) { "¿Para qué es el ahorro?" }
+        require(targetCents in 1..MAX_CENTS) { "La meta necesita un monto" }
+        val data = load()
+        val g = SavingsGoal(UUID.randomUUID().toString(), clean.replaceFirstChar { it.uppercase() }, targetCents, 0, by)
+        save(data.copy(goals = data.goals + g))
+        g
+    }
+
+    /** Sets [cents] aside for the goal named [name] (negative takes it back out). */
+    fun contribute(name: String, cents: Long): SavingsGoal? = synchronized(LOCK) {
+        val data = load()
+        val g = findGoal(data.goals, name) ?: return@synchronized null
+        val updated = g.copy(savedCents = (g.savedCents + cents).coerceIn(0, MAX_CENTS))
+        save(data.copy(goals = data.goals.map { if (it.id == g.id) updated else it }))
+        updated
+    }
+
+    fun removeGoal(name: String): SavingsGoal? = synchronized(LOCK) {
+        val data = load()
+        val g = findGoal(data.goals, name) ?: return@synchronized null
+        save(data.copy(goals = data.goals.filter { it.id != g.id }))
+        g
+    }
+
+    private fun findGoal(goals: List<SavingsGoal>, name: String): SavingsGoal? {
+        val k = normalize(name)
+        return goals.firstOrNull { normalize(it.name) == k } ?: goals.firstOrNull { normalize(it.name).contains(k) || k.contains(normalize(it.name)) }
+    }
+
     // --- Storage ---
 
-    private data class Data(val movements: List<Movement>, val budgets: Map<String, Long>)
+    private data class Data(val movements: List<Movement>, val budgets: Map<String, Long>, val goals: List<SavingsGoal> = emptyList())
 
     /** Changes whenever the movements or budgets may have changed; cheap, for the Finanzas screen's poll. */
     fun version(): Long = synchronized(LOCK) { StoreCache.version(file, ::parse) }
@@ -152,7 +283,14 @@ class FinanceStore(private val file: File) {
         }
         val b = json.optJSONObject("budgets") ?: JSONObject()
         val budgets = b.keys().asSequence().associateWith { b.getLong(it) }
-        return Data(movements, budgets)
+        val g = json.optJSONArray("goals") ?: JSONArray()
+        val goals = (0 until g.length()).map { g.getJSONObject(it) }.map {
+            SavingsGoal(
+                it.getString("id"), it.getString("name"), it.getLong("target"), it.optLong("saved"),
+                it.optString("by").takeIf { s -> s.isNotEmpty() }?.let { s -> YearMonth.parse(s) }
+            )
+        }
+        return Data(movements, budgets, goals)
     }
 
     private fun save(data: Data) {
@@ -167,8 +305,12 @@ class FinanceStore(private val file: File) {
                 )
             )
             .put("budgets", JSONObject(data.budgets))
+            .put(
+                "goals",
+                JSONArray(data.goals.map { JSONObject().put("id", it.id).put("name", it.name).put("target", it.targetCents).put("saved", it.savedCents).put("by", it.by?.toString() ?: "") })
+            )
         EncryptedStore.writeText(file, json.toString())
-        StoreCache.wrote(file, Data(data.movements.toList(), data.budgets.toMap()))
+        StoreCache.wrote(file, Data(data.movements.toList(), data.budgets.toMap(), data.goals.toList()))
     }
 
     companion object {

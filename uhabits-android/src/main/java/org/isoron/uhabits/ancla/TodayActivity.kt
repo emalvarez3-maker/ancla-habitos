@@ -85,7 +85,9 @@ class TodayActivity : AppCompatActivity(), CommandRunner.Listener {
                             voice = voice,
                             onAssistant = ::openAssistant
                         )
-                        Space.CAMINO -> CaminoScreen(goals, openMenu, ::openAssistant)
+                        Space.CAMINO -> CaminoScreen(goals, openMenu, ::openAssistant) { prompt ->
+                            startActivity(org.isoron.uhabits.ancla.assistant.AssistantActivity.intent(this).putExtra(org.isoron.uhabits.ancla.assistant.AssistantActivity.EXTRA_PROMPT, prompt))
+                        }
                         Space.FINANZAS -> org.isoron.uhabits.ancla.finance.FinanzasScreen(money, openMenu)
                         Space.APRENDER -> AprenderScreen(openMenu, ::openBranch)
                         Space.CONSCIENCIA -> org.isoron.uhabits.ancla.consciousness.ConscienciaScreen(consciousness, openMenu, ::openAssistant)

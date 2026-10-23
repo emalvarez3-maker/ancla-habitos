@@ -88,4 +88,16 @@ class NudgeWriterTest {
         assertEquals(0, NudgeWriter.streak({ false }))
         assertEquals(10, NudgeWriter.streak({ true }, max = 10))
     }
+
+    @Test
+    fun deadlinesComeUpAheadOfTime() {
+        val due = listOf(Deadline("Informe de física", 1), Deadline("Matrícula", 3), Deadline("Viaje", 10))
+        assertEquals("Fechas límite: Informe de física (mañana), Matrícula (en 3 días).", NudgeWriter.deadlinesLine(due))
+        assertNull("nothing in the next three days", NudgeWriter.deadlinesLine(listOf(Deadline("Viaje", 10))))
+        val morning = NudgeWriter.write(NudgeSlot.MORNING, emptyList(), emptyList(), 0, 0, 0, due)!!
+        assertTrue(morning.text, morning.text.contains("Informe de física (mañana)"))
+        val evening = NudgeWriter.write(NudgeSlot.EVENING, listOf(workout), emptyList(), 0, 1, 0, due)!!
+        assertTrue(evening.text, evening.text.contains("Fechas límite"))
+        assertNull("midday stays quiet about deadlines", NudgeWriter.write(NudgeSlot.MIDDAY, emptyList(), emptyList(), 0, 0, 0, due))
+    }
 }

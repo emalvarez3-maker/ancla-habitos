@@ -277,6 +277,17 @@ class AnclaActions(private val context: Context) : AgentActions {
                 if (t.isOverdue) append(" (atrasada)")
                 appendLine()
             }
+            // Deadlines: what is due in the next two weeks, so Dexter can bring them up in time.
+            val upcoming = tasks.findPending().filter { it.day.daysSince2000 in today.daysSince2000 + 1..today.daysSince2000 + 14 }
+            if (upcoming.isNotEmpty()) {
+                appendLine("Fechas límite próximas:")
+                upcoming.forEach { t ->
+                    val left = t.day.daysSince2000 - today.daysSince2000
+                    append("- ${t.title}: el ${dayText(t.day)} (${if (left == 1) "mañana" else "en $left días"})")
+                    t.minuteOfDay?.let { append(" a las %02d:%02d".format(it / 60, it % 60)) }
+                    appendLine()
+                }
+            }
         }
     }
 
@@ -339,6 +350,11 @@ class AnclaActions(private val context: Context) : AgentActions {
     override fun addGoal(title: String, year: Int, note: String?, habit: String?): String {
         val g = goalStore.add(title, year, note.orEmpty(), habit)
         return "Meta en tu Camino: «${g.title}» para ${g.year}" + if (g.habits.isNotEmpty()) ", la alimenta: ${g.habits.joinToString()}" else ""
+    }
+
+    override fun setGoalRoadmap(goal: String, roadmap: String): String {
+        val g = goalStore.update(goal, roadmap = roadmap) ?: return noGoal(goal)
+        return "«${g.title}» está ahora en el roadmap ${g.roadmap}"
     }
 
     override fun updateGoal(title: String, progress: Int?, done: Boolean?, year: Int?, newTitle: String?, habit: String?, remove: Boolean): String {
@@ -423,6 +439,44 @@ class AnclaActions(private val context: Context) : AgentActions {
     override fun financeSummary(month: String?): String {
         val ym = month?.let { runCatching { java.time.YearMonth.parse(it) }.getOrNull() } ?: java.time.YearMonth.now()
         return org.isoron.uhabits.ancla.finance.FinanceStore.describe(money.summary(ym))
+    }
+
+    override fun financePeriod(period: String?, date: String?): String {
+        val fin = org.isoron.uhabits.ancla.finance.FinanceStore
+        val p = org.isoron.uhabits.ancla.finance.Period.of(period)
+        val day = date?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() } ?: java.time.LocalDate.now()
+        val s = money.summary(p, day)
+        val days = (java.time.temporal.ChronoUnit.DAYS.between(s.from, minOf(s.to, java.time.LocalDate.now())) + 1).coerceAtLeast(1)
+        return buildString {
+            appendLine("${p.label} del ${s.from} al ${s.to}: gastado ${fin.money(s.spentCents)}, ingresos ${fin.money(s.incomeCents)}, ahorrado ${fin.money(s.savedCents)}" + (s.savingsRate?.let { " ($it % de los ingresos)" } ?: "") + ".")
+            if (p != org.isoron.uhabits.ancla.finance.Period.DAY && s.spentCents > 0) appendLine("Promedio: ${fin.money(s.spentCents / days)} al día.")
+            s.byCategory.forEach { (cat, cents) -> appendLine("- $cat: ${fin.money(cents)}") }
+            if (p == org.isoron.uhabits.ancla.finance.Period.MONTH) money.monthProjection(day)?.let { appendLine("A este ritmo, el mes cerrará con ${fin.money(it)} gastados.") }
+            appendLine("Ahorro de los últimos meses: " + money.monthlySavings(6).joinToString { (m, c) -> "$m ${fin.money(c)}" })
+        }.trim()
+    }
+
+    override fun savingsGoal(action: String, name: String?, amount: String?, by: String?): String {
+        val fin = org.isoron.uhabits.ancla.finance.FinanceStore
+        fun line(g: org.isoron.uhabits.ancla.finance.SavingsGoal) =
+            "«${g.name}»: ${fin.money(g.savedCents)} de ${fin.money(g.targetCents)} (${(g.progress * 100).toInt()} %)" +
+                (g.by?.let { ", para $it" } ?: "") + (g.monthlyNeeded()?.let { "; hay que apartar ${fin.money(it)} al mes" } ?: "") + if (g.done) " ¡lograda!" else ""
+        return when (action) {
+            "list" -> money.goals().ifEmpty { return "No hay metas de ahorro todavía." }.joinToString("\n") { line(it) }
+            "add" -> {
+                val cents = amount?.let { fin.parseAmount(it) } ?: return "¿Cuánto quiere ahorrar?"
+                val month = by?.let { runCatching { java.time.YearMonth.parse(it.take(7)) }.getOrNull() }
+                "Meta de ahorro creada: " + line(money.addGoal(name.orEmpty(), cents, month))
+            }
+            "contribute", "withdraw" -> {
+                val cents = amount?.let { fin.parseAmount(it) } ?: return "¿Cuánto?"
+                val g = money.contribute(name.orEmpty(), if (action == "withdraw") -cents else cents)
+                    ?: return "No encuentro la meta «$name». Metas: " + money.goals().joinToString { it.name }.ifEmpty { "ninguna" }
+                (if (action == "withdraw") "Saqué ${fin.money(cents)}. " else "Aparté ${fin.money(cents)}. ") + line(g)
+            }
+            "remove" -> money.removeGoal(name.orEmpty())?.let { "Meta quitada: «${it.name}»" } ?: "No encuentro la meta «$name»."
+            else -> "Acción desconocida: $action"
+        }
     }
 
     override fun setBudget(category: String, amount: String): String {

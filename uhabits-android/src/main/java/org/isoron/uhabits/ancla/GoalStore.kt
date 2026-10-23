@@ -47,7 +47,9 @@ data class Goal(
     val outcome: String = "",
     val obstacle: String = "",
     val plan: String = "",
-    val milestones: List<Milestone> = emptyList()
+    val milestones: List<Milestone> = emptyList(),
+    /** The life roadmap it belongs to (Carrera, Salud, Finanzas…); blank is "General". */
+    val roadmap: String = ""
 ) {
     /** Progress from the milestones when it has them, else the one set by hand. */
     val effectiveProgress: Int
@@ -79,7 +81,7 @@ class GoalStore(private val file: File) {
             ?: goals.firstOrNull { k.length >= 3 && (IdeaGraph.key(it.title).contains(k) || k.contains(IdeaGraph.key(it.title))) }
     }
 
-    fun add(title: String, year: Int, note: String = "", habit: String? = null): Goal = synchronized(LOCK) {
+    fun add(title: String, year: Int, note: String = "", habit: String? = null, roadmap: String? = null): Goal = synchronized(LOCK) {
         val clean = title.trim()
         require(clean.isNotEmpty()) { "La meta necesita un nombre" }
         require(year in MIN_YEAR..MAX_YEAR) { "Año fuera de rango: $year" }
@@ -88,8 +90,15 @@ class GoalStore(private val file: File) {
         val existing = goals.firstOrNull { IdeaGraph.key(it.title) == IdeaGraph.key(clean) }
         val goal = existing?.copy(year = year, note = note.ifBlank { existing.note }, habits = (existing.habits + listOfNotNull(habit?.trim()?.takeIf { it.isNotEmpty() })).distinct())
             ?: Goal(UUID.randomUUID().toString(), clean, year, note.trim(), habits = listOfNotNull(habit?.trim()?.takeIf { it.isNotEmpty() }), created = System.currentTimeMillis())
-        save(goals.filter { it.id != goal.id } + goal)
-        goal
+        val placed = roadmap?.takeIf { it.isNotBlank() }?.let { goal.copy(roadmap = roadmapName(it)) } ?: goal
+        save(goals.filter { it.id != placed.id } + placed)
+        placed
+    }
+
+    /** The roadmaps in use, in the order of [ROADMAPS] and then the user's own. */
+    fun roadmaps(): List<String> {
+        val used = all().map { it.roadmap.ifBlank { GENERAL } }.distinct()
+        return ROADMAPS.filter { it in used } + used.filter { it !in ROADMAPS }.sorted()
     }
 
     /** Changes the goal matching [title]; null when there is none. */
@@ -100,7 +109,8 @@ class GoalStore(private val file: File) {
         year: Int? = null,
         newTitle: String? = null,
         note: String? = null,
-        habit: String? = null
+        habit: String? = null,
+        roadmap: String? = null
     ): Goal? = synchronized(LOCK) {
         val target = find(title) ?: return@synchronized null
         year?.let { require(it in MIN_YEAR..MAX_YEAR) { "Año fuera de rango: $it" } }
@@ -110,7 +120,8 @@ class GoalStore(private val file: File) {
             note = note?.trim() ?: target.note,
             progress = (progress ?: if (done == true) 100 else target.progress).coerceIn(0, 100),
             done = done ?: ((progress != null && progress >= 100) || target.done),
-            habits = (target.habits + listOfNotNull(habit?.trim()?.takeIf { it.isNotEmpty() })).distinct()
+            habits = (target.habits + listOfNotNull(habit?.trim()?.takeIf { it.isNotEmpty() })).distinct(),
+            roadmap = roadmap?.takeIf { it.isNotBlank() }?.let { roadmapName(it) } ?: target.roadmap
         )
         save(load().map { if (it.id == target.id) changed else it })
         changed
@@ -177,7 +188,8 @@ class GoalStore(private val file: File) {
                 o.optString("outcome"), o.optString("obstacle"), o.optString("plan"),
                 if (steps == null) emptyList() else (0 until steps.length()).map { steps.getJSONObject(it) }.map {
                     Milestone(it.getString("id"), it.getString("title"), it.optString("due"), it.optBoolean("done"))
-                }
+                },
+                o.optString("roadmap")
             )
         }
     }
@@ -189,6 +201,7 @@ class GoalStore(private val file: File) {
                     .put("progress", g.progress).put("done", g.done).put("habits", JSONArray(g.habits)).put("created", g.created)
                     .put("outcome", g.outcome).put("obstacle", g.obstacle).put("plan", g.plan)
                     .put("milestones", JSONArray(g.milestones.map { JSONObject().put("id", it.id).put("title", it.title).put("due", it.due).put("done", it.done) }))
+                    .put("roadmap", g.roadmap)
             }
         )
         EncryptedStore.writeText(file, JSONObject().put("goals", arr).toString())
@@ -200,13 +213,25 @@ class GoalStore(private val file: File) {
         const val MIN_YEAR = 2000
         const val MAX_YEAR = 2100
 
+        /** Goals with no roadmap of their own. */
+        const val GENERAL = "General"
+
+        /** The life roadmaps offered first; the user can make their own. */
+        val ROADMAPS = listOf("Carrera", "Estudios", "Salud", "Finanzas", "Relaciones", "Crecimiento personal", "Aventuras", GENERAL)
+
+        /** The usual spelling of a roadmap ("salud" → "Salud"); a new one keeps the user's words. */
+        fun roadmapName(name: String): String {
+            val k = IdeaGraph.key(name)
+            return ROADMAPS.firstOrNull { IdeaGraph.key(it) == k } ?: name.trim().replaceFirstChar { it.uppercase() }.ifBlank { GENERAL }
+        }
+
         /** For Dexter: the roadmap in a few lines. */
         fun describe(goals: List<Goal>): String = if (goals.isEmpty()) {
             "El Camino está vacío: todavía no hay metas."
         } else {
             goals.groupBy { it.year }.toSortedMap().entries.joinToString("\n") { (year, list) ->
                 "$year: " + list.joinToString("; ") { g ->
-                    g.title + (if (g.done) " (lograda)" else " (${g.effectiveProgress} %)") +
+                    g.title + " [roadmap ${g.roadmap.ifBlank { GENERAL }}]" + (if (g.done) " (lograda)" else " (${g.effectiveProgress} %)") +
                         (if (g.habits.isNotEmpty()) ", la alimentan: ${g.habits.joinToString()}" else "") +
                         (if (g.note.isNotBlank()) ", nota: ${g.note}" else "") +
                         (if (g.outcome.isNotBlank()) ", resultado soñado: ${g.outcome}" else "") +

@@ -40,6 +40,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -95,7 +96,7 @@ import kotlin.math.roundToInt
  * picks up what Dexter adds while it is open.
  */
 @Composable
-fun CaminoScreen(store: GoalStore, openMenu: () -> Unit, onDexter: () -> Unit = {}) {
+fun CaminoScreen(store: GoalStore, openMenu: () -> Unit, onDexter: () -> Unit = {}, onAskDexter: (String) -> Unit = {}) {
     val c = Ancla.colors
     val scope = rememberCoroutineScope()
     var goals by remember { mutableStateOf(emptyList<Goal>()) }
@@ -116,11 +117,17 @@ fun CaminoScreen(store: GoalStore, openMenu: () -> Unit, onDexter: () -> Unit = 
     var openId by rememberSaveable { mutableStateOf<String?>(null) }
     var adding by remember { mutableStateOf(false) }
 
+    // Several roadmaps, one per area of life: the path shows the one chosen (or all of them).
+    var roadmap by rememberSaveable { mutableStateOf<String?>(null) }
+    val roadmaps = goals.map { it.roadmap.ifBlank { GoalStore.GENERAL } }.distinct()
+        .sortedBy { GoalStore.ROADMAPS.indexOf(it).let { i -> if (i < 0) 99 else i } }
+    val shown = goals.filter { roadmap == null || it.roadmap.ifBlank { GoalStore.GENERAL } == roadmap }
+
     val thisYear = remember { LocalDate.now().year }
     val years = (thisYear..thisYear + 3).toList()
     fun yearOf(g: Goal) = g.year.coerceIn(thisYear, thisYear + 3)
-    val byYear = years.associateWith { y -> goals.filter { yearOf(it) == y } }
-    val reached = if (goals.isEmpty()) 0.04f else (goals.sumOf { it.effectiveProgress } / (goals.size * 100f)).coerceIn(0.04f, 1f)
+    val byYear = years.associateWith { y -> shown.filter { yearOf(it) == y } }
+    val reached = if (shown.isEmpty()) 0.04f else (shown.sumOf { it.effectiveProgress } / (shown.size * 100f)).coerceIn(0.04f, 1f)
 
     val draw = remember { Animatable(0f) }
     LaunchedEffect(Unit) { draw.animateTo(1f, tween(1500, easing = FastOutSlowInEasing)) }
@@ -128,7 +135,7 @@ fun CaminoScreen(store: GoalStore, openMenu: () -> Unit, onDexter: () -> Unit = 
     val open = goals.firstOrNull { it.id == openId }
     if (open != null) {
         BackHandler { openId = null }
-        GoalDetail(open, store, onBack = { openId = null }, onEdit = { editing = open }, onDexter = onDexter, changed = { scope.launch { reload() } })
+        GoalDetail(open, store, onBack = { openId = null }, onEdit = { editing = open }, onDexter = onAskDexter, changed = { scope.launch { reload() } })
     } else
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).statusBarsPadding().padding(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 150.dp),
@@ -145,6 +152,12 @@ fun CaminoScreen(store: GoalStore, openMenu: () -> Unit, onDexter: () -> Unit = 
             stringResource(R.string.camino_hint), style = MaterialTheme.typography.bodyMedium, color = c.inkSoft,
             modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.card).padding(14.dp)
         )
+        if (roadmaps.size > 1 || roadmap != null) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
+                RoadmapChip(stringResource(R.string.camino_all), roadmap == null) { roadmap = null }
+                roadmaps.forEach { r -> RoadmapChip(r, roadmap == r) { roadmap = r } }
+            }
+        }
 
         val maxCards = byYear.values.maxOf { it.size }
         val sectionDp = max(170, 64 + maxCards * 76).dp
@@ -206,16 +219,18 @@ fun CaminoScreen(store: GoalStore, openMenu: () -> Unit, onDexter: () -> Unit = 
         GoalSheet(
             initial = editing,
             years = years,
+            roadmaps = roadmaps,
+            startRoadmap = roadmap,
             onDismiss = { adding = false; editing = null },
-            onSave = { title, year, progress, done ->
+            onSave = { title, year, progress, done, road ->
                 val old = editing
                 scope.launch {
                     withContext(Dispatchers.IO) {
                         runCatching {
                             if (old == null) {
-                                store.add(title, year)
+                                store.add(title, year, roadmap = road)
                             } else {
-                                store.update(old.title, progress = progress, done = done, year = year, newTitle = title)
+                                store.update(old.title, progress = progress, done = done, year = year, newTitle = title, roadmap = road)
                             }
                         }
                     }
@@ -233,6 +248,15 @@ fun CaminoScreen(store: GoalStore, openMenu: () -> Unit, onDexter: () -> Unit = 
             }
         )
     }
+}
+
+@Composable
+private fun RoadmapChip(label: String, on: Boolean, onClick: () -> Unit) {
+    val c = Ancla.colors
+    Text(
+        label, style = MaterialTheme.typography.labelLarge, color = if (on) c.onInk else c.inkSoft,
+        modifier = Modifier.clip(CircleShape).background(if (on) c.amber else c.card).combinedClickableCompat(Role.Tab, onClick).padding(horizontal = 16.dp, vertical = 10.dp)
+    )
 }
 
 @Composable
@@ -290,12 +314,15 @@ private fun GoalCard(goal: Goal, onClick: () -> Unit) {
 private fun GoalSheet(
     initial: Goal?,
     years: List<Int>,
+    roadmaps: List<String>,
+    startRoadmap: String?,
     onDismiss: () -> Unit,
-    onSave: (title: String, year: Int, progress: Int?, done: Boolean?) -> Unit,
+    onSave: (title: String, year: Int, progress: Int?, done: Boolean?, roadmap: String) -> Unit,
     onDelete: (Goal) -> Unit
 ) {
     val c = Ancla.colors
     var title by remember { mutableStateOf(initial?.title.orEmpty()) }
+    var roadmap by remember { mutableStateOf(initial?.roadmap?.ifBlank { null } ?: startRoadmap ?: GoalStore.GENERAL) }
     var year by remember { mutableIntStateOf(initial?.year?.coerceIn(years.first(), years.last()) ?: (years.first() + 1)) }
     var progress by remember { mutableFloatStateOf((initial?.progress ?: 0).toFloat()) }
     var done by remember { mutableStateOf(initial?.done ?: false) }
@@ -313,6 +340,17 @@ private fun GoalSheet(
                 placeholder = { Text(stringResource(R.string.camino_goal_hint)) },
                 shape = RoundedCornerShape(16.dp), colors = fieldColors, textStyle = MaterialTheme.typography.bodyLarge, modifier = Modifier.fillMaxWidth()
             )
+            Text(stringResource(R.string.camino_roadmap), style = MaterialTheme.typography.labelLarge, color = c.muted)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
+                (GoalStore.ROADMAPS + roadmaps).distinct().forEach { r ->
+                    val on = r == roadmap
+                    Text(
+                        r, style = MaterialTheme.typography.labelLarge, color = if (on) c.onInk else c.inkSoft,
+                        modifier = Modifier.clip(CircleShape).background(if (on) c.amber else c.ground).combinedClickableCompat(Role.RadioButton, { roadmap = r })
+                            .padding(horizontal = 14.dp, vertical = 10.dp)
+                    )
+                }
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 years.forEach { y ->
                     val on = y == year
@@ -340,7 +378,7 @@ private fun GoalSheet(
                 Text(
                     stringResource(R.string.camino_save), style = MaterialTheme.typography.labelLarge, color = c.onInk,
                     modifier = Modifier.clip(CircleShape).background(if (title.isBlank()) c.track else c.lilac)
-                        .combinedClickableCompat(Role.Button, { if (title.isNotBlank()) onSave(title.trim(), year, if (initial != null) progress.roundToInt() else null, if (initial != null) done else null) })
+                        .combinedClickableCompat(Role.Button, { if (title.isNotBlank()) onSave(title.trim(), year, if (initial != null) progress.roundToInt() else null, if (initial != null) done else null, roadmap) })
                         .padding(horizontal = 22.dp, vertical = 12.dp)
                 )
                 if (initial != null) {

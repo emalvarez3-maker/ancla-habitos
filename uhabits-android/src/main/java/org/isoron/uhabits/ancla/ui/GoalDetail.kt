@@ -55,6 +55,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.StrokeCap
@@ -78,9 +79,10 @@ private enum class WoopPart { OUTCOME, OBSTACLE, PLAN }
  * walk the user through the WOOP and add the milestones by voice.
  */
 @Composable
-fun GoalDetail(goal: Goal, store: GoalStore, onBack: () -> Unit, onEdit: () -> Unit, onDexter: () -> Unit, changed: () -> Unit) {
+fun GoalDetail(goal: Goal, store: GoalStore, onBack: () -> Unit, onEdit: () -> Unit, onDexter: (String) -> Unit, changed: () -> Unit) {
     val c = Ancla.colors
     val scope = rememberCoroutineScope()
+    var poster by remember { mutableStateOf(false) }
     var woopEditing by remember { mutableStateOf<WoopPart?>(null) }
     var newMilestone by remember { mutableStateOf("") }
     var newMonth by remember { mutableStateOf("") }
@@ -127,10 +129,16 @@ fun GoalDetail(goal: Goal, store: GoalStore, onBack: () -> Unit, onEdit: () -> U
         WoopCard("O", stringResource(R.string.woop_outcome), goal.outcome, stringResource(R.string.woop_outcome_hint)) { woopEditing = WoopPart.OUTCOME }
         WoopCard("O", stringResource(R.string.woop_obstacle), goal.obstacle, stringResource(R.string.woop_obstacle_hint)) { woopEditing = WoopPart.OBSTACLE }
         WoopCard("P", stringResource(R.string.woop_plan), goal.plan, stringResource(R.string.woop_plan_hint)) { woopEditing = WoopPart.PLAN }
-        if (!goal.hasWoop) {
+        val woopPrompt = stringResource(R.string.goal_woop_prompt, goal.title)
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            // Dexter opens already asking about this goal's WOOP, one question at a time.
             Text(
                 stringResource(R.string.goal_woop_with_dexter), style = MaterialTheme.typography.labelLarge, color = c.onInk,
-                modifier = Modifier.clip(CircleShape).background(c.lilac).combinedClickableCompat(Role.Button, onDexter).padding(horizontal = 18.dp, vertical = 12.dp)
+                modifier = Modifier.clip(CircleShape).background(c.lilac).combinedClickableCompat(Role.Button, { onDexter(woopPrompt) }).padding(horizontal = 18.dp, vertical = 12.dp)
+            )
+            Text(
+                stringResource(R.string.goal_poster), style = MaterialTheme.typography.labelLarge, color = c.onInk,
+                modifier = Modifier.clip(CircleShape).background(c.amber).combinedClickableCompat(Role.Button, { poster = true }).padding(horizontal = 18.dp, vertical = 12.dp)
             )
         }
 
@@ -173,6 +181,8 @@ fun GoalDetail(goal: Goal, store: GoalStore, onBack: () -> Unit, onEdit: () -> U
         }
         Text(stringResource(R.string.goal_dexter_hint, goal.title), style = MaterialTheme.typography.bodyMedium, color = c.inkSoft)
     }
+
+    if (poster) PosterDialog(goal) { poster = false }
 
     woopEditing?.let { part ->
         WoopSheet(
@@ -281,4 +291,60 @@ private fun WoopSheet(label: String, hint: String, initial: String, onDismiss: (
             )
         }
     }
+}
+
+/** The goal's roadmap picture, to save, share or set as the home screen's wallpaper. */
+@Composable
+private fun PosterDialog(goal: Goal, onDismiss: () -> Unit) {
+    val c = Ancla.colors
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
+    val bitmap = remember(goal) { RoadmapPoster.draw(goal) }
+    var note by remember { mutableStateOf<String?>(null) }
+    val saved = stringResource(R.string.goal_poster_saved)
+    val wallpaper = stringResource(R.string.goal_poster_wallpaper_set)
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
+        Column(
+            Modifier.fillMaxSize().background(c.ground).statusBarsPadding().padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("‹", style = MaterialTheme.typography.headlineMedium, color = c.ink, modifier = Modifier.clip(CircleShape).combinedClickableCompat(Role.Button, onDismiss).padding(horizontal = 14.dp, vertical = 2.dp))
+                Text(stringResource(R.string.goal_poster_title), style = MaterialTheme.typography.titleLarge, color = c.ink)
+            }
+            androidx.compose.foundation.Image(
+                bitmap.asImageBitmap(), contentDescription = goal.title,
+                modifier = Modifier.weight(1f).clip(RoundedCornerShape(22.dp))
+            )
+            note?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = c.amber) }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PosterButton(stringResource(R.string.goal_poster_save), c.card, c.ink) {
+                    scope.launch {
+                        val ok = withContext(Dispatchers.IO) { runCatching { RoadmapPoster.save(context, goal, bitmap) }.getOrNull() }
+                        if (ok != null) note = saved
+                    }
+                }
+                PosterButton(stringResource(R.string.goal_poster_share), c.card, c.ink) {
+                    scope.launch {
+                        val uri = withContext(Dispatchers.IO) { runCatching { RoadmapPoster.save(context, goal, bitmap) }.getOrNull() }
+                        uri?.let { RoadmapPoster.share(context, it) }
+                    }
+                }
+            }
+            PosterButton(stringResource(R.string.goal_poster_wallpaper), c.amber, c.onInk) {
+                scope.launch {
+                    val ok = withContext(Dispatchers.IO) { runCatching { RoadmapPoster.setWallpaper(context, bitmap) }.isSuccess }
+                    if (ok) note = wallpaper
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PosterButton(label: String, bg: androidx.compose.ui.graphics.Color, fg: androidx.compose.ui.graphics.Color, onClick: () -> Unit) {
+    Text(
+        label, style = MaterialTheme.typography.labelLarge, color = fg,
+        modifier = Modifier.clip(CircleShape).background(bg).combinedClickableCompat(Role.Button, onClick).padding(horizontal = 18.dp, vertical = 12.dp)
+    )
 }

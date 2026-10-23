@@ -51,6 +51,9 @@ internal fun dispatchTool(actions: AgentActions, name: String, input: JSONObject
             input.get("amount").toString(), input.optBoolean("income", false), opt("category"), input.optString("note"), opt("date")
         ).also { onEvent(AgentEvent.Action(it)) }
         "finance_summary" -> actions.financeSummary(opt("month"))
+        "set_goal_roadmap" -> actions.setGoalRoadmap(input.getString("goal"), input.getString("roadmap")).also { onEvent(AgentEvent.Action(it)) }
+        "finance_period" ->actions.financePeriod(opt("period"), opt("date"))
+        "savings_goal" -> actions.savingsGoal(input.getString("action"), opt("name"), opt("amount"), opt("by")).also { onEvent(AgentEvent.Action(it)) }
         "save_checkin" -> actions.saveCheckIn(input.getString("emotion"), opt("body"), opt("note")).also { onEvent(AgentEvent.Action(it)) }
         "save_reflection" -> actions.saveReflection(input.getString("answer")).also { onEvent(AgentEvent.Action(it)) }
         "mail_inbox" -> actions.mailInbox(opt("account"), opt("query"), input.optInt("max", 0).takeIf { it > 0 })
@@ -362,6 +365,34 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
                     )
                 )
                 .put(function("consciousness_summary", "The user's Consciencia: today's question, their wheel, last pause, streak, examen and the patterns in their own records.", JSONObject(), emptyList()))
+                .put(
+                    function(
+                        "set_goal_roadmap",
+                        "Put a Camino goal in one of the user's life roadmaps (Carrera, Estudios, Salud, Finanzas, Relaciones, Crecimiento personal, Aventuras, or a name of their own), each shown as its own path.",
+                        JSONObject().put("goal", prop("string", "The goal's title")).put("roadmap", prop("string", "The roadmap's name")),
+                        listOf("goal", "roadmap")
+                    )
+                )
+                .put(
+                    function(
+                        "finance_period",
+                        "Money for a day, a week, a month or a year: spent, income, saved and savings rate, daily average, by category, the month's projection and the last months' savings.",
+                        JSONObject().put("period", prop("string", "day, week, month or year")).put("date", prop("string", "Any day inside the period, YYYY-MM-DD; today if null", nullable = true)),
+                        listOf("period")
+                    )
+                )
+                .put(
+                    function(
+                        "savings_goal",
+                        "The user's savings goals: add one (name, amount, by month), contribute or withdraw money set aside for it, remove it, or list them with progress and what to save each month.",
+                        JSONObject()
+                            .put("action", prop("string", "add, contribute, withdraw, remove or list"))
+                            .put("name", prop("string", "What it is for: Viaje, Laptop, Fondo de emergencia", nullable = true))
+                            .put("amount", prop("string", "Target for add, or the amount set aside or taken out", nullable = true))
+                            .put("by", prop("string", "For add: the month to reach it, YYYY-MM", nullable = true)),
+                        listOf("action")
+                    )
+                )
                 .put(function("finance_summary", "The month's money: spent, income, balance, by category, with budgets.", JSONObject().put("month", prop("string", "YYYY-MM, this month if null", nullable = true)), emptyList()))
                 .put(
                     function(
