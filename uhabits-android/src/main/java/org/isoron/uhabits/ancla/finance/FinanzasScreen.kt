@@ -113,10 +113,10 @@ private class FinView(
  * budgets. Picks up what Dexter adds while it is open.
  */
 @Composable
-fun FinanzasScreen(store: FinanceStore, openMenu: () -> Unit) {
+fun FinanzasScreen(store: FinanceStore, openMenu: () -> Unit, startOnSavings: Boolean = false) {
     val c = Ancla.colors
     val scope = rememberCoroutineScope()
-    var tab by rememberSaveable { mutableStateOf(FinTab.RESUMEN) }
+    var tab by rememberSaveable { mutableStateOf(if (startOnSavings) FinTab.AHORRO else FinTab.RESUMEN) }
     var period by rememberSaveable { mutableStateOf(Period.MONTH) }
     var anchor by remember { mutableStateOf(LocalDate.now()) }
     var view by remember { mutableStateOf<FinView?>(null) }

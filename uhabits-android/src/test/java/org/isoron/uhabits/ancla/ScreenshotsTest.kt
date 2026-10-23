@@ -40,6 +40,7 @@ import org.isoron.uhabits.ancla.ui.CaminoScreen
 import org.isoron.uhabits.ancla.ui.DexterHome
 import org.isoron.uhabits.ancla.ui.DexterOwl
 import org.isoron.uhabits.ancla.ui.OwlState
+import org.isoron.uhabits.ancla.ui.RoadmapPoster
 import org.isoron.uhabits.ancla.ui.Space
 import org.isoron.uhabits.ancla.ui.TodayScreen
 import org.isoron.uhabits.core.models.AutomaticityPhase
@@ -128,9 +129,40 @@ class ScreenshotsTest {
         goals.addMilestone("Terminar mi carrera", "Aprobar el semestre", "$year-12")
         goals.addMilestone("Terminar mi carrera", "Tesis aprobada", "${year + 1}-06")
         goals.setMilestoneDone("Terminar mi carrera", "Aprobar el semestre")
-        goals.add("Correr una media maratón", year)
-        goals.add("Inglés C1 certificado", year + 2)
+        goals.add("Correr una media maratón", year, roadmap = "Salud")
+        goals.add("Inglés C1 certificado", year + 2, roadmap = "Estudios")
+        goals.update("Terminar mi carrera", roadmap = "Carrera")
         shoot("camino") { DexterHome(onDexter = {}, onBranch = {}, start = Space.CAMINO) { _, menu, _ -> CaminoScreen(goals, menu) } }
+    }
+
+    @Test
+    fun ahorro() {
+        val money = FinanceStore(File(dir, "finance.json"))
+        val month = LocalDate.now().withDayOfMonth(1)
+        listOf(5L to 52000L, 4L to 48000L, 3L to 61000L, 2L to 39000L, 1L to 57000L, 0L to 44000L).forEach { (back, spent) ->
+            val day = month.minusMonths(back)
+            money.add(85000, true, "Sueldo", "Pasantía", day)
+            money.add(spent, false, "Casa", "Gastos del mes", day.plusDays(1))
+        }
+        money.addGoal("Viaje a Galápagos", 120000, java.time.YearMonth.now().plusMonths(5))
+        money.contribute("Viaje", 48000)
+        money.addGoal("Fondo de emergencia", 300000, java.time.YearMonth.now().plusMonths(12))
+        money.contribute("Fondo", 90000)
+        shoot("ahorro") { DexterHome(onDexter = {}, onBranch = {}, start = Space.FINANZAS) { _, menu, _ -> FinanzasScreen(money, menu, startOnSavings = true) } }
+    }
+
+    @Test
+    fun roadmap() {
+        val goals = GoalStore(File(dir, "goals.json"))
+        val year = LocalDate.now().year
+        goals.add("Correr una media maratón", year + 1, roadmap = "Salud")
+        goals.setWoop("Correr una media maratón", "Cruzar la meta de los 21 km sintiéndome fuerte y orgulloso", "Dejar de entrenar cuando llueve", "Si llueve, hago 30 minutos de cardio en casa")
+        goals.addMilestone("Correr una media maratón", "Correr 5 km sin parar", "$year-12")
+        goals.addMilestone("Correr una media maratón", "Mi primera carrera de 10 km", "${year + 1}-03")
+        goals.addMilestone("Correr una media maratón", "Fondo de 18 km", "${year + 1}-08")
+        goals.setMilestoneDone("Correr una media maratón", "Correr 5 km sin parar")
+        val bitmap = RoadmapPoster.draw(goals.all().single())
+        File(out, "roadmap.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 
     @Test

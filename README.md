@@ -7,7 +7,7 @@
   <img alt="Jetpack Compose" src="https://img.shields.io/badge/Jetpack%20Compose-Material%203-9D7BFF?style=for-the-badge&logo=jetpackcompose&logoColor=white&labelColor=0E0817"/>
   <img alt="Android" src="https://img.shields.io/badge/Android-9%2B-3FBF95?style=for-the-badge&logo=android&logoColor=white&labelColor=0E0817"/>
   <img alt="AI" src="https://img.shields.io/badge/AI-Gemini%20%C2%B7%20Claude-FFB627?style=for-the-badge&logo=googlegemini&logoColor=white&labelColor=0E0817"/>
-  <img alt="Tests" src="https://img.shields.io/badge/tests-175%20passing-3FBF95?style=for-the-badge&labelColor=0E0817"/>
+  <img alt="Tests" src="https://img.shields.io/badge/tests-188%20passing-3FBF95?style=for-the-badge&labelColor=0E0817"/>
   <img alt="License" src="https://img.shields.io/badge/license-GPLv3-C9B8FF?style=for-the-badge&labelColor=0E0817"/>
 </p>
 
@@ -25,7 +25,11 @@ It is a personal project that spans product design, UX, a real-time voice pipeli
   <img src="docs/images/consciencia.png" width="24%" alt="Awareness: the weekly wheel, the day's question and practices"/>
   <img src="docs/images/finanzas.png" width="24%" alt="Money: spending by category with budgets"/>
 </p>
-<p align="center"><sub>Hoy · Camino · Consciencia · Finanzas: real screens, rendered from the app's code with demo data, in its dark theme.</sub></p>
+<p align="center">
+  <img src="docs/images/ahorro.png" width="24%" alt="Savings: what was kept each month and savings goals"/>
+  <img src="docs/images/roadmap.png" width="24%" alt="A goal's roadmap picture, to set as wallpaper"/>
+</p>
+<p align="center"><sub>Hoy · Camino · Consciencia · Finanzas · Ahorro · a roadmap picture: real screens, rendered from the app's code with demo data, in its dark theme.</sub></p>
 
 ---
 
@@ -37,7 +41,8 @@ It is a personal project that spans product design, UX, a real-time voice pipeli
 
 ### 🦉 A voice assistant that lives on the phone
 - **“Oye Dexter” wake word, offline** (Vosk), with a loudness gate, word-confidence checks and an AI double-check, so a TV never wakes it.
-- **Talks like a person**: live transcript while you speak, smart end-of-turn that waits while you think (“quiero que… eh…”), streamed speech that starts before the answer is finished.
+- **Talks like a person**: live transcript while you speak, a big **Send** button with a ring that fills during pauses (it never cuts you off), streamed speech that starts before the answer is finished, and you can **talk over it** to interrupt.
+- **Never stuck**: reminders and everyday commands are understood **offline**, so they work with no internet or AI quota; when the AI is saturated it retries several models and says so out loud.
 - **Works everywhere**: a floating card over other apps, a Quick Settings tile, autostart on boot, and it gives the mic away to calls and WhatsApp voice notes.
 - **60+ tools** through Gemini or Claude function calling: tasks, habits, goals, money, mail, notes, books, alarms, the flashlight, apps and phone settings.
 
@@ -48,6 +53,7 @@ It is a personal project that spans product design, UX, a real-time voice pipeli
 - Built on habit research: **implementation intentions** (“after coffee, I meditate”), a **two-minute version** for hard days, **key days** (missing twice is what breaks a habit) and a weekly **automaticity** self-report (SRBAI).
 - **Habits and to-dos kept apart**: what you repeat every day vs. what you do once.
 - **Duolingo-style check-ins** four times a day, only when something is pending, each ending in a question that brings attention back to the present.
+- **Reminders that can't be missed**: a full-screen alarm that rings and vibrates until *Done* or *In 10 min* (on a locked phone it hides what the task is), and **deadlines** that come up the evening before and that morning.
 - Dexter the owl grows from seed to tree as your habits take hold.
 
 </td>
@@ -65,8 +71,8 @@ It is a personal project that spans product design, UX, a real-time voice pipeli
 <td valign="top">
 
 ### 🗺️ Life admin, by voice
-- **Camino**: a three-year roadmap where each goal gets a **WOOP** plan (Oettingen) and milestones.
-- **Finanzas**: “gasté 12 en almuerzo” files an expense; categories, budgets and a monthly summary.
+- **Camino**: three-year **roadmaps**, one per area of life (career, health, money…), where each goal gets a **WOOP** plan (Oettingen) built with Dexter and milestones, and a **roadmap picture** to set as your wallpaper.
+- **Finanzas**: “gasté 12 en almuerzo” files an expense; by **day, week, month or year**, budgets, what you **saved** each month and **savings goals** that tell you how much to set aside.
 - **Correo**: Gmail and a university Google account; Dexter summarizes the inbox, drafts replies in your voice and cleans newsletters by sender.
 - A daily line of **wisdom** from classic thinkers, reading and study tools, and more.
 
@@ -121,7 +127,7 @@ flowchart LR
 | Android | Foreground microphone service, overlay window, Quick Settings tile, accessibility service, notification listener, AlarmManager, per-app language |
 | Data | Loop's SQLite habit engine (SQLCipher) plus Keystore-encrypted JSON stores with a version-checked cache |
 | Integrations | Gmail REST API with Google Identity authorization |
-| Quality | 175 unit tests (JUnit, kotlinx-coroutines-test), Robolectric renders of the real screens |
+| Quality | 188 unit tests (JUnit, kotlinx-coroutines-test), Robolectric renders of the real screens |
 
 The Dexter code lives in [`uhabits-android/src/main/java/org/isoron/uhabits/ancla`](uhabits-android/src/main/java/org/isoron/uhabits/ancla): about 25,000 lines of Kotlin in 86 files, with tests in [`src/test/.../ancla`](uhabits-android/src/test/java/org/isoron/uhabits/ancla).
 
