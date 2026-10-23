@@ -19,6 +19,7 @@
 
 package org.isoron.uhabits.ancla.assistant
 
+import android.util.Log
 import android.annotation.SuppressLint
 import android.media.AudioFormat
 import android.media.AudioRecord
@@ -88,6 +89,7 @@ class BargeIn(private val onInterrupt: () -> Unit) {
                 var baseline = MIN_LEVEL / 3.0
                 var frames = 0
                 var loud = 0
+                var peak = 0.0
                 while (running) {
                     val n = record.read(frame, 0, FRAME)
                     if (n <= 0) continue
@@ -95,17 +97,26 @@ class BargeIn(private val onInterrupt: () -> Unit) {
                     for (i in 0 until n) sum += frame[i].toDouble() * frame[i]
                     val level = sqrt(sum / n)
                     frames++
+                    peak = max(peak, level)
                     val threshold = max(MIN_LEVEL, baseline * RATIO)
+                    if (frames % 50 == 0) {
+                        // Once a second: how loud the room, Dexter's echo and the user are, to tune it.
+                        Log.d("AnclaVoice", "barge-in: peak ${peak.toInt()}, echo ${baseline.toInt()}, needs ${threshold.toInt()}")
+                        peak = 0.0
+                    }
                     if (frames > WARMUP_FRAMES && level > threshold) {
                         if (++loud >= HOLD_FRAMES) {
+                            Log.d("AnclaVoice", "barge-in: the user talked over Dexter")
                             running = false
                             main.post(onInterrupt)
                             break
                         }
                     } else {
-                        loud = 0
+                        // Speech has gaps between syllables: a quiet frame takes a step back instead of
+                        // starting over, so a real sentence interrupts and a click still doesn't.
+                        loud = max(0, loud - 1)
                         // Only quiet frames teach the baseline, so the user's voice never raises it.
-                        baseline += (level - baseline) * (if (frames <= WARMUP_FRAMES) 0.3 else 0.05)
+                        if (level <= threshold) baseline += (level - baseline) * (if (frames <= WARMUP_FRAMES) 0.3 else 0.05)
                     }
                 }
             } catch (_: Exception) {
@@ -135,10 +146,10 @@ class BargeIn(private val onInterrupt: () -> Unit) {
         /** The first 300 ms only learn how loud Dexter sounds through the canceller. */
         const val WARMUP_FRAMES = 15
         /** About a quarter of a second of real speech: a cough or a click doesn't interrupt. */
-        const val HOLD_FRAMES = 12
+        const val HOLD_FRAMES = 10
         /** How much louder than the leaked echo the user has to be. */
-        const val RATIO = 3.0
-        /** Floor for the threshold, in 16-bit RMS: normal speech at arm's length is well above it. */
-        const val MIN_LEVEL = 900.0
+        const val RATIO = 2.5
+        /** Floor for the threshold, in 16-bit RMS: the Pixel 7 hears the user at arm's length around 600. */
+        const val MIN_LEVEL = 400.0
     }
 }

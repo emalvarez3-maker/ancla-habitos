@@ -63,7 +63,7 @@ internal class GeminiVoice(
 
     /** Playback speed, applied when a reply starts; the pitch stays the same. */
     @Volatile var speed = 1f
-    private var useLanguage = true
+    private var useMetadata = true
     private var useNewVoiceShape = true
 
     private val track: AudioTrack = AudioTrack.Builder()
@@ -157,9 +157,10 @@ internal class GeminiVoice(
     }
 
     private fun body(voice: String, text: String, style: String): JSONObject {
-        // Only Dexter's own words go in: a style instruction in the text was sometimes read out loud
-        // ("deep baritone voice…") instead of followed. The accent comes from the language code.
+        // Dexter's words, with the delivery in its own field: never in the text, where it was read
+        // out loud ("deep baritone voice…"). This is the request the user's favourite voice came from.
         val part = JSONObject().put("text", text)
+        if (useMetadata) part.put("speechMetadata", JSONObject().put("style", style))
         val voiceConfig = if (useNewVoiceShape) {
             JSONObject().put("voice", voice)
         } else {
@@ -171,7 +172,7 @@ internal class GeminiVoice(
                 "generationConfig",
                 JSONObject()
                     .put("responseModalities", JSONArray().put("AUDIO"))
-                    .put("speechConfig", JSONObject().put("voiceConfig", voiceConfig).apply { if (useLanguage) put("languageCode", LANGUAGE) })
+                    .put("speechConfig", JSONObject().put("voiceConfig", voiceConfig))
             )
     }
 
@@ -216,7 +217,7 @@ internal class GeminiVoice(
                     val err = conn.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
                     Log.w(TAG, "TTS HTTP 400")
                     when {
-                        useLanguage -> useLanguage = false
+                        useMetadata -> useMetadata = false
                         useNewVoiceShape -> useNewVoiceShape = false
                         else -> throw IllegalStateException("HTTP 400")
                     }
@@ -273,8 +274,6 @@ internal class GeminiVoice(
             "deadpan comic timing on the sarcastic lines, brisk and fluent pace, quicker than everyday conversation, " +
             "with short pauses. Never robotic, never flat, never cheerful-salesman."
 
-        /** Latin American Spanish: Dexter's accent, whatever the voice. */
-        const val LANGUAGE = "es-US"
 
         /** Guided meditation: no wit here, only calm. */
         const val GUIDE_STYLE = "Meditation guide: soft, warm, deep male voice, slow and unhurried, gentle and grounded, " +

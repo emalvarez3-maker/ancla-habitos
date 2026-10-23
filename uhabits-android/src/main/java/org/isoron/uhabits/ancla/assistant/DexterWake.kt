@@ -48,7 +48,8 @@ import kotlin.math.sqrt
 class DexterWake(
     private val model: Model,
     private val onRequest: (wav: ByteArray) -> Unit,
-    private val onWakeOnly: () -> Unit,
+    /** The name alone; with the confidence Vosk gave it, when known. */
+    private val onWakeOnly: (nameConfidence: Double?) -> Unit,
     private val onLevel: (Float) -> Unit = {},
     private val onSilenced: () -> Unit = {},
     /** What the user has said so far, live, while a request is being recorded. */
@@ -116,7 +117,7 @@ class DexterWake(
                 recognizer.close()
                 if (stopped) return
                 Log.d(TAG, if (request != null) "request heard: ${request.size * 100} ms" else "nobody spoke")
-                if (request != null) onRequest(wav(request)) else onWakeOnly()
+                if (request != null) onRequest(wav(request)) else onWakeOnly(null)
                 return
             }
             val ring = ArrayDeque<ShortArray>()
@@ -176,7 +177,7 @@ class DexterWake(
                 recognizer.close()
                 if (stopped) return
                 Log.d(TAG, (if (request != null) "request said with the name: ${request.size * 100} ms" else "name only") + ", confidence " + (nameConf?.let { "%.2f".format(it) } ?: "?"))
-                if (request != null) onRequest(wav(request)) else onWakeOnly()
+                if (request != null) onRequest(wav(request)) else onWakeOnly(nameConf)
                 return
             }
         } catch (e: Exception) {
@@ -300,6 +301,9 @@ class DexterWake(
 
         /** Below this Vosk was guessing: the sound was forced onto "dexter" by the small grammar. */
         const val MIN_NAME_CONFIDENCE = 0.75
+
+        /** A name this sure (and loud enough) is the user calling: what follows needs no AI check. */
+        const val SURE_NAME_CONFIDENCE = 0.95
 
         /**
          * A voice toward the phone, above the room: 3.5× the noise and at least this loud. The voice

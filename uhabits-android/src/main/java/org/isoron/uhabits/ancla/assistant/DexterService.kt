@@ -333,7 +333,7 @@ class DexterService : Service() {
         val listener = DexterWake(
             m,
             onRequest = { wav -> main.post { wakeEnded(); onRequestWithName(wav) } },
-            onWakeOnly = { main.post { wakeEnded(); onWake() } },
+            onWakeOnly = { conf -> main.post { wakeEnded(); onWake(conf) } },
             onSilenced = {
                 Log.w(TAG, "microphone silenced by Android")
                 main.post { regainMicrophone() }
@@ -441,7 +441,7 @@ class DexterService : Service() {
     }
 
     /** "Oye Dexter" and a pause: a tone, then Dexter listens for the request. */
-    private fun onWake() {
+    private fun onWake(nameConfidence: Double? = null) {
         if (!canStart()) return
         Log.d(TAG, "Oye Dexter (service)")
         inConversation = true
@@ -450,7 +450,10 @@ class DexterService : Service() {
         overlay.show(OwlState.LISTENING)
         runCatching { ToneGenerator(AudioManager.STREAM_MUSIC, 70).startTone(ToneGenerator.TONE_PROP_ACK, 160) }
         // What comes after the tone may be a TV after a false wake: the AI checks it was for Dexter.
-        checkNextRequest = true
+        // Not when the name was heard clearly (and loud enough to pass the gate): that check was
+        // throwing away the user's real requests, so a sure name is trusted.
+        checkNextRequest = nameConfidence == null || nameConfidence < DexterWake.SURE_NAME_CONFIDENCE
+        Log.d(TAG, if (checkNextRequest) "the next request is checked" else "name was clear: the next request goes straight in")
         main.postDelayed({ listenForRequest() }, 300)
     }
 
@@ -602,7 +605,7 @@ class DexterService : Service() {
                     handleRequest(wav, afterWake = check, nameInAudio = false)
                 }
             },
-            onWakeOnly = { main.post { requestListener = null; checkNextRequest = false; if (inConversation) endConversation() } },
+            onWakeOnly = { _ -> main.post { requestListener = null; checkNextRequest = false; if (inConversation) endConversation() } },
             onLevel = { overlay.level(it) },
             // Your words appear on the card as you say them, like Claude's voice mode.
             onPartial = { text -> if (text.isNotBlank()) overlay.show(OwlState.LISTENING, youSaid = text) },
