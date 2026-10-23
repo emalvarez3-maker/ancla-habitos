@@ -629,6 +629,8 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
         var model = nextModel()
         var produced = false
         var emptyRetried = false
+        // What the last tools said, the answer of last resort when the model then says nothing.
+        var lastResults = emptyList<String>()
         repeat(MAX_STEPS) {
             val body = JSONObject()
                 .put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", instructions))))
@@ -701,19 +703,21 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
             if (calls.isEmpty()) {
                 if (finishReason == "SAFETY" && text.isEmpty()) throw AgentException(AgentException.Kind.REFUSED, "safety")
                 if (text.isEmpty() && !produced) {
-                    // An empty answer (a model that only "thought") left the user in silence: try the
-                    // next model once, then at least ask them to say it again.
+                    // An empty answer (a model that only "thought") left the user in silence. Asked once
+                    // more of the same model: another one can't continue this one's tool calls.
                     history.remove(history.length() - 1)
                     if (!emptyRetried) {
                         emptyRetried = true
-                        model = MODELS[(MODELS.indexOf(model) + 1) % MODELS.size]
-                        withoutThoughts(history)
-                        android.util.Log.w("AnclaVoice", "empty answer, asking $model instead")
+                        android.util.Log.w("AnclaVoice", "empty answer, asking $model again")
                         return@repeat
                     }
-                    android.util.Log.w("AnclaVoice", "empty answer again: asking the user to repeat")
-                    onEvent(AgentEvent.Reply(EMPTY_REPLY))
-                    history.put(JSONObject().put("role", "model").put("parts", JSONArray().put(JSONObject().put("text", EMPTY_REPLY))))
+                    // Still nothing: what the tools did is the answer ("Tarea creada…"), or else a
+                    // request to say it again.
+                    val said = lastResults.joinToString(". ") { r -> r.trim().trimEnd('.') }.takeIf { it.isNotBlank() && lastResults.none { r -> PhoneSafety.asksConfirmation(r) } }?.plus(".")
+                        ?: EMPTY_REPLY
+                    android.util.Log.w("AnclaVoice", "empty answer again: " + if (said == EMPTY_REPLY) "asking the user to repeat" else "saying what the tools did")
+                    onEvent(AgentEvent.Reply(said))
+                    history.put(JSONObject().put("role", "model").put("parts", JSONArray().put(JSONObject().put("text", said))))
                 }
                 return
             }
@@ -730,6 +734,7 @@ class GeminiAgent(private val apiKey: String, private val actions: AgentActions)
                 responses.put(JSONObject().put("functionResponse", fr))
             }
             history.put(JSONObject().put("role", "user").put("parts", responses))
+            lastResults = results.toList()
             // A simple action that worked ("linterna encendida") needs no second trip to the model just to
             // say so: that trip took 5 to 11 s. The tool's own words are the answer.
             val said = quickAnswer(text, failed, calls.map { it.optString("name") }, results)

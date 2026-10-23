@@ -83,6 +83,14 @@ class AnclaActions(private val context: Context) : AgentActions {
         val minute = time?.let { t ->
             val p = t.split(":").mapNotNull { it.toIntOrNull() }
             if (p.size == 2 && p[0] in 0..23 && p[1] in 0..59) p[0] * 60 + p[1] else null
+        }?.let { m ->
+            // "En un minuto" said at 2:40:57 comes as 2:41, seconds away: the next minute instead,
+            // so it rings when the user expects it and not at once.
+            val now = java.time.LocalTime.now()
+            val today = given == null || given == getToday()
+            val current = now.hour * 60 + now.minute
+            // The current minute itself would count as already gone, and move the reminder to tomorrow.
+            if (today && (m == current || (m == current + 1 && now.second >= 30))) (current + if (now.second >= 30) 2 else 1).coerceAtMost(23 * 60 + 59) else m
         }
         // A time said out loud means the user wants to hear about it then, whatever the model passed.
         val reminder = remind || minute != null
